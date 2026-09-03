@@ -178,58 +178,75 @@ def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
 _PUNCT = re.compile(r"[\W_]+")
 
 
-def _fold_run(run: str) -> str:
-    """One run of non-word characters, reduced to what a title match may turn on.
+def _fold_run(run: str, *, fold_marks: bool) -> str:
+    """One run of non-word characters, reduced to what a comparison may turn on.
 
     Marks are `\\W`, so the punctuation pass would turn them into spaces — and a
     mark sits INSIDE a word (`Sigur Rós` decomposes to `sigur ro` + mark + `s`),
     so a space there splits the word in half. They are handled by CATEGORY,
-    which is the whole point of the r7 fix: `unicodedata.combining()` returns 0
-    for spacing and enclosing marks, so a combining-class test silently covers
-    Latin and misses the scripts that need it most.
+    never by `unicodedata.combining()`, which returns 0 for spacing (Mc) and
+    enclosing (Me) marks and so silently covers Latin while missing the scripts
+    that need it most.
 
-      * Mn (nonspacing) and Me (enclosing) are DELETED. These are the optional
-        ones — a Latin accent, Hebrew niqqud, Arabic harakat — printed on one
-        page and left off the next, which is exactly the difference that must
-        not read as a different title.
-      * Mc (spacing combining) is KEPT, because it is not optional: a
-        Devanagari or Tamil vowel sign carries a vowel, and deleting it would
-        merge words that are genuinely different (`हिंदी` and `हदी`).
-      * Everything else — real punctuation and whitespace — collapses to ONE
-        space, so a multi-word title still matches as a whole-word run.
+    `fold_marks` is the whole argument of round 9, and it exists because the two
+    callers need OPPOSITE strictness:
+
+      * fold_marks=False (identity, `normalize_title`) — every mark is KEPT,
+        inline, as part of the word. Nothing is discarded, so no two visibly
+        different titles can collapse into one.
+      * fold_marks=True (the absence guard, `title_still_on_page`) — Mn and Me
+        are DELETED and Mc is kept.
+
+    Everything else — real punctuation and whitespace — collapses to ONE space
+    either way, so a multi-word title still matches as a whole-word run.
     """
-    kept = [ch for ch in run if unicodedata.category(ch) == "Mc"]
+    kept = [ch for ch in run
+            if unicodedata.category(ch)[0] == "M"
+            and (not fold_marks or unicodedata.category(ch) == "Mc")]
     spaced = any(unicodedata.category(ch)[0] != "M" for ch in run)
     return "".join(kept) + (" " if spaced else "")
 
 
-def _reduce(text: str) -> str:
-    """Case, accents, punctuation and spacing removed; letters and digits kept,
-    in every script.
+def _reduce(text: str, *, fold_marks: bool) -> str:
+    """Case, punctuation and spacing removed; letters and digits kept, in every
+    script. Marks are kept or folded away according to `fold_marks`.
 
-    Decompose first (NFKD splits an accent off its base letter as its own
-    combining mark), then let `_fold_run` above decide what each run of
-    non-letters means. `Beyoncé` and `Beyonce` become one string; so does a
-    Hebrew or Arabic title written with and without its marks.
+    NFKD runs in BOTH modes, so a precomposed `é` and a decomposed `e` + mark
+    compare equal — those are one character written two ways, which is an
+    encoding difference and never a spelling one.
 
-    This is the second attempt at it, and openai's seats blocked PR #214 both
-    times. At r6 the reduction DELETED every non-ASCII letter, so `Beyoncé`
-    reduced to `beyonc` while a page's `Beyonce` reduced to `beyonce`. At r7 the
-    fix covered only the combining RANGES I had listed — Latin, Greek,
-    Cyrillic — so Hebrew, Arabic and Indic marks still became spaces and split a
-    word in two. Both versions failed the same way: title_still_on_page answers
-    a confident False about a page naming the event in plain sight, and a
-    confident False is the one answer that can license a cancellation.
-    Enumerating what I could think of was the mistake; asking Unicode what a
-    mark is, is the fix.
+    THE TWO MODES ARE THE R9 FIX, and the third attempt at this line. Both
+    earlier versions asked one reduction to serve two callers whose failure
+    modes point in opposite directions:
+
+      * The ABSENCE guard's dangerous answer is a false NO. `Beyoncé` and
+        `Beyonce` failing to match makes a page that is naming the event read as
+        silent, and with a gated bracket that CANCELS a live row. Folding marks
+        away is the safe direction here: a false yes merely keeps the row.
+      * IDENTITY's dangerous answer is a false YES. Two same-minute listings
+        whose titles differ by one mark are two events, and treating them as one
+        writes an end time onto the wrong published row. openai/absence-only
+        raised exactly this at r9: `_fold_run` called every Mn "optional", but
+        the Devanagari VIRAMA and NUKTA are Mn and are meaning-bearing —
+        `नुक्कड़` and `नुक्कड` are different words and were collapsing to one.
+        Keeping every mark is the safe direction here: a false no refuses.
+
+    So the fold is not a property of the text, it is a property of the QUESTION.
+    Asking it once and reusing the answer is what produced three rounds of
+    findings on one function.
     """
     folded = unicodedata.normalize("NFKD", text.casefold())
-    return _PUNCT.sub(lambda m: _fold_run(m.group()), folded).strip()
+    return _PUNCT.sub(
+        lambda m: _fold_run(m.group(), fold_marks=fold_marks), folded).strip()
 
 
 def normalize_title(title: Optional[str]) -> Optional[str]:
-    """A title reduced to what a match may turn on: case, accents, punctuation
-    and spacing are noise a CMS changes on its own; words are not.
+    """A title reduced to what an IDENTITY may turn on: case, punctuation and
+    spacing are noise a CMS changes on its own; letters and their marks are not.
+
+    Accents are NOT folded here, and that is deliberate (r9). This value decides
+    whether one listing IS another, and a wrong yes writes to a published row.
+    The absence guard folds instead — see `_reduce`.
 
     None for anything that reduces to nothing, INCLUDING an empty or missing
     title — two rows that both lack a title have not been shown to be the same
@@ -239,7 +256,7 @@ def normalize_title(title: Optional[str]) -> Optional[str]:
     """
     if not title:
         return None
-    return _reduce(title.strip()) or None
+    return _reduce(title.strip(), fold_marks=False) or None
 
 
 def _same_minute(a: Optional[datetime], b: Optional[datetime]) -> bool:
@@ -425,10 +442,10 @@ def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optio
     published row with no title to look for — and the caller treats that as
     "cannot tell", never as absence.
     """
-    needle = normalize_title(title)
+    needle = _reduce(title, fold_marks=True) if title else None
     if not needle or not page_text:
         return None
-    haystack = _reduce(_visible_text(page_text))
+    haystack = _reduce(_visible_text(page_text), fold_marks=True)
     return f" {needle} " in f" {haystack} "
 
 

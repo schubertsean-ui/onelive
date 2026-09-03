@@ -66,5 +66,17 @@ out. An unbracketed absence keeps.
 
 Unlike the record this overrules, the path is built: `worker/listing_update.py`
 adjudicates and writes, `worker/orchestrator.py` calls it for the
-event-proximity queue only, and every mutation carries a `candidate_evidence`
-row and an `audit_log` row in the same transaction as the change.
+event-proximity queue only, and every mutation carries its evidence in the same
+transaction as the change.
+
+CORRECTED 2026-09-03 (openai/attacker-smuggle nit, PR #214 r9 — the seat
+APPROVED and flagged this as a doc contradiction rather than a defect): this
+paragraph said every mutation carries a `candidate_evidence` row AND an
+`audit_log` row. That is true of an UPDATE and false of the cancellation this
+very record authorises. A 404 has no page and no candidate, so there is nothing
+for a candidate_evidence row to cite; the founder ratified `audit_log` plus the
+defining URL and the reason as the evidence for a cancellation
+(`docs/memory/decisions/2026-09-03_cancellation-evidence-is-the-audit-row.md`),
+and inventing a candidate_evidence row with no candidate is exactly what that
+ruling forbids. The audit row is written for EVERY mutation; the
+candidate_evidence row only where a matched candidate exists to attest.

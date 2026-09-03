@@ -15,7 +15,7 @@ runtime EXECUTES; this table proves what it DECIDES.
 
 `check result` is the fail-closed verdict from
 `worker.crawl_state.classify_recheck` — `present`, `absent`, or `no` (nothing
-was learned). Read the three "yes" rows against the twenty-seven "no" rows: the
+was learned). Read the three "yes" rows against the twenty-eight "no" rows: the
 default is no mutation, and confirmation is the exception that has to be earned.
 
 **Round 8 removed a capability, and it should be read before the table.** Both
@@ -75,6 +75,7 @@ Nightjar — two listings match it                      | present      | no     
 Nightjar — absent, page brackets its date             | present      | yes      | absent from a clean parse of the page that defines it, its title is absent from the page's own raw text, and the page's GATE-PASSED listings bracket its date — confirmed gone; marked cancelled, row kept with its evidence
 Nightjar — extraction missed it, page still names it  | present      | no       | the page still names this listing but the extraction did not return it — an extraction miss is not a cancellation; last good row stands
 Nightjär — the page spells it with an umlaut          | present      | no       | the page still names this listing but the extraction did not return it — an extraction miss is not a cancellation; last good row stands
+Nightjär — an umlaut apart, at the same 8pm slot      | present      | no       | a different event holds this row's start time on the page, so its absence cannot be read cleanly — ambiguous; last good row stands
 Open Mic — only next week's occurrence listed         | present      | no       | the page still lists this title, but at a date too far off to be the same occurrence — ambiguous; last good row stands
 Open Mic — one listing, two published nights          | present      | no       | another published row on this page matches the same listing — one listing cannot be two rows; ambiguous; last good row stands
 Nightjar (no published end) — doors moved one hour    | present      | no       | the page carries this row's title at a different time, and a repeat cannot be told from a move on same-page evidence — last good row stands
@@ -101,10 +102,10 @@ Nightjar — sensor rejected the page                   | no           | no     
 | absent, page brackets its date | Four things at once: the page loads, the raw page text no longer names the listing, its own listings bracket this date, and **those bracketing listings each pass the trust gate**. Writes `status='cancelled'`; the row is KEPT. |
 | defining page 404 | The founder's 2026-09-02 overrule (`docs/memory/decisions/2026-09-02_404-of-defining-url-marks-the-listing-gone.md`). Writes `status='cancelled'` and nothing else — a page that is gone cannot state a new time or title. The row is KEPT. |
 
-## Reading the twenty-seven refusals
+## Reading the twenty-eight refusals
 
-Fourteen of them are the ones worth arguing about, because each is a case where
-something DID change and the loop still refused. **Thirteen of the fourteen were
+Fifteen of them are the ones worth arguing about, because each is a case where
+something DID change and the loop still refused. **Fourteen of the fifteen were
 caught by the adversarial panel on this PR, not by me** — every one was a real
 defect on the published-data path, all are fixed here, and all are pinned by
 tests:
@@ -167,9 +168,21 @@ tests:
   `Кино Night` stops reducing to the needle `night`. **Fixed twice**: the first
   fix enumerated the combining ranges I could think of and still turned Hebrew,
   Arabic and Indic marks into spaces, splitting those words in half. The rule is
-  now asked of Unicode rather than listed — optional marks (Mn, Me) fold away,
-  spacing vowel signs (Mc) are kept because they carry a vowel — and a test
-  fails if a hand-listed range ever comes back.
+  now asked of Unicode rather than listed. **Fixed a third time at round 9**,
+  and the third fix is the one that generalises: the fold is not a property of
+  the text, it is a property of the QUESTION. The two callers have opposite
+  dangerous answers — a false yes in the absence guard merely keeps a row, a
+  false yes in IDENTITY writes to one — so they now get opposite strictness.
+  `title_still_on_page` folds Mn and Me away; `normalize_title`, which decides
+  whether one listing IS another, keeps every mark. See the row below.
+- **"an umlaut apart, at the same 8pm slot"** — the round-9 finding, from
+  openai/absence-only. Calling every Mn mark "optional" was wrong: the
+  Devanagari VIRAMA and NUKTA are Mn and carry meaning, so `नुक्कड़` and
+  `नुक्कड` — different words — were collapsing to one identity, and two
+  same-minute listings differing by such a mark could write an end time onto the
+  wrong published event. Identity now keeps every mark, so a spelling difference
+  at our start minute is a contradiction the loop refuses both ways: it will not
+  rewrite the row, and it will not read the row as absent either.
 - **"moved, but the page states no end"** — `_UPDATE_SQL` writes with
   `coalesce`, so a change naming only `start_time` KEEPS the published end. A
   row published 20:00-22:00 whose page now says 23:00 would be written as

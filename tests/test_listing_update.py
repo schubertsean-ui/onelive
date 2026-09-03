@@ -817,13 +817,18 @@ def test_a_non_latin_title_keeps_its_letters_instead_of_vanishing():
     assert title_still_on_page("Кино Night", "<p>Jazz Night, 9pm</p>") is False
 
 
-def test_the_accent_fold_reaches_the_match_path_too():
-    """Not only the absence guard: the same reduction decides whether a page
-    listing IS this row, so both sides have to fold or the two rules disagree
-    about what a title is."""
-    assert normalize_title("Beyoncé") == normalize_title("Beyonce")
+def test_the_match_path_does_not_fold_and_refuses_instead():
+    """Rewritten at r9, and it now asserts the OPPOSITE of what it did.
+
+    This test used to require the accent fold to reach the match path, on the
+    reasoning that both rules should agree about what a title is. They should
+    not: the two questions have opposite dangerous answers. A false yes in the
+    absence guard keeps a row; a false yes in IDENTITY writes to one. So the
+    match path keeps every mark, and a page spelling our title differently at
+    our start minute is a contradiction to refuse, not a fold to absorb."""
+    assert normalize_title("Beyoncé") != normalize_title("Beyonce")
     assert match_kind(published(title="Café Tacvba"),
-                      parsed(title="Cafe Tacvba")) is not None
+                      parsed(title="Cafe Tacvba")) == MATCH_COLLISION
 
 
 def _two_same_title_nights():
@@ -1092,9 +1097,10 @@ def test_optional_marks_never_read_as_an_absence(ours, theirs):
     still fell through to the punctuation pass and became SPACES, splitting a
     word in two. One side carrying its marks and the other not then read as a
     confident absence, on the path that cancels."""
-    assert normalize_title(ours) == normalize_title(theirs)
     assert title_still_on_page(ours, f"<p>tonight: {theirs}</p>") is True
     assert title_still_on_page(theirs, f"<p>tonight: {ours}</p>") is True
+    # And the fold stays where it belongs: identity does not absorb it.
+    assert normalize_title(ours) != normalize_title(theirs)
 
 
 def test_a_spacing_vowel_sign_is_part_of_the_word_and_is_kept():
@@ -1120,3 +1126,48 @@ def test_a_multi_word_title_still_matches_as_one_run():
     """Punctuation collapses to a single space on both sides, or a whole-word
     search for a two-word title stops finding it."""
     assert title_still_on_page("Open  Mic -- Night!", "<p>open mic night</p>") is True
+
+
+# --- round 9: the fold is a property of the question, not of the text --------
+
+
+@pytest.mark.parametrize("ours, theirs, what", [
+    ("नुक्कड़ Night", "नुक्कड Night", "Devanagari NUKTA (Mn, meaning-bearing)"),
+    ("अंक् Live", "अंक Live", "Devanagari VIRAMA (Mn, meaning-bearing)"),
+    ("Beyoncé", "Beyonce", "Latin acute"),
+])
+def test_a_mark_never_merges_two_identities(ours, theirs, what):
+    """openai/absence-only, r9. `_fold_run` called every Mn mark "optional", but
+    the Devanagari virama and nukta are Mn and carry meaning — `नुक्कड़` and
+    `नुक्कड` are different words. Two same-minute listings whose titles differ
+    by one of those marks were collapsing to a single identity, which let this
+    path write an end_time onto the wrong published event."""
+    assert normalize_title(ours) != normalize_title(theirs), what
+    assert match_kind(published(title=ours), parsed(title=theirs)) == MATCH_COLLISION
+
+
+def test_a_mark_difference_at_our_minute_writes_nothing_and_cancels_nothing():
+    """The end-to-end consequence: refusing both ways. It cannot rewrite our
+    row, and it cannot read our row as absent either — something we cannot
+    distinguish from us is holding our start time."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT,
+        published=[published(title="नुक्कड़ Night", end_time=None)],
+        parsed=[parsed(title="नुक्कड Night", end_time=DAY + timedelta(hours=4))]
+               + bracket(),
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_WITHOUT_IT))
+    assert d.action == ACTION_NONE
+    assert not d.fields
+
+
+def test_the_two_reductions_disagree_on_purpose():
+    """The invariant behind the split, asserted directly: for a pair differing
+    only by an optional mark, the absence guard says "still here" while identity
+    says "not shown to be the same". Anything that made these agree again would
+    reintroduce one of the two defects."""
+    from worker import listing_update as lu
+    ours, theirs = "Sigur Rós", "Sigur Ros"
+    assert lu._reduce(ours, fold_marks=True) == lu._reduce(theirs, fold_marks=True)
+    assert lu._reduce(ours, fold_marks=False) != lu._reduce(theirs, fold_marks=False)
+    assert lu.title_still_on_page(ours, f"<p>{theirs}</p>") is True
+    assert normalize_title(ours) != normalize_title(theirs)

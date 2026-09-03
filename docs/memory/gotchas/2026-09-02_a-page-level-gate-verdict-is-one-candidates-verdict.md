@@ -244,3 +244,35 @@ The counter-move is mechanical, not a resolution: before opening a record, grep
 the register for its trigger. If the trigger already appears, say so in the new
 entry and name what the shared unlock is, so the next reader sees the cluster
 instead of three unrelated-looking rows.
+
+## Round nine: one function, two questions, opposite safe directions
+
+Third finding on the same title reduction in three rounds. r6: it deleted
+non-ASCII letters. r7: it folded only the combining ranges I had listed. r9:
+it called every `Mn` mark optional — but the Devanagari virama and nukta are
+`Mn` and carry meaning, so `नुक्कड़` and `नुक्कड`, different words, collapsed
+to one identity and could write an end time onto the wrong published event.
+
+The first two fixes were both *better answers to the wrong question*. There was
+never one right amount of folding, because the reduction served two callers
+whose dangerous answers point in opposite directions:
+
+- The **absence guard** fails badly on a false NO: a page naming the event reads
+  as silent, and with a gated bracket that cancels a live row. Fold hard.
+- **Identity** fails badly on a false YES: two listings that are not the same
+  event get treated as one, and something gets written to a published row. Keep
+  everything.
+
+Folding harder fixed the first and worsened the second; that is why each round's
+fix produced the next round's finding. The answer was to stop asking the text
+what it should be reduced to and start asking the caller what it is deciding.
+
+**The rule: when one helper serves two callers, check whether their failure
+modes point the same way.** If a false positive is cheap for one and expensive
+for the other, they do not share a helper — they share a NAME, which is worse,
+because the shared name hides the conflict and every tuning of it trades one
+caller's safety for the other's. Split on the question, not on the data.
+
+The signal was available without the panel: three consecutive findings on one
+function is not three bugs, it is one design error being approached from
+different sides.
