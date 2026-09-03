@@ -93,38 +93,50 @@ including ones nobody has written yet, `worker/listing_update.py` contains no
 `DELETE` and no `INSERT INTO event`, and both facts are pinned structurally
 rather than by prose.
 
-## The live re-bind run, and what it does not show
+## The live re-bind run — where the R-091 tightening fired for real
 
 Founder-authorized dry smoke, run
-[33696784882](https://github.com/schubertsean-ui/onelive/actions/runs/33696784882)
-on head `6231147` — success, 75.4s, 2 sources, 29 candidates, $0.2457.
+[33698783298](https://github.com/schubertsean-ui/onelive/actions/runs/33698783298)
+on head `d29dc5c` — success, 123.3s, 2 sources, 26 candidates, $0.5991.
 Recorded in full in `docs/evidence/ARMING_SMOKE_RUN.json`.
 
-Its first line is the switch resolving:
+**The switch, proven twice:** `LISTING_UPDATE_MODE: dry` resolved in the step
+env, and then the run's own line —
 
 ```
 listing-update writer DISABLED for this run (dry): no published row can be
 updated or marked, whatever any page says.
 ```
 
-and its counters agree — `'listings_updated': 0, 'listings_marked_gone': 0`.
+The counters agree (`'listings_updated': 0, 'listings_marked_gone': 0`) but
+they are consistency, not evidence: the tick reported `0 event-proximity
+page(s)` due, so it would have printed zeros with the writer armed. The
+DISABLED line is the proof.
 
-**Those are two different facts and only one of them is evidence.** The
-DISABLED line proves the kill switch worked: the dispatched word `dry` reached
-the shell case and set the mutation budget to 0. The zero counters prove
-nothing on their own, because the same tick reported `0 event-proximity
-page(s)` due — a tick with no defining page to re-read would have printed zeros
-whether the writer was armed or not.
+**What this run showed that no fixture could.** The R-091(a) tightening fired
+live, on both branches, in a single ordinary tick:
 
-What the run *does* certify about this PR's code, beyond "the runtime loads
-it": the R-091(a) tightening does not break the ordinary path. Both sources
-report `verified? present`, and under the new rule that column can only read
-`present` when the trust gate PASSED the page. Both did
-(`decision=ready_to_promote`), so the stricter verdict is exercised against
-live pages rather than only against fixtures.
+```
+source             | queue   | url fetched                          | changed? | verified? | candidates
+-------------------+---------+--------------------------------------+----------+-----------+-----------
+Thinkery           | refresh | https://my.thinkeryaustin.org/events | yes      | present   | 1
+Historic Scoot Inn | refresh | https://www.scootinnaustin.com/      | yes      | no        | 25
+```
 
-What it does **not** show: the listing-update path acting on real data. No
-published row was read for adjudication and none could have been written. That
-coverage is the table above, `tests/test_listing_update.py`, and section 8 of
-`tests/test_fair_crawl.py` — and the first armed tick that finds an
-event-proximity page due will be the first live exercise of it.
+Historic Scoot Inn's page fetched fine, parsed fine, and produced **25**
+candidates — and then ESCALATED at the trust gate: *"conflicting start_time
+across evidence; dedupe-ambiguity hint present."* Its verdict reads `no`.
+
+**Under the previous rule that same page would have read `verified_present`,**
+because it parsed cleanly. That is exactly the case the PR #213 panel named —
+"a parsed-but-escalated page cannot accidentally authorize a misleading
+published update" — and it turned up unprompted, on a real venue calendar, on
+the second source of a two-source tick. Thinkery is the control: a gate PASS,
+and `present`.
+
+**What it does not show:** the listing-update path acting on real data. The
+writer was disabled and no event-proximity page was due, so no published row
+was read for adjudication and none could have been written. That coverage is
+the table above, `tests/test_listing_update.py`, and section 8 of
+`tests/test_fair_crawl.py` — the first armed tick that finds a defining page
+due will be the first live exercise of it.
