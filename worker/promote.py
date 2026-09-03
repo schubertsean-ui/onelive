@@ -13,7 +13,9 @@ from worker.dedupe import classify_window
 from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.source_catalog import cultural_domain_for_source
-from worker.trust_gate3 import FIELD_START_TIME, GateDecision, evaluate_gate
+from worker.trust_gate3 import (
+    FIELD_START_TIME, GateDecision, evaluate_gate, start_time_instants,
+)
 
 
 def db():
@@ -174,12 +176,30 @@ def promote_candidate(candidate_id: str) -> str:
             # stops one show appearing on the map twice, which is what the check
             # was for. A neighbour publishes and is RECORDED, so ops can still
             # see the collision without a real show going missing.
-            window = (classify_window(venue_id, start_time, title=title, cur=cur)
-                      if start_time else None)
-            if window is not None and window.is_republish:
+            #
+            # PROBED WITH THE CLAIMS, NOT WITH WHAT WE WROTE (PR #216 r1, both
+            # openai seats, from two sides). The first pass ran this check on
+            # `start_time` AFTER the clock hole had nulled it, so `if start_time`
+            # was False and the guard asked nothing at all — and it is reachable
+            # on purpose, not only by accident: a source that adds a second,
+            # conflicting time to an already-published show forces the hole path
+            # and lands a duplicate "Date TBA" row beside the real one. The
+            # identity question is about what the evidence CLAIMED; the hole is
+            # only what we print. So every claimed instant is probed, plus the
+            # column value when it survived — strictly more than the old single
+            # probe, and it cannot be skipped by a later change to what gets
+            # written, because it never reads the written value.
+            probes = list(start_time_instants(evidence_signals))
+            if start_time is not None:
+                probes.append(start_time)
+            same_show: list = []
+            for probe in probes:
+                found = classify_window(venue_id, probe, title=title, cur=cur)
+                same_show.extend(e for e in found.same_show if e not in same_show)
+            if same_show:
                 raise ValueError(
                     f"Already published: this venue/minute/title is canonical "
-                    f"event(s) {list(window.same_show)}")
+                    f"event(s) {same_show}")
 
             # User-facing card columns (title/category/subsegment/ticket_url) from
             # the candidate's OWN data — the fields 0010 added and named promote.py

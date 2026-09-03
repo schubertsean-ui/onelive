@@ -40,7 +40,12 @@ from worker.listing_update import (
     adjudicate_page,
     match_kind,
 )
-from worker.trust_gate3 import FIELD_START_TIME, GateDecision, evaluate_gate
+from worker.trust_gate3 import (
+    FIELD_START_TIME,
+    GateDecision,
+    evaluate_gate,
+    start_time_instants,
+)
 
 UTC = dt.timezone.utc
 
@@ -315,3 +320,65 @@ def test_a_gate_declined_page_still_confirms_nothing(page_decision):
 def test_no_verdict_ever_licenses_a_delete():
     for verdict in ("verified_present", "verified_absent", UNVERIFIED, "anything"):
         assert may_delete_listing(verdict) is False
+
+
+# --------------------------------------------------------------------------
+# PR #216 r1 — the dedupe guard must be probed with the CLAIMS, not with what
+# the hole left behind. Both openai seats blocked here, from opposite sides.
+# --------------------------------------------------------------------------
+
+def test_the_claims_survive_the_hole_so_the_duplicate_probe_has_something_to_ask():
+    """The defect underneath r1: `promote_candidate` nulled `start_time` for a
+    clock hole and only THEN ran the duplicate window check, guarded by
+    `if start_time` — so the guard asked nothing at all, and a second copy of an
+    already-published show landed beside it as a separate "Date TBA" row.
+
+    It is reachable on purpose, not only by accident: a source that adds a
+    second conflicting time to a published show forces the hole path. The fix is
+    to probe with what the evidence CLAIMED; this pins that the claims are still
+    available after the hole is decided, and that EITHER of them finds the row.
+    """
+    signals = {"start_times": ["2026-09-05T20:00:00Z", "2026-09-05T20:30:00Z"]}
+    verdict = evaluate_gate(source_classes=["venue_calendar"], evidence_signals=signals)
+    assert FIELD_START_TIME in verdict.field_holes      # the clock is a hole
+    assert verdict.decision is GateDecision.PASS        # the listing is not
+
+    probes = start_time_instants(signals)
+    assert probes == (
+        dt.datetime(2026, 9, 5, 20, 0, tzinfo=UTC),
+        dt.datetime(2026, 9, 5, 20, 30, tzinfo=UTC),
+    )
+    # The published row sits on the SECOND claim, so probing only the first (or
+    # only the candidate column) would miss it. Probing every claim does not.
+    published = [("e1", "Being Dead", dt.datetime(2026, 9, 5, 20, 30, tzinfo=UTC))]
+    hits = [classify_duplicates(published, title="Being Dead", start_time=probe)
+            for probe in probes]
+    assert [h.is_republish for h in hits] == [False, True]
+
+
+def test_an_unparseable_claim_counts_as_a_conflict_but_never_addresses_a_row():
+    """The two readings are deliberately different: `start_time_claims` keeps a
+    garbage claim as its own identity so it still registers a DISAGREEMENT,
+    while `start_time_instants` drops it, because a string that is not a time
+    cannot be used to look a row up."""
+    signals = {"start_times": ["2026-09-05T20:00:00Z", "next Thursday-ish"]}
+    verdict = evaluate_gate(source_classes=["venue_calendar"], evidence_signals=signals)
+    assert FIELD_START_TIME in verdict.field_holes
+    assert start_time_instants(signals) == (dt.datetime(2026, 9, 5, 20, 0, tzinfo=UTC),)
+
+
+def test_the_promoter_probes_the_claims_and_never_the_written_value():
+    """Structural, because the failing shape was an ORDERING one and a fixture
+    can be satisfied by code that reads the written value in a different order.
+    The probe list must be built from the evidence, and the null-ing must not be
+    able to empty it again."""
+    import inspect
+
+    import worker.promote as promote
+
+    src = inspect.getsource(promote.promote_candidate)
+    dedupe_block = src.split("probes = ", 1)[1].split("card_fields(", 1)[0]
+    assert "start_time_instants(evidence_signals)" in dedupe_block
+    # No branch may make the whole check conditional on the written clock again.
+    assert "if start_time else" not in dedupe_block
+    assert "classify_window(venue_id, probe" in dedupe_block

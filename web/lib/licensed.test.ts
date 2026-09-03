@@ -39,8 +39,24 @@ describe("buildLicensedQuery", () => {
       }),
     );
     expect(p.get("category")).toBe("eq.live-music");
-    expect(p.getAll("start_time")).toContain("gte.2026-07-24T00:00:00Z");
-    expect(p.getAll("start_time")).toContain("lte.2026-07-31T00:00:00Z");
+    expect(p.get("or")).toBe(
+      "(and(start_time.gte.2026-07-24T00:00:00Z,start_time.lte.2026-07-31T00:00:00Z),start_time.is.null)",
+    );
+  });
+
+  // PR #216 r1, openai/absence-only (blocking) — same rule as promoted.ts: a
+  // bare `gte` drops NULLs, and a date-TBA row is inside the window, not
+  // outside it.
+  it("a date-TBA row is inside the window, not outside it", () => {
+    const p = params(buildLicensedQuery({ fromISO: "2026-07-24T00:00:00Z" }));
+    expect(p.get("or")).toBe(
+      "(start_time.gte.2026-07-24T00:00:00Z,start_time.is.null)",
+    );
+    expect(p.getAll("start_time")).toEqual([]);
+  });
+
+  it("adds no window predicate at all when no window is asked for", () => {
+    expect(params(buildLicensedQuery()).get("or")).toBeNull();
   });
 });
 

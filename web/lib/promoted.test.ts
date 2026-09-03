@@ -52,7 +52,22 @@ describe("buildPromotedQuery", () => {
       buildPromotedQuery({ category: "comedy", fromISO: "A", toISO: "B" }),
     );
     expect(p.getAll("category")).toContain("eq.comedy");
-    expect(p.getAll("start_time")).toEqual(expect.arrayContaining(["gte.A", "lte.B"]));
+    expect(p.get("or")).toBe("(and(start_time.gte.A,start_time.lte.B),start_time.is.null)");
+  });
+
+  // PR #216 r1, openai/absence-only (blocking): a bare `gte` drops NULLs, so a
+  // promoted row whose clock the evidence never settled was never FETCHED —
+  // while feed.ts is written to place exactly those rows under "All". A view
+  // may narrow; it may not delete a catalog row (Coverage Law).
+  it("a date-TBA row is inside the window, not outside it", () => {
+    const p = params(buildPromotedQuery({ fromISO: "A" }));
+    expect(p.get("or")).toBe("(start_time.gte.A,start_time.is.null)");
+    expect(p.getAll("start_time")).toEqual([]);
+  });
+
+  it("adds no window predicate at all when no window is asked for", () => {
+    const p = params(buildPromotedQuery());
+    expect(p.get("or")).toBeNull();
   });
 });
 

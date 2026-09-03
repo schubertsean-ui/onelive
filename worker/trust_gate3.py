@@ -133,6 +133,24 @@ def start_time_claims(evidence_signals: Dict[str, Any]) -> Tuple[Any, ...]:
     return tuple(claims)
 
 
+def start_time_instants(evidence_signals: Dict[str, Any]) -> Tuple[datetime, ...]:
+    """Every start-time claim the evidence makes that IS a time, as instants.
+
+    The publish path probes the duplicate window with ALL of these, not with the
+    one value that happens to sit on the candidate column. That matters most
+    exactly where the clock is a hole: the row is written with NULL, so a probe
+    keyed on the written value would ask nothing, and a second copy of an
+    already-published show would land on the map as a separate "Date TBA" row.
+    Identity is asked of what the evidence CLAIMED; the hole is only what we
+    print.
+
+    Unparseable claims are excluded: they are kept as distinct identities for
+    the CONFLICT count (see start_time_claims) but they cannot address a row.
+    """
+    return tuple(c for c in start_time_claims(evidence_signals)
+                 if isinstance(c, datetime))
+
+
 def _has_conflicting_start_time(evidence_signals: Dict[str, Any]) -> bool:
     """True if independent evidence genuinely disagrees on when the event starts.
 
