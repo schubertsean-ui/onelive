@@ -112,7 +112,7 @@ rather than by prose.
 
 ## The live re-bind runs
 
-Four founder-authorized dry smokes, one per adversarial round, each binding
+Five founder-authorized dry smokes, one per adversarial round, each binding
 the head the panel had just judged. All recorded in
 `docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
@@ -122,6 +122,7 @@ the head the panel had just judged. All recorded in
 | [33698783298](https://github.com/schubertsean-ui/onelive/actions/runs/33698783298) | `d29dc5c` | 2 sources, 26 candidates, $0.5991, 123.3s | **the R-091(a) tightening fired live** |
 | [33700477027](https://github.com/schubertsean-ui/onelive/actions/runs/33700477027) | `9632882` | 2 sources, 50 candidates, $0.2336, 167.5s | **a real HTTP 304**, and the discover queue |
 | [33702677748](https://github.com/schubertsean-ui/onelive/actions/runs/33702677748) | `0d013e1` | 2 sources, 60 candidates, $0.3196, 177.1s | **the gate's HOLD branch** — the last outcome |
+| [33704092379](https://github.com/schubertsean-ui/onelive/actions/runs/33704092379) | `70a5b42` | 2 sources, 8 candidates, $0.0426, 35.0s | HOLD and the fingerprint skip again, on new sources |
 
 Every one printed the switch, from the resolved env and then from the loop:
 
@@ -142,11 +143,16 @@ This is the R-091(a) fix demonstrated live rather than in fixtures, and it took
 two runs to collect because each tick only shows what its own sources did.
 
 ```
-run 33698783298   Thinkery                      | present | gate PASS
-run 33698783298   Historic Scoot Inn            | no      | gate ESCALATED
-run 33702677748   Waterloo Greenway Conservancy | present | gate PASS
-run 33702677748   Meetup                        | no      | gate HELD
+run 33698783298   Thinkery                       | present | gate PASS
+run 33698783298   Historic Scoot Inn             | no      | gate ESCALATED
+run 33702677748   Waterloo Greenway Conservancy  | present | gate PASS
+run 33702677748   Meetup                         | no      | gate HELD
+run 33704092379   Asian American Resource Center | no      | gate HELD
 ```
+
+The last row is a repeat, and repeats are worth recording: a behaviour seen
+once on one venue could be that venue. HOLD declining to verify a
+city-hosted calendar as well as a community platform makes it ordinary.
 
 **Historic Scoot Inn** fetched fine, parsed fine, produced **25** candidates —
 then escalated: *"conflicting start_time across evidence; dedupe-ambiguity hint
@@ -179,7 +185,7 @@ and 98 were **deferred rather than dropped** (R-043).
 ### What none of them show
 
 The listing-update path acting on real data. The writer was disabled in all
-four and no event-proximity page was ever due, so no published row was read
+five and no event-proximity page was ever due, so no published row was read
 for adjudication and none could have been written. That coverage is the table
 above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
