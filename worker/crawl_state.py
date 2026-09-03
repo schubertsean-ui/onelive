@@ -179,6 +179,17 @@ MAX_EXTRACT_CALLS_PER_TICK = 60
 #: which one is not important. It exists so a loop bug cannot fetch forever.
 MAX_FETCHES_PER_TICK = 120
 
+#: BLAST RADIUS of the listing-update writer, in published rows one tick may
+#: change (worker/listing_update.py). It is not a spend limit and not a
+#: politeness limit — it is the cap that turns a bug from a catalog-wide event
+#: into a bounded one. A real tick mutates a handful of rows: only pages on the
+#: event-proximity ladder are adjudicated at all, and only rows whose defining
+#: page genuinely moved, was retitled, or dropped them get written. Forty is
+#: comfortably above that and far below "the catalog". Past it the tick stops
+#: MUTATING and keeps crawling — coverage is never the thing a safety cap
+#: costs — and the run says so loudly.
+MAX_LISTING_MUTATIONS_PER_TICK = 40
+
 #: HOST POLITENESS. Several catalog rows can share one host (a ticketing
 #: platform, a university, a city portal). Past this many fetches to the same
 #: host in one tick, further sources on that host are DEFERRED to the next tick
@@ -377,25 +388,43 @@ def order_due(
 # what makes the rule fail CLOSED — a failure nobody has written yet is
 # unverified by default, never confirmed.
 #
-# WHAT A 404 DOES AND DOES NOT LICENSE — the one place the two directives need
-# reading together, flagged rather than quietly resolved. A clear 404 confirms
-# the PAGE is gone. It is not same-page evidence about any listing on it,
-# because there is no page to have evidence from: a venue that reorganizes its
-# URLs, a CMS migration and a genuinely cancelled show all 404 identically.
-# Under "only with same-page evidence" and "do not delete the row", a 404
-# therefore licenses NO status change on any listing. What it does license is
-# re-finding the door — which the loop already does, by falling back to the
-# registered start URL and re-discovering from there. A clean parse in which a
-# published event is ABSENT is the case that carries same-page evidence, and
-# deciding that is the update path's job, not this vocabulary's.
+# WHAT A 404 LICENSES — FOUNDER-OVERRULED 2026-09-02, and the overrule is the
+# rule now. The previous pass flagged this case rather than resolving it
+# quietly, and said in as many words that the founder should be able to
+# overrule it in one line. That line arrived, verbatim: "Confirmed gone (clean
+# 404 of defining URL, or clean parse that the event is absent from that
+# calendar): mark cancelled/moved with evidence; row remains."
 #
-# STATE OF PLAY, stated so nobody reads more into this than is here: the
-# orchestrator does not update published events. It cannot — it imports no
-# promote path, writes only candidates, and issues no UPDATE against `event`.
-# The policy is ratified and encoded HERE so the eventual update path has one
-# definition to obey rather than inventing a second; building that path is its
-# own ticket, and it changes the armed cron's runtime, which the founder has
-# capped for this one ("no second wave").
+# So a clean 404 of the DEFINING page is now one of the two CONFIRMED-GONE
+# shapes, and it marks the listing rather than licensing nothing. The old
+# reading and why it lost, kept because the objection it raised is real and the
+# compensations below exist to answer it: a venue reorganizing its URLs, a CMS
+# migration and a genuinely cancelled show all 404 identically, so a 404 is
+# weaker evidence about a LISTING than a page that still loads and no longer
+# names it. The founder's ruling accepts that cost knowingly, and it is bounded
+# on all sides:
+#
+#   * it can only ever set `status`, never a time or a title (may_update_listing
+#     is still VERIFIED_PRESENT-only — a page that is gone cannot supply a new
+#     start time);
+#   * the row STAYS, with its evidence, and `cancelled`/`moved` are visible
+#     states a later re-check can move back (nothing here is one-way);
+#   * it is the DEFINING door's own 404, never a fallback's — the orchestrator
+#     computes the verdict from `defining_door`, so a best_url that 404s and
+#     then falls back to a healthy homepage does not report the page present,
+#     and equally does not let the homepage's health hide the 404;
+#   * re-finding the door still happens exactly as before, so a moved calendar
+#     re-discovers itself and the next clean read can restore the listing.
+#
+# The other confirmed-gone shape — a clean parse in which a published event is
+# ABSENT from a page that still loads — carries real same-page evidence and is
+# adjudicated in worker/listing_update.py, which additionally requires the
+# page's own parsed listings to BRACKET the missing event in time so a
+# truncated calendar cannot cancel a show it never reached.
+#
+# STATE OF PLAY: worker/listing_update.py is the ONE writer, and it still
+# imports no promote path — updating four fields of a row that is already
+# published is not publishing, and nothing here can create or delete a row.
 
 #: The page still says what it said: a clean parse, or bytes identical to the
 #: last good read. This is the ONLY verdict that carries same-page evidence,
@@ -433,9 +462,36 @@ DELETE_IS_NEVER_LICENSED = True
 #: fresh parse.
 _CONFIRMING_DOORS = frozenset({"changed", "unchanged"})
 
-#: Page-level decisions that mean the parse actually completed. A sensor
-#: rejection or a budget deferral did NOT read the page, whatever the fetch did.
-_CLEAN_PARSE_DECISIONS = frozenset({"held", "escalated", "ready_to_promote"})
+#: THE GATE'S OWN VERDICT IS THE VERIFICATION — not "the parse completed"
+#: (R-091(a), founder must-do 1: "classify_recheck must use the gate/
+#: adjudication verdict, not 'page parsed cleanly'. A parse-then-escalate page
+#: is not verified_present"). `ready_to_promote` is the orchestrator's name for
+#: trust_gate3's PASS — the ONLY outcome in which the gate itself says this
+#: page's evidence stands on its own.
+#:
+#: What the two excluded outcomes actually mean, so the exclusion reads as a
+#: decision rather than a tightening for its own sake:
+#:
+#:   * ESCALATE — the count says promotable but the CONTENT says maybe not:
+#:     evidence disagreeing on the start time, an extraction the schema
+#:     rejected, a private/RSVP listing, dedupe ambiguity (worker/trust_gate3.py).
+#:     Every one of those is a reason to distrust what this read of the page
+#:     says a listing NOW is. Letting it authorize a published update is
+#:     precisely the "misleading published update" the panel named.
+#:   * HOLD — the gate refused to promote this page's evidence at all. A page
+#:     whose evidence cannot publish a NEW row cannot rewrite an existing one
+#:     either; the asymmetry would let the weakest evidence in the pipeline
+#:     make the largest change.
+#:
+#: A sensor rejection or a budget deferral never reached the gate, so they were
+#: never in this set. Fail-closed: an outcome nobody has written yet is not here
+#: and is therefore UNVERIFIED.
+_CONFIRMING_GATE_DECISIONS = frozenset({"ready_to_promote"})
+
+#: Reached the gate, and the gate did not confirm. Separated from "never
+#: reached the gate" only so the REASON a re-check records names which of the
+#: two happened — both are UNVERIFIED and both mutate nothing.
+_GATE_DECLINED = frozenset({"held", "escalated"})
 
 
 def classify_recheck(
@@ -446,6 +502,11 @@ def classify_recheck(
 ) -> Tuple[str, str]:
     """The verdict of one re-check, and the reason in plain words.
 
+    `page_decision` is the TRUST GATE's outcome for the page, in the
+    orchestrator's vocabulary (`ready_to_promote` = trust_gate3 PASS, `held` =
+    HOLD, `escalated` = ESCALATE), or a pre-gate stop (`sensor_rejected`,
+    `deferred`). Only a gate PASS verifies.
+
     Fail-closed by construction: only the two explicitly-confirming shapes
     return a VERIFIED_* verdict, and everything else — including a shape this
     function has never seen — falls through to UNVERIFIED. There is no
@@ -455,10 +516,14 @@ def classify_recheck(
         return (VERIFIED_PRESENT,
                 "page byte-identical to the last good read (304 or same hash)")
     if door_kind == "changed":
-        if page_decision in _CLEAN_PARSE_DECISIONS:
-            return (VERIFIED_PRESENT, "page fetched and parsed cleanly")
+        if page_decision in _CONFIRMING_GATE_DECISIONS:
+            return (VERIFIED_PRESENT, "page fetched, parsed, and the trust gate PASSED it")
+        if page_decision in _GATE_DECLINED:
+            return (UNVERIFIED,
+                    f"page fetched and parsed, but the trust gate did not confirm it "
+                    f"({page_decision}) — last good row stands")
         return (UNVERIFIED,
-                f"page fetched but not parsed ({page_decision or 'no decision'}) "
+                f"page fetched but never reached the gate ({page_decision or 'no decision'}) "
                 "— last good row stands")
     if door_kind == "missed" and http_status == 404:
         return (VERIFIED_ABSENT,
@@ -493,6 +558,28 @@ def may_update_listing(verdict: str) -> bool:
     this exists so that when something does, it asks here.
     """
     return verdict == VERIFIED_PRESENT
+
+
+def may_mark_gone(verdict: str) -> bool:
+    """Whether a verdict licenses marking a published listing CANCELLED/MOVED —
+    a `status` change on a row that stays, never a delete and never a time or
+    title edit.
+
+    Both confirmed-gone shapes qualify, and only they:
+
+      * VERIFIED_ABSENT — the defining page returned a clean 404 (founder
+        overrule 2026-09-02; see the 404 note above for what that costs and how
+        it is bounded).
+      * VERIFIED_PRESENT — the page still loads, and the caller found the
+        published event ABSENT from its clean parse. That is same-page
+        evidence, and worker/listing_update.py adds the bracket test that stops
+        a truncated calendar from cancelling a show it never reached; this
+        function answers only the verdict half.
+
+    UNVERIFIED is excluded always — a check that learned nothing cancels
+    nothing.
+    """
+    return verdict in (VERIFIED_ABSENT, VERIFIED_PRESENT)
 
 
 def may_delete_listing(verdict: str) -> bool:  # noqa: ARG001 — the answer is the point
@@ -673,6 +760,7 @@ class TickBudget:
         max_fetches: int = MAX_FETCHES_PER_TICK,
         max_extract_calls: int = MAX_EXTRACT_CALLS_PER_TICK,
         max_fetches_per_host: int = MAX_FETCHES_PER_HOST_PER_TICK,
+        max_listing_mutations: int = MAX_LISTING_MUTATIONS_PER_TICK,
         discover_share: float = DISCOVER_FETCH_SHARE,
         event_share: float = EVENT_FETCH_SHARE,
         clock=None,
@@ -680,7 +768,8 @@ class TickBudget:
         for name, value in (("max_seconds", max_seconds),
                             ("max_fetches", max_fetches),
                             ("max_extract_calls", max_extract_calls),
-                            ("max_fetches_per_host", max_fetches_per_host)):
+                            ("max_fetches_per_host", max_fetches_per_host),
+                            ("max_listing_mutations", max_listing_mutations)):
             if value < 0:
                 # The project-wide budget rule: 0 means "none of this",
                 # negative is a misconfiguration, and neither ever means
@@ -700,6 +789,7 @@ class TickBudget:
         self.max_fetches = max_fetches
         self.max_extract_calls = max_extract_calls
         self.max_fetches_per_host = max_fetches_per_host
+        self.max_listing_mutations = max_listing_mutations
         self.discover_share = discover_share
         self.event_share = event_share
         # Until a plan is declared, a share is the whole budget: a share exists
@@ -713,6 +803,7 @@ class TickBudget:
         self.discover_fetches = 0
         self.event_fetches = 0
         self.extract_calls = 0
+        self.listing_mutations = 0
         self.input_tokens = 0
         self.output_tokens = 0
         self.sources_touched = 0
@@ -729,6 +820,9 @@ class TickBudget:
                               MAX_EXTRACT_CALLS_PER_TICK, "tick model"),
         "max_fetches_per_host": ("ONELIVE_MAX_FETCHES_PER_HOST",
                                  MAX_FETCHES_PER_HOST_PER_TICK, "per-host fetch"),
+        "max_listing_mutations": ("ONELIVE_MAX_LISTING_MUTATIONS_PER_TICK",
+                                  MAX_LISTING_MUTATIONS_PER_TICK,
+                                  "tick listing-mutation"),
     }
 
     @classmethod
@@ -816,6 +910,16 @@ class TickBudget:
     def may_extract(self) -> bool:
         return self.extract_calls < self.max_extract_calls
 
+    def may_mutate_listing(self) -> bool:
+        """Whether this tick may still write a published row.
+
+        Deliberately NOT a tick_stop: exhausting it means the loop stops
+        MUTATING, not that it stops crawling. Coverage is never what a
+        blast-radius cap costs, and the un-mutated rows simply keep their last
+        good values until the next tick reads their page again.
+        """
+        return self.listing_mutations < self.max_listing_mutations
+
     # --- what the loop reports back ------------------------------------------
 
     def record_fetch(self, host: str, *, queue: str) -> None:
@@ -835,6 +939,10 @@ class TickBudget:
         moment they are made) while the spend is only knowable afterwards.
         """
         self.extract_calls += 1
+
+    def record_listing_mutation(self) -> None:
+        """One published row changed by the listing-update writer."""
+        self.listing_mutations += 1
 
     def record_tokens(self, *, input_tokens: int, output_tokens: int) -> None:
         """The tokens this tick really used, read back from what the provider
@@ -860,6 +968,7 @@ class TickBudget:
             "event_fetches": self.event_fetches,
             "discover_fetches": self.discover_fetches,
             "extract_calls": self.extract_calls,
+            "listing_mutations": self.listing_mutations,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "elapsed_seconds": round(self.elapsed(), 1),

@@ -139,6 +139,10 @@ on:
         description: "Dispatch-only override of the run's follow-page budget (blank = the armed default, 30). 0 disables following entirely."
         required: false
         default: ""
+      listing_update:
+        description: "Dispatch-only: 'armed' (default) lets a CONFIRMED re-check update the published listing; 'dry' caps listing mutations at 0 so the run exercises the whole runtime and changes nothing in the catalog."
+        required: false
+        default: "armed"
 
 concurrency:
   group: ingest
@@ -294,10 +298,42 @@ jobs:
           # everything" — the schedule sends ALL and is unfiltered, exactly as
           # before this input existed.
           SOURCE_CLASS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_class || 'ALL' }}
+          # Dispatch-only kill switch for the listing-update writer
+          # (worker/listing_update.py), carried as a WORD and never as the
+          # number it stands for. That is deliberate and it is the whole point
+          # of this shape: the value this knob exists to deliver is ZERO, and a
+          # GitHub expression of the form `A && B || 'default'` decides between
+          # its branches by TRUTHINESS. Whether the string '0' is truthy there
+          # is a question whose wrong answer silently arms a writer on a run
+          # somebody asked to be dry — so no numeric string passes through an
+          # expression at all. 'armed' and 'dry' are both non-empty, so the
+          # fallback is unambiguous, and the shell below maps the word to the
+          # budget. Blank or schedule => armed, exactly as before this input.
+          LISTING_UPDATE_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.listing_update || 'armed' }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           : "${ONELIVE_MAX_FOLLOW_PAGES_PER_RUN:?follow-page budget rendered empty — the ceiling is required — failing closed}"
           : "${SOURCE_CLASS:?source_class rendered empty — expected a Coverage Law letter or ALL — failing closed}"
+          : "${LISTING_UPDATE_MODE:?listing-update mode rendered empty — expected armed or dry — failing closed}"
+          # armed deliberately sets NOTHING: the budget then comes from
+          # MAX_LISTING_MUTATIONS_PER_TICK in worker/crawl_state.py, so the
+          # number has ONE home and this workflow cannot drift from it. Only
+          # the dry case names a value, and 0 means "none of this" by the
+          # project-wide budget rule (resolve_int_env), never "uncapped".
+          case "$LISTING_UPDATE_MODE" in
+            dry)
+              ONELIVE_MAX_LISTING_MUTATIONS_PER_TICK=0
+              export ONELIVE_MAX_LISTING_MUTATIONS_PER_TICK
+              echo "listing-update writer DISABLED for this run (dry): no published row can be updated or marked, whatever any page says."
+              ;;
+            armed)
+              echo "listing-update writer ARMED (code default): a CONFIRMED re-check may update the listing it defines."
+              ;;
+            *)
+              echo "::error::unknown listing_update mode '$LISTING_UPDATE_MODE' — expected armed or dry — failing closed"
+              exit 1
+              ;;
+          esac
           # The class letter is untrusted dispatch input: it reaches the
           # process through env only, never interpolated into this shell text
           # (a workflow expression written here would be a script-injection

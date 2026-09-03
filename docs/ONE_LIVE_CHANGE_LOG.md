@@ -4,6 +4,75 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — A confirmed check may now change a published listing
+
+The event-proximity ladder has been re-reading the page that defines a
+published event as the event approaches. Until now it could see a show move or
+vanish and do nothing about it: it recorded a verdict and stopped. This closes
+that loop, fail-closed, and fixes the precondition the adversarial panel put on
+it first.
+
+**The precondition (R-091(a)).** `classify_recheck` used to count "the page
+parsed" as verification — `held`, `escalated` and `ready_to_promote` alike. It
+now reads the TRUST GATE's own verdict: only `ready_to_promote` (trust_gate3
+PASS) is `verified_present`. A page whose evidence the gate ESCALATED
+(conflicting start times, a schema-invalid extraction, a private/RSVP listing,
+dedupe ambiguity) or HELD cannot verify anything. This is a tightening — two
+outcomes that used to verify no longer do.
+
+**Per event, never per page.** The fix went further than the nit asked, because
+a page's gate verdict is the verdict of its FIRST extracted candidate: on a
+forty-listing calendar it says nothing about the other thirty-nine. So a
+page-level PASS is a PRECONDITION and never a licence. Each published row is
+matched to a specific listing on the page (normalized title OR exact start
+time — never both required, because the update path exists for the cases where
+one of the two changed), and the change is licensed by THAT listing's own gate
+verdict, re-computed from its real stored evidence rather than read off a
+stamped status.
+
+**What can change:** `start_time`, `end_time`, `title` on a confirmed same-page
+difference; `status='cancelled'` on either confirmed-gone shape. What cannot:
+anything else, ever, and no row is deleted at any verdict — `may_delete_listing`
+returns False for every input including ones nobody has written yet, and
+`worker/listing_update.py` carries no DELETE and no INSERT INTO event.
+
+**The founder overruled the 404 reading**, in one line, exactly as the earlier
+decision record invited: a clean 404 of the defining URL is now confirmed gone
+and marks the listing. Bounded — status only, row kept, the defining door's own
+404 and never a fallback's, and both doors down is an error rather than a
+cancellation. Recorded in
+`docs/memory/decisions/2026-09-02_404-of-defining-url-marks-the-listing-gone.md`,
+with a pointer added to the record it supersedes.
+
+**The false-absence guard** is the one piece of judgement added beyond the
+founder's text. Absence is the only evidence shape here that a page can
+manufacture by being SHORT: a calendar listing the next ten shows legitimately
+stops mentioning a show three months out. So an absence must be BRACKETED — the
+page's own parsed listings have to reach both before and after the missing
+event's date — before its silence counts as a statement. An unbracketed absence
+keeps.
+
+**Blast radius.** `MAX_LISTING_MUTATIONS_PER_TICK` (40, env-declarable, parsed
+fail-closed) caps how many published rows one tick may change. Past it the tick
+stops mutating and keeps crawling: coverage is never what a safety cap costs.
+
+**Stated rather than discovered later:** `cancelled` drops a row from the live
+feed (`web/lib/promoted.ts` and `web/lib/licensed.ts` select
+`status in (scheduled, moved)`). It stays in the catalog with its evidence and
+is still reachable by direct link, where the detail page says "This event has
+been cancelled." rather than 404-ing — which is the founder's "row remains" —
+but a wrong cancel is a user-visible error, which is why the guards are guards.
+
+Two deferrals recorded in the same commit: R-092 (postpone is served by
+updating the time and keeping the row visible, not by `status='moved'` — same-
+page evidence cannot tell a reschedule from a typo without the listing's
+timezone, R-090) and R-093 (`api/public.py` filters on `status='scheduled'`
+while the live surface allows `moved`; the two readers disagree).
+
+Artifact: `docs/evidence/2026-09-02_confirmed-listing-update.md` — seventeen
+outcome classes, four mutations and thirteen refusals, machine-generated from
+fixtures.
+
 ## 2026-09-02 — Incremental crawl: three queues, tick budgets, fail-closed checks
 
 Three founder corrections in one session, each of which changed the shape of
