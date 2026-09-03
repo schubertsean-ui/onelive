@@ -177,32 +177,54 @@ def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
 #: being erased; `_` is added because `\W` alone would keep it.
 _PUNCT = re.compile(r"[\W_]+")
 
-#: The combining marks NFKD leaves behind, DELETED rather than turned into
-#: spaces. An accent sits inside a word — `Sigur Rós` decomposes to
-#: `sigur ro` + mark + `s` — so replacing it with a space would split the word
-#: in half and make the fold worse than no fold at all. These are the Unicode
-#: combining-diacritic blocks; a script whose marks fall outside them still
-#: keeps its letters, which is the direction that keeps rows.
-_COMBINING = re.compile(
-    r"[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20f0\ufe20-\ufe2f]")
 
+def _fold_run(run: str) -> str:
+    """One run of non-word characters, reduced to what a title match may turn on.
 
-def _fold(text: str) -> str:
-    """Accented letters folded ONTO the letters they are written with.
+    Marks are `\\W`, so the punctuation pass would turn them into spaces — and a
+    mark sits INSIDE a word (`Sigur Rós` decomposes to `sigur ro` + mark + `s`),
+    so a space there splits the word in half. They are handled by CATEGORY,
+    which is the whole point of the r7 fix: `unicodedata.combining()` returns 0
+    for spacing and enclosing marks, so a combining-class test silently covers
+    Latin and misses the scripts that need it most.
 
-    `Beyoncé` and `Beyonce` are one name typed two ways, and a CMS prints
-    either — often both, on the same site. Decompose (NFKD splits the accent
-    off as its own combining mark), then drop the mark.
-
-    This is not cosmetic. It was a blocking finding from openai/attacker-smuggle
-    on PR #214 r6, and it pointed at the cancel path: the old reduction dropped
-    every non-ASCII letter, so a published `Beyoncé` reduced to `beyonc` while
-    the page's `Beyonce` reduced to `beyonce`, and the absence guard answered a
-    confident False for a page that was still naming the event in plain sight.
-    A confident False is the one answer that can license a cancellation, so a
-    typographic difference could take a real event off the live feed.
+      * Mn (nonspacing) and Me (enclosing) are DELETED. These are the optional
+        ones — a Latin accent, Hebrew niqqud, Arabic harakat — printed on one
+        page and left off the next, which is exactly the difference that must
+        not read as a different title.
+      * Mc (spacing combining) is KEPT, because it is not optional: a
+        Devanagari or Tamil vowel sign carries a vowel, and deleting it would
+        merge words that are genuinely different (`हिंदी` and `हदी`).
+      * Everything else — real punctuation and whitespace — collapses to ONE
+        space, so a multi-word title still matches as a whole-word run.
     """
-    return _COMBINING.sub("", unicodedata.normalize("NFKD", text))
+    kept = [ch for ch in run if unicodedata.category(ch) == "Mc"]
+    spaced = any(unicodedata.category(ch)[0] != "M" for ch in run)
+    return "".join(kept) + (" " if spaced else "")
+
+
+def _reduce(text: str) -> str:
+    """Case, accents, punctuation and spacing removed; letters and digits kept,
+    in every script.
+
+    Decompose first (NFKD splits an accent off its base letter as its own
+    combining mark), then let `_fold_run` above decide what each run of
+    non-letters means. `Beyoncé` and `Beyonce` become one string; so does a
+    Hebrew or Arabic title written with and without its marks.
+
+    This is the second attempt at it, and openai's seats blocked PR #214 both
+    times. At r6 the reduction DELETED every non-ASCII letter, so `Beyoncé`
+    reduced to `beyonc` while a page's `Beyonce` reduced to `beyonce`. At r7 the
+    fix covered only the combining RANGES I had listed — Latin, Greek,
+    Cyrillic — so Hebrew, Arabic and Indic marks still became spaces and split a
+    word in two. Both versions failed the same way: title_still_on_page answers
+    a confident False about a page naming the event in plain sight, and a
+    confident False is the one answer that can license a cancellation.
+    Enumerating what I could think of was the mistake; asking Unicode what a
+    mark is, is the fix.
+    """
+    folded = unicodedata.normalize("NFKD", text.casefold())
+    return _PUNCT.sub(lambda m: _fold_run(m.group()), folded).strip()
 
 
 def normalize_title(title: Optional[str]) -> Optional[str]:
@@ -217,8 +239,7 @@ def normalize_title(title: Optional[str]) -> Optional[str]:
     """
     if not title:
         return None
-    reduced = _PUNCT.sub(" ", _fold(title.strip().casefold())).strip()
-    return reduced or None
+    return _reduce(title.strip()) or None
 
 
 def _same_minute(a: Optional[datetime], b: Optional[datetime]) -> bool:
@@ -261,6 +282,7 @@ MATCH_TIME = "time"        #: same start time, and nothing contradicts it
 MATCH_TITLE = "title"      #: same title, close enough in time to be the same one
 MATCH_FAR = "far"          #: same title, too far away — probably another occurrence
 MATCH_COLLISION = "collision"  #: same start time, but it is plainly a DIFFERENT event
+MATCH_UNTITLED = "untitled"    #: same start time, but one side has no title to check
 
 
 def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[str]:
@@ -303,6 +325,22 @@ def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[s
         # do to a person reading the feed.
         if pt is not None and ct is not None and pt != ct:
             return MATCH_COLLISION
+        if pt is None or ct is None:
+            # A SHARED MINUTE IS NOT AN IDENTITY WHEN NOBODY CAN NAME IT
+            # EITHER, and this was a blocking finding openai/absence-only
+            # raised at r7. The r3 fix handled titles that CONTRADICT; a title
+            # that is simply MISSING fell through to MATCH_TIME and identified
+            # the row. But the same multi-room page that puts two bands on at
+            # 8pm also produces untitled listings, and an extraction that drops
+            # a title produces them by the dozen: the gate PASS proves that the
+            # anonymous listing is real, never that it is ours. Writing an
+            # end_time from it would put a fabricated window on a public row.
+            #
+            # It is not a collision either — nothing contradicts. It is the
+            # absence of evidence in both directions, so it identifies nothing
+            # AND blocks the cancel path, exactly like MATCH_COLLISION does:
+            # something sitting on our start time is a reason to say nothing.
+            return MATCH_UNTITLED
         return MATCH_TIME
     if pt is None or pt != ct:
         return None
@@ -371,7 +409,7 @@ def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optio
     needle = normalize_title(title)
     if not needle or not page_text:
         return None
-    haystack = _PUNCT.sub(" ", _fold(_visible_text(page_text).casefold()))
+    haystack = _reduce(_visible_text(page_text))
     return f" {needle} " in f" {haystack} "
 
 
@@ -462,6 +500,49 @@ def _field_diff(
         "listing_update tried to write a field outside the founder's "
         f"enumeration: {sorted(set(diff) - set(UPDATABLE_LISTING_FIELDS))}")
     return diff
+
+
+def _incoherent(published: PublishedListing, parsed: ParsedListing,
+                diff: Dict[str, Any]) -> Optional[str]:
+    """Why this diff must not be written, or None if the window it leaves is
+    one the page actually states.
+
+    Both openai seats blocked PR #214 at r7 on the same surface, from two
+    sides, and both were right: `_UPDATE_SQL` writes with `coalesce`, so a diff
+    that names only `start_time` KEEPS the published `end_time` — and nothing
+    checked what the two of them said together.
+
+      * A row published 20:00-22:00 whose page now says the show starts at
+        23:00, without restating an end, would be written as 23:00-22:00: an
+        event that ends before it begins, and one that any reader using
+        `end_time` treats as already over. That is fabricated schedule data on
+        the public surface, which is the thing this path exists not to do.
+      * A gate PASS proves a listing's evidence was corroborated, not that its
+        fields are sane. An extraction that emits `end_time` before its own
+        `start_time` writes an impossible range through a gate that never
+        asked.
+
+    So the rule is the same one the rest of this module runs on — say only what
+    the page said. The page must STATE the whole window it is changing, and the
+    test is what the page stated, not what changed: a read that restates an end
+    time has published that end, whether or not it moved. What it may not do is
+    move the start in SILENCE about the end, because silence cannot be stretched
+    over a time nobody published. The cost is real and bounded: a venue that
+    moves a show and does not restate its end is not followed while the row
+    carries an end. Recorded, docs/RECORD.md R-098.
+    """
+    if not diff:
+        return None
+    start = diff.get("start_time", _as_utc(published.start_time))
+    end = diff.get("end_time", _as_utc(published.end_time))
+    if "start_time" in diff and parsed.end_time is None and end is not None:
+        return ("the page moves the start but states no end, and the published "
+                "end was set against the old start — the window it would leave "
+                "is one no page has stated")
+    if start is not None and end is not None and end <= start:
+        return ("the page's own times do not make a window (it would end at or "
+                "before it starts)")
+    return None
 
 
 def adjudicate_page(
@@ -565,18 +646,23 @@ def adjudicate_page(
 
         if not hits:
             near = {match_kind(row, p) for p in parsed}
-            if MATCH_FAR in near or MATCH_COLLISION in near:
+            if MATCH_FAR in near or MATCH_COLLISION in near or MATCH_UNTITLED in near:
                 # Something on the page is close enough to this row to make its
                 # silence unreadable — either our title at a date too far off
                 # to be the same occurrence, or a DIFFERENT event holding our
                 # start time. Both are reasons to say nothing, and neither is a
                 # reason to cancel: an event we cannot cleanly distinguish from
                 # what the page shows has not been shown to be gone.
-                why = ("the page still lists this title, but at a date too far "
-                       "off to be the same occurrence"
-                       if MATCH_FAR in near else
-                       "a different event holds this row's start time on the "
-                       "page, so its absence cannot be read cleanly")
+                if MATCH_FAR in near:
+                    why = ("the page still lists this title, but at a date too "
+                           "far off to be the same occurrence")
+                elif MATCH_COLLISION in near:
+                    why = ("a different event holds this row's start time on "
+                           "the page, so its absence cannot be read cleanly")
+                else:
+                    why = ("something on the page holds this row's start time "
+                           "with no title to check it against, so its absence "
+                           "cannot be read cleanly")
                 decisions.append(ListingDecision(
                     event_id=row.event_id, action=ACTION_NONE,
                     why=f"{why} — ambiguous; last good row stands"))
@@ -634,6 +720,13 @@ def adjudicate_page(
                 matched_candidate_id=hit.candidate_id,
                 why=("the page states a change, but the trust gate did not PASS "
                      "that listing's own evidence — last good row stands")))
+            continue
+        bad_window = _incoherent(row, hit, diff)
+        if bad_window:
+            decisions.append(ListingDecision(
+                event_id=row.event_id, action=ACTION_NONE,
+                matched_candidate_id=hit.candidate_id,
+                why=f"{bad_window} — last good row stands"))
             continue
         decisions.append(ListingDecision(
             event_id=row.event_id, action=ACTION_UPDATE, fields=diff,

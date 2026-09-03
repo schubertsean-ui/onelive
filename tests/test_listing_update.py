@@ -29,6 +29,7 @@ from worker.listing_update import (
     MATCH_COLLISION,
     MATCH_FAR,
     MATCH_TIME,
+    MATCH_UNTITLED,
     MATCH_TITLE,
     MAX_TITLE_ONLY_RETIME,
     ACTION_MARK_GONE,
@@ -40,6 +41,7 @@ from worker.listing_update import (
     adjudicate_page,
     apply_decisions,
     match_kind,
+    matches,
     normalize_title,
     render_decision_table,
     title_still_on_page,
@@ -507,13 +509,18 @@ def test_a_collision_blocks_the_cancel_path_too():
     assert "different event holds this row's start time" in d.why
 
 
-def test_a_shared_start_time_still_identifies_when_nothing_contradicts_it():
-    """The narrowing is only about CONTRADICTION. A page that states no title,
-    or a row that has none, cannot be claiming to be a different event — so the
-    time match still identifies the row and keeps it from reading as absent."""
-    assert match_kind(published(), parsed(title=None)) == MATCH_TIME
-    assert match_kind(published(title=None), parsed()) == MATCH_TIME
+def test_a_shared_start_time_identifies_only_when_both_sides_can_name_it():
+    """Rewritten at r7. This test used to pin the OPPOSITE rule — that an
+    untitled side "cannot be claiming to be a different event", so the time
+    match still identified the row. openai/absence-only showed that reasoning is
+    backwards: an anonymous listing contradicts nothing AND confirms nothing,
+    and the gate PASS on it proves only that it is real, never that it is ours.
+    A shared minute identifies the row when both sides name it and agree."""
     assert match_kind(published(), parsed()) == MATCH_TIME
+    assert match_kind(published(), parsed(title=None)) == MATCH_UNTITLED
+    assert match_kind(published(title=None), parsed()) == MATCH_UNTITLED
+    assert match_kind(published(title=None), parsed(title=None)) == MATCH_UNTITLED
+    assert not matches(published(), parsed(title=None))
 
 
 def test_no_title_is_ever_written_from_same_page_evidence():
@@ -930,3 +937,164 @@ def test_an_uncontested_page_is_unaffected_by_the_new_check():
         parsed=[parsed(start_time=DAY + timedelta(hours=1))],
         gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT)
     assert only(decisions).action == ACTION_UPDATE
+
+
+# --- round 7: what a page STATES, and what it merely fails to contradict -----
+
+
+def test_a_moved_start_with_no_stated_end_is_refused():
+    """openai/attacker-smuggle, r7. `_UPDATE_SQL` writes with `coalesce`, so a
+    diff naming only `start_time` KEEPS the published end. A row published
+    20:00-22:00 whose page now says 23:00, without restating an end, would be
+    written as 23:00-22:00 — an event that ends before it begins, which any
+    reader using `end_time` treats as already over."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT,
+        published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(start_time=DAY + timedelta(hours=3))],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_NONE
+    assert "states no end" in d.why
+
+
+def test_a_moved_start_is_written_when_the_page_states_the_whole_window():
+    """The rule is about what the page STATES, not about what changed: a read
+    that restates the end has published it, so the window is the page's."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT,
+        published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(start_time=DAY + timedelta(hours=3),
+                       end_time=DAY + timedelta(hours=5))],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_UPDATE
+    assert set(d.fields) == {"start_time", "end_time"}
+
+
+def test_a_moved_start_is_written_when_the_row_carries_no_end_at_all():
+    """Nothing incoherent can be left behind when there is no end to leave."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published(end_time=None)],
+        parsed=[parsed(start_time=DAY + timedelta(hours=1))],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_UPDATE
+    assert set(d.fields) == {"start_time"}
+
+
+@pytest.mark.parametrize("p_start, p_end", [
+    (DAY + timedelta(hours=3), DAY + timedelta(hours=1)),   # ends before it starts
+    (DAY + timedelta(hours=3), DAY + timedelta(hours=3)),   # zero-length window
+])
+def test_a_page_whose_own_times_are_not_a_window_is_refused(p_start, p_end):
+    """openai/attacker-smuggle, r7, second half. A gate PASS proves a listing's
+    evidence was corroborated, not that its fields are sane — an extraction that
+    emits an end before its own start goes through a gate that never asked."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT,
+        published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(start_time=p_start, end_time=p_end)],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_NONE
+    assert "do not make a window" in d.why
+
+
+def test_a_new_end_before_the_kept_start_is_refused():
+    """The mirror: only the end moves, and it lands before the start we keep."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT,
+        published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(start_time=DAY, end_time=DAY - timedelta(hours=1))],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_NONE
+    assert "do not make a window" in d.why
+
+
+def test_no_update_decision_can_carry_an_impossible_window():
+    """The invariant behind the two rules above, asserted over the decision
+    rather than over one fixture: whatever an ACTION_UPDATE writes, the pair the
+    row ends up with is a window the page stated."""
+    windows = [None, DAY - timedelta(hours=1), DAY, DAY + timedelta(hours=2)]
+    for pub_end in windows:
+        for new_start in windows:
+            for new_end in windows:
+                decisions = adjudicate_page(
+                    verdict=VERIFIED_PRESENT,
+                    published=[published(start_time=DAY, end_time=pub_end)],
+                    parsed=[parsed(start_time=new_start, end_time=new_end)],
+                    gate_passes=ALWAYS_PASSES,
+                    page_text=PAGE_THAT_STILL_NAMES_IT)
+                for d in decisions:
+                    if d.action != ACTION_UPDATE:
+                        continue
+                    start = d.fields.get("start_time", DAY)
+                    end = d.fields.get("end_time", pub_end)
+                    assert end is None or end > start, (
+                        f"published end={pub_end} + page {new_start}/{new_end} "
+                        f"-> {d.fields}, which is not a window")
+
+
+def test_an_anonymous_listing_on_our_minute_writes_nothing():
+    """openai/absence-only, r7. A parsed listing with no title at the same start
+    minute used to be MATCH_TIME — an identity — so `_field_diff` could write
+    its end_time onto our row. The same multi-room page that puts two bands on
+    at 8pm also produces untitled listings, and an extraction that drops a title
+    produces them by the dozen."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published(end_time=None)],
+        parsed=[parsed(title=None, end_time=DAY + timedelta(hours=4))],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_NONE
+    assert not d.fields
+
+
+def test_an_anonymous_listing_on_our_minute_blocks_the_cancel_too():
+    """It identifies nothing, but it is not nothing: something is sitting on
+    this row's start time and cannot be told apart from it, which is a reason to
+    say nothing rather than a reason to cancel."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[parsed(candidate_id="anon", title=None)] + bracket(),
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_WITHOUT_IT))
+    assert d.action == ACTION_NONE
+    assert "no title to check it against" in d.why
+
+
+@pytest.mark.parametrize("ours, theirs", [
+    ("Beyoncé", "Beyonce"),                     # Latin, Mn
+    ("Sigur Rós", "Sigur Ros"),
+    ("שָׁלוֹם עֲלֵיכֶם", "שלום עליכם"),                # Hebrew niqqud, Mn
+    ("مُحَمَّد Live", "محمد Live"),                # Arabic harakat, Mn
+])
+def test_optional_marks_never_read_as_an_absence(ours, theirs):
+    """openai/absence-only, r7. The r6 fold enumerated the combining RANGES I
+    could think of — Latin, Greek, Cyrillic — so Hebrew, Arabic and Indic marks
+    still fell through to the punctuation pass and became SPACES, splitting a
+    word in two. One side carrying its marks and the other not then read as a
+    confident absence, on the path that cancels."""
+    assert normalize_title(ours) == normalize_title(theirs)
+    assert title_still_on_page(ours, f"<p>tonight: {theirs}</p>") is True
+    assert title_still_on_page(theirs, f"<p>tonight: {ours}</p>") is True
+
+
+def test_a_spacing_vowel_sign_is_part_of_the_word_and_is_kept():
+    """The other half of the same rule, and why `unicodedata.combining()` is the
+    wrong test: it returns 0 for spacing marks (Mc). A Devanagari or Tamil vowel
+    sign is not optional decoration — deleting it would merge words that are
+    genuinely different, so Mc is KEPT while Mn and Me are folded away."""
+    assert normalize_title("हिंदी Night") != normalize_title("हदी Night")
+    assert normalize_title("தமிழ் Night") is not None
+
+
+def test_the_fold_is_asked_of_unicode_rather_than_enumerated():
+    """Structural, because the defect twice over was an enumeration that looked
+    complete: no block ranges in the reduction, and the category test present."""
+    import inspect
+    from worker import listing_update as lu
+    src = inspect.getsource(lu._fold_run) + inspect.getsource(lu._reduce)
+    assert "unicodedata.category" in src
+    assert "\\u03" not in src, "a hand-listed combining range is back"
+
+
+def test_a_multi_word_title_still_matches_as_one_run():
+    """Punctuation collapses to a single space on both sides, or a whole-word
+    search for a two-word title stops finding it."""
+    assert title_still_on_page("Open  Mic -- Night!", "<p>open mic night</p>") is True

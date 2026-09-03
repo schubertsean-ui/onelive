@@ -157,3 +157,52 @@ The fixture that hid both was the same shape — one published row, one page, on
 alphabet. A fixture with two rows would have caught the first; a fixture with
 one accent would have caught the second. Neither needed a cleverer test, only a
 less tidy one.
+
+## Round seven: I recorded a limitation instead of fixing it, and the reasoning was wrong
+
+The r6 fix folded accents by deleting the combining marks in the Unicode
+combining-diacritic *blocks* — Latin, Greek, Cyrillic. Marks outside them
+(Hebrew niqqud, Arabic harakat, Indic matras) still fell through to the
+punctuation pass and became spaces, splitting a word in half.
+
+I noticed that, judged it a coverage defect, and opened **R-096** saying it was
+"in the safe direction... never a wrong mutation". The seat blocked on it and
+was right: a needle split by a mark-turned-space produces a confident
+`title_still_on_page` **False**, and with a gate-passed bracket that marks a
+still-listed event `cancelled`. It was a wrong mutation, on the cancel path,
+in the exact class this PR exists to prevent.
+
+Two lessons, and the second is the one that generalizes:
+
+**The register is for limitations you have PROVEN bounded, not for ones you have
+argued are bounded.** Recording is a real mechanism and it did its job — the
+entry named the residual precisely enough for a reviewer to attack it. But the
+entry also carried a conclusion ("never a wrong mutation") that I had reasoned
+to rather than tested. If a residual's safety claim has no test behind it, the
+honest options are to write the test or to fix the residual, not to write the
+claim down and move on.
+
+**An enumeration that looks complete is the defect.** Twice on this file: first
+`[^0-9a-z]` ("the letters I can think of"), then a list of combining blocks
+("the marks I can think of"). Both looked exhaustive while reading them. The
+fix both times was to stop enumerating and ask the library: `unicodedata` knows
+what a mark is. And the trap inside that fix — `unicodedata.combining()`
+returns **0** for spacing (Mc) and enclosing (Me) marks, so the obvious test
+silently covers Latin and misses the scripts that need it most. The *category*
+is the right question, and Mc must be KEPT rather than folded, because a
+Devanagari vowel sign carries a vowel.
+
+## Round seven, second half: `coalesce` means a partial write is a whole row
+
+`_UPDATE_SQL` writes with `coalesce`, so a diff naming only `start_time` keeps
+the published `end_time`. Every test asked "is this field right?" and none
+asked "is the ROW right afterwards?" — so a row published 20:00-22:00, moved by
+its page to 23:00 with no new end, would have been written as 23:00-22:00.
+
+The table in `docs/evidence/` had been demonstrating that very mutation as a
+headline `yes` row for five rounds, and I had read it many times.
+
+**The rule: when a write is partial, assert the invariant on the RESULT, not on
+the delta.** The test that catches this is not another fixture; it is the one
+that enumerates published/parsed combinations and asserts that whatever an
+update writes, the pair the row ends up with is a window the page stated.
