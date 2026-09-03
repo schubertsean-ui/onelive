@@ -1,4 +1,4 @@
-"""A block carries the identity its OWN markup stated — founder Session
+"""A block carries the identity its OWN markup DECLARES — founder Session
 Contract #58 (2026-09-03), the R-103 cheap path.
 
 R-103 recorded the identity stack's honest headline: #217 built the ladder, the
@@ -10,18 +10,26 @@ was the model's guessed `ticket_link` — which `worker/identity.py` refuses to
 read as an identity, because laundering a guess into an identity rewrites public
 rows from it.
 
-These tests are the founder's must-do 1 and 3. Every one of them runs the REAL
-segmenter over a REAL fixture page and the REAL `create_candidate`
-canonicalization, WITH NO MODEL ANYWHERE: nothing here calls, stubs, or fakes an
-extractor, so an identity that arrives could only have come from the page's own
-markup. Hermetic — no DB, no network, no AI.
+DECLARED, NEVER CONVENTIONAL, and that line was drawn by the adversarial panel
+rather than by us. The first round of this producer also read two conventions —
+a card's heading anchor and a card's sole link — and both openai seats blocked
+on the same defect from opposite lenses: an ordinary venue card links the ARTIST
+from its title as readily as the event, so a later tick could read that same
+address on a DIFFERENT occurrence, answer SAME, and rewrite a published listing
+with another show's title and clock. They were right, and the residual had been
+RECORDED (R-104) instead of fixed — the exact mistake R-096 is the standing
+lesson for. The conventional rungs are gone; only a declaration is read.
 
-The guard tests are not decoration. The failure this feature can cause is
-adopting an address that is not the listing's own, which licenses a later tick
-to rewrite one published listing from another's facts (R-095/R-097/R-099). So
-the refusals are pinned as hard as the captures: an ambiguous card, an address
-two listings share, the anchor-split path, and the whole-page fallback all state
-NOTHING, and a page url or a ticket link is never an identity at any rung.
+Every test here runs the REAL segmenter over a REAL fixture page and the REAL
+`create_candidate` canonicalization, WITH NO MODEL ANYWHERE: nothing calls,
+stubs, or fakes an extractor, so an identity that arrives could only have come
+from the page's own markup. Hermetic — no DB, no network, no AI.
+
+The refusals are pinned as hard as the captures, because the failure this
+feature can cause is adopting an address that is not the listing's own: an
+undeclared card, an address two listings share, a contradicted declaration, the
+anchor-split path and the whole-page fallback all state NOTHING, and a page url
+or a ticket link is never an identity at any rung.
 """
 import contextlib
 import copy
@@ -63,11 +71,16 @@ def blocks_of(name: str):
     return segment_events(page(name), content_type="text/html")
 
 
-# --- MUST-DO 1: an href, and a JSON-LD url/@id, reach the candidate -----------
+# --- MUST-DO 1: a declared href, and a JSON-LD url/@id, reach the candidate ----
 
-def test_a_block_keeps_the_href_its_own_card_stated():
-    """MUST-DO 3(1) — "href kept". The three cards each state their own listing
-    url in a heading anchor, and each block comes back carrying it."""
+def test_a_block_keeps_the_address_its_own_card_declared():
+    """MUST-DO 3(1) — "href kept". Each card labels one link `itemprop="url"`,
+    and each block comes back carrying exactly that address.
+
+    The fixture is adversarial around the declaration on purpose: every card's
+    HEADING links the artist and two carry a "Tickets" link to a vendor. Those
+    are the conventional links the panel blocked, and none of them appears
+    here."""
     blocks = blocks_of("cards_with_hrefs")
     assert len(blocks) == 3
     assert [carried_identity(b).source_href for b in blocks] == [
@@ -77,7 +90,7 @@ def test_a_block_keeps_the_href_its_own_card_stated():
     ]
 
 
-def test_the_href_could_not_have_come_from_the_block_text():
+def test_the_address_could_not_have_come_from_the_block_text():
     """The proof that this is a SEGMENTATION capture and not something a model
     could have read: the address is nowhere in the text the extractor sees.
 
@@ -89,13 +102,14 @@ def test_the_href_could_not_have_come_from_the_block_text():
         assert carried_identity(block).source_href is not None
 
 
-def test_a_href_bearing_block_populates_listing_identity_without_the_model():
+def test_a_declared_address_populates_listing_identity_without_the_model():
     """MUST-DO 1, end to end: page bytes -> segmenter -> the real
     `create_candidate` canonicalization -> `extracted["_identity"]`.
 
     The `extracted` payload here is what the model produces for such a card,
-    guessed `ticket_link` and all. The stored identity is the page's href; the
-    guess is stored as the ordinary field it is and is NOT read as an id."""
+    guessed `ticket_link` and all. The stored identity is the page's declared
+    address; the guess is stored as the ordinary field it is and is NOT read as
+    an id."""
     block = blocks_of("cards_with_hrefs")[0]
     extracted = {"title": "Castle Creek", "venue_name": "Wren Hall",
                  "ticket_link": "https://tix.example/8817"}
@@ -109,9 +123,10 @@ def test_a_href_bearing_block_populates_listing_identity_without_the_model():
 
 
 def test_jsonld_url_and_id_reach_the_candidate_without_the_model():
-    """MUST-DO 1's other carrier. `url` is the listing's address and
-    `@id`/`identifier` its opaque id — both read by the ONE reader
-    (`worker.identity.jsonld_identity`) the licensed importer also uses."""
+    """MUST-DO 1's other carrier, and the strongest one: a JSON-LD Event states
+    its own `url` and `@id`/`identifier` as fields, which is a declaration by
+    construction. Read by the ONE reader (`worker.identity.jsonld_identity`)
+    the licensed importer also uses."""
     stored = [_with_identity({"title": "x"}, b) for b in blocks_of("jsonld_two_events")]
     by_uid = {s[IDENTITY_KEY]["uid"]: s[IDENTITY_KEY] for s in stored}
     assert by_uid["https://wrenhall.example/id/8817"]["listing_url"] == \
@@ -128,6 +143,27 @@ def test_two_blocks_two_hrefs():
         assert all(s for s in stored), name
         keys = [json.dumps(s, sort_keys=True) for s in stored]
         assert len(set(keys)) == len(keys), name
+
+
+# --- the panel's blocking finding, pinned as a page ----------------------------
+
+def test_a_conventional_link_is_never_an_identity():
+    """THE ADVERSARIAL PANEL'S BLOCKING FINDING, as a committed page.
+
+    The ordinary venue card: a title link and a "Tickets" link, and nothing in
+    the markup saying which is the listing. An earlier round adopted the title
+    link — `/artists/castle-creek` — which is the ARTIST's page, so next
+    month's different Castle Creek show would have matched this published row
+    and rewritten its title and clock from another occurrence's facts.
+
+    Both blocks state NOTHING now, and the second card (one link, no ticket
+    link) pins that a card's SOLE link is not adopted either: "only link" is
+    not a statement about what the link is."""
+    blocks = blocks_of("cards_with_undeclared_hrefs")
+    assert len(blocks) == 2
+    for block in blocks:
+        assert carried_identity(block) == NO_IDENTITY
+        assert IDENTITY_KEY not in _with_identity({"title": "Castle Creek"}, block)
 
 
 # --- MUST-DO 3(3): no href -> still a list, and still no mutation -------------
@@ -176,13 +212,17 @@ def test_without_a_href_no_mutation_is_licensed():
                     assert "start_time" not in decision.fields
 
 
-def test_with_a_href_the_same_listing_is_recognized_across_ticks():
+def test_with_a_declared_address_the_same_listing_is_recognized_across_ticks():
     """The point of the producer, proved rather than asserted: with the card's
-    own href on the row, the SAME listing renamed and moved by two hours is
-    recognized as itself, and the write R-095/R-099 had to refuse is licensed.
+    DECLARED address on the row, the same listing renamed and moved by two
+    hours is recognized as itself, and the write R-095/R-099 had to refuse is
+    licensed.
 
     The published row's identity is the one a previous tick stored through this
-    same path, so this is the maintenance case end to end."""
+    same path, so this is the maintenance case end to end — and it is safe here
+    for the reason the conventional rungs were removed: the source said this
+    address IS the listing, so a different occurrence would carry a different
+    one."""
     block = blocks_of("cards_with_hrefs")[0]
     identity = read_identity(_with_identity({"title": "Castle Creek"}, block))
     row = PublishedListing(event_id="e1", title="Castle Creek",
@@ -200,33 +240,19 @@ def test_with_a_href_the_same_listing_is_recognized_across_ticks():
     assert decision.fields["start_time"] == hit.start_time
 
 
-# --- the refusals that bound the conventional rungs ---------------------------
-
-def test_an_ambiguous_card_states_no_identity():
-    """Two links, neither marked as the listing's own and neither in a heading:
-    the card has not said which address it lives at, so nothing is adopted.
-    Picking the first would be a guess with a published row on the other end."""
-    html = ("<div class='calendar'>"
-            "<article class='event'>Fri Aug 1, 8pm Castle Creek "
-            "<a href='/artists/castle-creek'>artist</a> "
-            "<a href='https://tix.example/8817'>tickets</a></article>"
-            "<article class='event'>Sat Aug 2, 9pm River Delta "
-            "<a href='/artists/river-delta'>artist</a> "
-            "<a href='https://tix.example/8818'>tickets</a></article></div>")
-    blocks = segment_events(html, content_type="text/html")
-    assert len(blocks) == 2
-    assert all(carried_identity(b) == NO_IDENTITY for b in blocks)
-
+# --- the refusals ---------------------------------------------------------------
 
 def test_an_address_two_listings_share_is_not_either_listing_s_identity():
-    """The page-wide cardinality guard. Both cards' heading anchors point at the
-    same series page, so that address identifies what they have in common — not
-    either of them — and it is dropped from both rather than adopted twice."""
+    """The page-wide cardinality guard, on DECLARED addresses. Both cards
+    declare the same series page as their url, so that address identifies what
+    they have in common — not either of them — and it is dropped from both
+    rather than adopted twice. A source can contradict itself; a contradiction
+    is never an identity."""
     html = ("<div class='calendar'>"
-            "<article class='event'><h3><a href='/series/revue'>Castle Creek</a></h3>"
-            "Fri Aug 1, 8pm</article>"
-            "<article class='event'><h3><a href='/series/revue'>Castle Creek</a></h3>"
-            "Fri Aug 8, 8pm</article></div>")
+            "<article class='event'>Fri Aug 1, 8pm Castle Creek "
+            "<a itemprop='url' href='/series/revue'>details</a></article>"
+            "<article class='event'>Fri Aug 8, 8pm Castle Creek "
+            "<a itemprop='url' href='/series/revue'>details</a></article></div>")
     blocks = segment_events(html, content_type="text/html")
     assert len(blocks) == 2
     assert all(carried_identity(b) == NO_IDENTITY for b in blocks)
@@ -244,6 +270,38 @@ def test_a_shared_field_is_dropped_without_taking_a_distinct_one_with_it():
     ids = {carried_identity(b).uid: carried_identity(b).listing_url
            for b in segment_events(html, content_type="text/html")}
     assert ids == {"a-1": None, "b-2": None}
+
+
+def test_a_card_declaring_two_different_urls_states_no_identity():
+    """A card that labels TWO different addresses `itemprop="url"` has disagreed
+    with itself. Refused outright — and there is no weaker rung to fall to,
+    which is the point of removing them."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek "
+            "<a itemprop='url' href='/e/8817'>details</a> "
+            "<a itemprop='url' href='/e/9999'>also details</a></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta "
+            "<a itemprop='url' href='/e/8818'>details</a></div></div>")
+    hrefs = [carried_identity(b).source_href
+             for b in segment_events(html, content_type="text/html")]
+    assert hrefs == [None, "/e/8818"]
+
+
+def test_a_declaration_pointing_at_a_non_address_is_refused():
+    """`mailto:`/`tel:`/`javascript:` and a bare `#` are not addresses of
+    anything a calendar lists, so a declaration naming one states nothing —
+    a fact about the schemes, not a preference between links."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek "
+            "<a itemprop='url' href='mailto:box@v.example'>email</a></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta "
+            "<a itemprop='url' href='#'>more</a></div></div>")
+    assert all(carried_identity(b) == NO_IDENTITY
+               for b in segment_events(html, content_type="text/html"))
 
 
 def test_the_page_s_own_url_never_becomes_a_listing_identity():
@@ -270,15 +328,16 @@ def test_the_anchor_split_path_carries_nothing():
     assert all(type(b) is str for b in blocks)
 
 
-# --- the rungs, each pinned separately ----------------------------------------
+# --- the two rungs, each pinned separately -------------------------------------
 
-def test_a_card_that_is_itself_the_link_states_its_own_address():
-    """Rung 1: the whole listing IS the anchor, so there is nothing to
-    disambiguate. Reachable through the schema.org-microdata strategy, which is
-    the one segmentation rule that can capture an `<a>` element; a plain
-    `<a class="event-card">` calendar does not segment today and this contract
-    does not widen segmentation to make it (that would move which pages split,
-    which is a different change with its own exam baselines)."""
+def test_a_card_that_is_itself_the_link_declares_its_own_address():
+    """Rung 1: the whole listing IS the anchor, so the markup has said where it
+    lives — a declaration by structure, with nothing to disambiguate. Reachable
+    through the schema.org-microdata strategy, which is the one segmentation
+    rule that can capture an `<a>` element; a plain `<a class="event-card">`
+    calendar does not segment today and this contract does not widen
+    segmentation to make it (that would move which pages split, which is a
+    different change with its own exam baselines)."""
     html = ("<div>"
             "<a itemscope itemtype='https://schema.org/MusicEvent' href='/e/1'>"
             "Fri Aug 1, 8pm Castle Creek <span>at Wren Hall</span></a>"
@@ -289,9 +348,10 @@ def test_a_card_that_is_itself_the_link_states_its_own_address():
     assert hrefs == ["/e/1", "/e/2"]
 
 
-def test_an_itemprop_url_outranks_every_other_link_in_the_card():
-    """Rung 2: the source has LABELLED the field, which beats any convention.
-    Here the labelled address is not the first link and not in the heading."""
+def test_an_itemprop_url_is_read_wherever_it_sits_in_the_card():
+    """Rung 2: the source has LABELLED the field, and that is all that is
+    needed — the declaration is not required to be first, or in the heading, or
+    the only link. Here it is none of those."""
     html = ("<div>"
             "<div itemscope itemtype='https://schema.org/MusicEvent'>"
             "<h3><a href='/artists/castle-creek'>Castle Creek</a></h3>"
@@ -304,54 +364,6 @@ def test_an_itemprop_url_outranks_every_other_link_in_the_card():
     assert hrefs == ["/e/8817", "/e/8818"]
 
 
-def test_a_card_labelling_two_different_urls_states_no_identity():
-    """Rung 2 refuses a contradiction instead of taking the first: a card that
-    labels TWO different addresses `itemprop="url"` has disagreed with itself,
-    and a contradiction is never an identity. It does NOT fall through to the
-    heading rung either — a convention must not outrank a declaration, even a
-    self-contradicting one."""
-    html = ("<div>"
-            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
-            "<h3><a href='/e/8817'>Castle Creek</a></h3>Fri Aug 1, 8pm "
-            "<a itemprop='url' href='/e/8817'>details</a> "
-            "<a itemprop='url' href='/e/9999'>also details</a></div>"
-            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
-            "<h3><a href='/e/8818'>River Delta</a></h3>Sat Aug 2, 9pm "
-            "<a itemprop='url' href='/e/8818'>details</a></div></div>")
-    hrefs = [carried_identity(b).source_href
-             for b in segment_events(html, content_type="text/html")]
-    assert hrefs == [None, "/e/8818"]
-
-
-def test_a_heading_with_two_links_is_ambiguous_at_every_rung():
-    """Rung 3 refuses rather than picking: a heading naming both the artist and
-    the venue has not said which one the listing lives at, and rung 4 then sees
-    the same two addresses."""
-    html = ("<div class='calendar'>"
-            "<article class='event'><h3><a href='/a/cc'>Castle Creek</a> at "
-            "<a href='/v/wren'>Wren Hall</a></h3>Fri Aug 1, 8pm</article>"
-            "<article class='event'><h3><a href='/a/rd'>River Delta</a> at "
-            "<a href='/v/wren'>Wren Hall</a></h3>Sat Aug 2, 9pm</article></div>")
-    assert all(carried_identity(b) == NO_IDENTITY
-               for b in segment_events(html, content_type="text/html"))
-
-
-def test_a_mailto_or_a_menu_toggle_is_not_a_competing_address():
-    """Rung 4 counts ADDRESSES OF LISTINGS. `mailto:`/`tel:`/`javascript:` and a
-    bare `#` are none of those, so a card holding one plus its own link is
-    unambiguous — a fact about the schemes, not a preference between links."""
-    html = ("<div class='calendar'>"
-            "<article class='event'>Fri Aug 1, 8pm Castle Creek "
-            "<a href='/e/1'>details</a> <a href='mailto:box@v.example'>email</a> "
-            "<a href='#'>more</a></article>"
-            "<article class='event'>Sat Aug 2, 9pm River Delta "
-            "<a href='/e/2'>details</a> <a href='tel:+15125550100'>call</a></article>"
-            "</div>")
-    hrefs = [carried_identity(b).source_href
-             for b in segment_events(html, content_type="text/html")]
-    assert hrefs == ["/e/1", "/e/2"]
-
-
 # --- the carrier changes nothing the extraction surface can see ---------------
 
 def test_the_carrier_leaves_the_block_text_byte_identical():
@@ -362,9 +374,9 @@ def test_the_carrier_leaves_the_block_text_byte_identical():
     failing test and not a silently re-baselined one."""
     blocks = blocks_of("cards_with_hrefs")
     assert blocks == [
-        "Castle Creek Fri Aug 1, 8pm — Wren Hall Tickets",
-        "River Delta Sat Aug 2, 9pm — Wren Hall Tickets",
-        "Tin Sparrow Sun Aug 3, 7pm — Wren Hall",
+        "Castle Creek Fri Aug 1, 8pm — Wren Hall Event details Tickets",
+        "River Delta Sat Aug 2, 9pm — Wren Hall Event details Tickets",
+        "Tin Sparrow Sun Aug 3, 7pm — Wren Hall Event details",
     ]
     block = blocks[0]
     assert isinstance(block, str) and isinstance(block, IdentifiedBlock)

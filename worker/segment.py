@@ -29,14 +29,18 @@ Design rules (in priority order, matching CLAUDE.md's truth-first bar):
      the strip-to-text step here discarded every listing's own `<a href>` and
      every JSON-LD `@id` before `worker/ai_extract.py` ever saw the block. So a
      block cut from a JSON-LD Event object carries that object's `url`/`@id`,
-     and a block cut from an HTML container carries that container's own
-     unambiguous `<a href>` — as a SIDECAR on the block object
+     and a block cut from an HTML container carries the address that container
+     DECLARES for itself (it IS an anchor, or it labels one `itemprop="url"`) —
+     never one merely conventional, such as a title link or a card's sole link,
+     which points at an artist or a ticket vendor as readily as at the listing
+     (the adversarial panel's blocking finding, and it was right). As a SIDECAR
+     on the block object
      (`worker.identity.carry_identity`), leaving the block TEXT byte-identical.
      The extractor's input, and the surface exam's, are unchanged.
      Nothing else carries anything: the anchor-split path cuts at text offsets
      with no structure to attribute an address to, and the single-block
      fallback IS the whole page, whose url every listing on it shares. An
-     address two blocks both state is dropped from both — it identifies what
+     address two blocks both declare is dropped from both — it identifies what
      they have in common, not either of them.
 
 Deliberately imports nothing from the pipeline (no promote/gating/AI). The one
@@ -107,19 +111,10 @@ _ANCHOR_LINE_RE = re.compile(
 # case-insensitive — matches "event-card", "eventItem", "show", "listing", etc.
 _CARDISH_CLASS_RE = re.compile(r"event|card|listing|show|gig|happening", re.I)
 
-# Headings INSIDE a listing container. A listing conventionally names itself in
-# a heading, and the anchor on that heading is conventionally the listing's own
-# page — which is why a heading anchor outranks the other links in a card (a
-# "Tickets" link is a vendor's page, an image link is the same page again).
-# Convention is not proof, so this rung is bounded twice: it fires only when the
-# heading states exactly ONE address, and every captured href then has to
-# survive the page-wide uniqueness pass in `_drop_shared_identities`.
-_HEADING_TAGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
-
-# Schemes that are not the address of anything a calendar lists. Excluded before
-# hrefs are counted, so a card carrying one listing link plus a mailto/tel/JS
-# handle still reads as UNAMBIGUOUS rather than as two competing addresses. This
-# is a fact about the schemes, not a preference between two candidate listings.
+# Schemes that are not the address of anything a calendar lists. A declaration
+# pointing at one of these is not an address of a listing, so it is refused
+# rather than stored. This is a fact about the schemes, not a preference between
+# two candidate links.
 _NON_ADDRESS_SCHEMES = ("javascript:", "mailto:", "tel:", "sms:", "data:")
 
 # Block-level tags: stripping HTML to text, we insert a newline at each so that
@@ -188,17 +183,31 @@ class _ElementTextCollector(HTMLParser):
     element containing a same-tag descendant (a <li> inside a <li>) is one
     block, not two — we never split a container at an inner boundary.
 
-    The address is read in a fixed order, and the order is the point: each rung
-    is a place the SOURCE said "this listing lives here", and the last rung
-    refuses rather than picking between links that say nothing about which is
-    the listing's own.
+    ONLY A DECLARATION IS READ, and that restriction is the whole design:
 
       1. the container IS an anchor (the card-as-link pattern, reachable via the
-         schema.org-microdata strategy) -> its href;
-      2. something inside is labelled ``itemprop="url"`` ONCE  -> that address;
-      3. the container's heading states exactly one address    -> that href;
-      4. the container states exactly one address in total     -> that href;
-      5. anything else -> NO address (an ambiguous card is not an identity).
+         schema.org-microdata strategy) -> its href: the markup says this whole
+         listing is that link;
+      2. something inside is labelled ``itemprop="url"`` exactly ONCE -> that
+         address: the source has named the field itself;
+      3. anything else -> NO address.
+
+    An earlier round of this module also read two CONVENTIONS — a card's heading
+    anchor, and a card's sole link — and both were removed at the adversarial
+    panel's blocking finding, which was correct and is worth writing down where
+    the next person will be tempted to add them back. An ordinary venue card
+    links the ARTIST or the SERIES from its title as readily as the event, and a
+    card's only link is as often a ticket vendor's. Nothing in the markup says
+    which. Adopting one anyway means a later tick can read the same address on a
+    DIFFERENT occurrence, answer SAME, and rewrite a published listing with
+    another show's title and clock — user-facing false facts, from a guess. The
+    page-wide uniqueness pass in `_drop_shared_identities` cannot save it: that
+    catches an address repeated on ONE page, and this harm is across ticks.
+
+    So the cost is deliberately accepted in the safe direction: a card with a
+    title link and a "Tickets" link states NO identity, and the listing keeps
+    being matched by the composite rung, which licenses nothing. Under-matching
+    costs a refusal; over-matching costs a wrong public listing.
 
     Text is unaffected by all of this: the block string is byte-identical to
     what this collector returned before it read attributes at all.
@@ -214,45 +223,29 @@ class _ElementTextCollector(HTMLParser):
         self._buf: List[str] = []
         self._cap_href: Optional[str] = None
         self._itemprop_urls: List[str] = []
-        self._heading_depth = 0
-        self._heading_hrefs: List[str] = []
-        self._hrefs: List[str] = []
 
     # -- capture bookkeeping --------------------------------------------------
 
-    def _note_attrs(self, tag: str, attrs: Dict[str, str]) -> None:
-        """Record what an element INSIDE the current capture states."""
+    def _note_attrs(self, attrs: Dict[str, str]) -> None:
+        """Record an address an element INSIDE the current capture DECLARES.
+
+        Undeclared `<a href>`s are not recorded at all — not counted, not
+        ranked, not remembered. There is no rung they could feed.
+        """
         labelled = _itemprop_url_of(attrs)
         if labelled is not None and labelled not in self._itemprop_urls:
             self._itemprop_urls.append(labelled)
-        if tag != "a":
-            return
-        href = _href_of(attrs)
-        if href is None:
-            return
-        if href not in self._hrefs:
-            self._hrefs.append(href)
-        if self._heading_depth and href not in self._heading_hrefs:
-            self._heading_hrefs.append(href)
 
     def _resolved_href(self) -> Optional[str]:
-        """The rungs above, in order. None when the card is ambiguous."""
+        """The declared address, or None. Never a conventional one."""
         if self._cap_href:
             return self._cap_href
         if len(self._itemprop_urls) == 1:
             return self._itemprop_urls[0]
-        if self._itemprop_urls:
-            # A card labelling TWO different addresses as its url has
-            # contradicted itself, and a contradiction is never an identity
-            # (worker/identity.py's own rule). Refuse outright rather than
-            # falling to a weaker rung: the weaker rungs read conventions, and
-            # a convention must not outrank a declaration the source made —
-            # even when the source made it twice and disagreed with itself.
-            return None
-        if len(self._heading_hrefs) == 1:
-            return self._heading_hrefs[0]
-        if len(self._hrefs) == 1:
-            return self._hrefs[0]
+        # Zero declarations is a hole. TWO different ones is a contradiction,
+        # and a contradiction is never an identity (worker/identity.py's own
+        # rule). Both answer None, because both mean the same thing: the source
+        # did not tell us where this listing lives.
         return None
 
     def _reset_capture(self) -> None:
@@ -261,9 +254,6 @@ class _ElementTextCollector(HTMLParser):
         self._buf = []
         self._cap_href = None
         self._itemprop_urls = []
-        self._heading_depth = 0
-        self._heading_hrefs = []
-        self._hrefs = []
 
     # -- parser callbacks -----------------------------------------------------
 
@@ -273,9 +263,7 @@ class _ElementTextCollector(HTMLParser):
         if self._cap_tag is not None:
             if t == self._cap_tag:
                 self._depth += 1
-            if t in _HEADING_TAGS:
-                self._heading_depth += 1
-            self._note_attrs(t, a)
+            self._note_attrs(a)
             return
         if self._should_start(t, a):
             self._cap_tag = t
@@ -283,25 +271,19 @@ class _ElementTextCollector(HTMLParser):
             self._buf = []
             self._cap_href = _href_of(a) if t == "a" else None
             self._itemprop_urls = []
-            self._heading_depth = 0
-            self._heading_hrefs = []
-            self._hrefs = []
 
     def handle_startendtag(self, tag, attrs):
         # A self-closing element carries no text content; the only effects we
         # care about are separating adjacent text and the address a void
         # element can still state (<link itemprop="url" href="..."/>).
         if self._cap_tag is not None:
-            self._note_attrs(tag.lower(), {k.lower(): (v or "") for k, v in attrs})
+            self._note_attrs({k.lower(): (v or "") for k, v in attrs})
             self._buf.append(" ")
 
     def handle_endtag(self, tag):
         if self._cap_tag is None:
             return
-        t = tag.lower()
-        if t in _HEADING_TAGS and self._heading_depth:
-            self._heading_depth -= 1
-        if t == self._cap_tag:
+        if tag.lower() == self._cap_tag:
             self._depth -= 1
             if self._depth == 0:
                 self.blocks.append((_ws(" ".join(self._buf)), self._resolved_href()))

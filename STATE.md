@@ -36,9 +36,18 @@ identical: `IdentifiedBlock` compares, slices and serializes as the same string)
 An identity attaches ONLY to a block CUT FROM the thing that stated it: a JSON-LD Event
 object, or an HTML container element. The anchor-split path (text offsets, no structure)
 and the whole-page single-block fallback carry NOTHING — the page url is every listing's
-url, and adopting it would make forty shows one show. Within a container the href rule is
-ordered and refuses when ambiguous: the container's own `<a href>` if it IS the anchor,
-else an `itemprop="url"`, else the ONE distinct href it contains, else no identity.
+url, and adopting it would make forty shows one show. Within a container ONLY A
+DECLARATION is read: the container's own `<a href>` if it IS the anchor, or an
+`itemprop="url"` stated exactly once. Nothing conventional — an undeclared `<a href>` is
+not counted, ranked or remembered. The first round of this build also read a card's
+heading anchor and a card's sole link, and the adversarial panel blocked both (round 1,
+head 189c56e, openai/attacker-smuggle and openai/absence-only on one defect from opposite
+lenses): an ordinary venue card links the ARTIST from its title as readily as the event,
+so a later tick reading the same address on a DIFFERENT occurrence would answer SAME and
+rewrite a published listing with another show's facts. The page-wide uniqueness pass does
+not cover that — it catches an address repeated on ONE page. The residual had been
+RECORDED (R-104) instead of fixed, which is the mistake R-096 stands as the lesson for;
+R-104 is now RESOLVED in this same PR by deleting both rungs.
 A relative href is stored VERBATIM as `source_href` (not resolved against a page url that
 segment is not given, and never invented) — which is exactly what `source_href` was
 documented in #217 to be.
@@ -57,11 +66,13 @@ NOTHING — so a renamed show, a retimed series and a contested 8pm stay wrong o
 map exactly as they were before #217. Fixing it in segment is also the only fix that
 cannot launder a guess: the model's `ticket_link` remains not-an-identity, because the
 href we adopt is one the page's own markup attached to that listing.
-EXPECTED OUTCOMES: the before/after fixture proof (must-do 1); an href-bearing card page
-producing two blocks with two DIFFERENT `source_href`s; a JSON-LD page producing
+EXPECTED OUTCOMES: the before/after fixture proof (must-do 1); a card page whose listings
+DECLARE their own addresses producing three blocks with three DIFFERENT `source_href`s
+while the artist and vendor links in the same cards are refused; a JSON-LD page producing
 `listing_url` + `uid` with no model in the loop; the same page without hrefs still
 segmenting into three blocks, still storing no `_identity`, and still refusing every
-title/start_time write; `tools/identity_capture_scan.py` re-run showing the class_b corpus
+title/start_time write; the ordinary undeclared card (title link + Tickets link) likewise
+storing nothing; `tools/identity_capture_scan.py` re-run showing the class_b corpus
 unchanged at zero carriers (R-103's class-B half stays true and MEASURED). Armed-cron
 runtime files change (`worker/segment.py`, `worker/candidate_store.py`,
 `worker/identity.py`, `worker/importers/structured_feed.py`), so must-do 5's one dry

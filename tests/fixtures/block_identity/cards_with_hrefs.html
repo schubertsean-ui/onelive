@@ -1,23 +1,29 @@
 <!doctype html>
-<!-- Fixture: a venue calendar whose listing cards each carry their OWN anchor.
-     This is the shape R-103 says the class_b corpus does not contain; it is
-     written here so the capture path has a page to be proved against. -->
+<!-- Fixture: a venue calendar whose listing cards DECLARE their own address.
+     Each card labels one link `itemprop="url"` — the source naming the field
+     itself. Deliberately adversarial around that declaration: the heading links
+     the ARTIST, and a "Tickets" link points at a vendor. Both are the kind of
+     conventional link an earlier round of worker/segment.py adopted and the
+     adversarial panel blocked; neither may become this listing's identity. -->
 <html><body>
   <header><a href="/">Wren Hall</a> · <a href="/contact">Contact</a></header>
   <div class="calendar">
-    <article class="event">
-      <h3><a href="/events/8817-castle-creek">Castle Creek</a></h3>
+    <article class="event" itemscope itemtype="https://schema.org/MusicEvent">
+      <h3><a href="/artists/castle-creek">Castle Creek</a></h3>
       <p>Fri Aug 1, 8pm — Wren Hall</p>
+      <a itemprop="url" href="/events/8817-castle-creek">Event details</a>
       <a class="tickets" href="https://tix.example/8817">Tickets</a>
     </article>
-    <article class="event">
-      <h3><a href="/events/8818-river-delta">River Delta</a></h3>
+    <article class="event" itemscope itemtype="https://schema.org/MusicEvent">
+      <h3><a href="/artists/river-delta">River Delta</a></h3>
       <p>Sat Aug 2, 9pm — Wren Hall</p>
+      <a itemprop="url" href="/events/8818-river-delta">Event details</a>
       <a class="tickets" href="https://tix.example/8818">Tickets</a>
     </article>
-    <article class="event">
-      <h3><a href="/events/8819-tin-sparrow">Tin Sparrow</a></h3>
+    <article class="event" itemscope itemtype="https://schema.org/MusicEvent">
+      <h3><a href="/artists/tin-sparrow">Tin Sparrow</a></h3>
       <p>Sun Aug 3, 7pm — Wren Hall</p>
+      <a itemprop="url" href="/events/8819-tin-sparrow">Event details</a>
     </article>
   </div>
 </body></html>

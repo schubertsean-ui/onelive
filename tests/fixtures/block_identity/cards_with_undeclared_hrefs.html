@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- Fixture: the ordinary venue card — a title link and a "Tickets" link, and
+     nothing in the markup saying which one is the listing. This is the shape
+     the adversarial panel blocked on: /artists/castle-creek would be adopted as
+     this listing's identity, and next month the same artist's DIFFERENT show
+     would match it and rewrite the published row. Every block here must state
+     NO identity. -->
+<html><body>
+  <div class="calendar">
+    <article class="event">
+      <h3><a href="/artists/castle-creek">Castle Creek</a></h3>
+      <p>Fri Aug 1, 8pm — Wren Hall</p>
+      <a class="tickets" href="https://tix.example/8817">Tickets</a>
+    </article>
+    <article class="event">
+      <h3><a href="/artists/river-delta">River Delta</a></h3>
+      <p>Sat Aug 2, 9pm — Wren Hall</p>
+    </article>
+  </div>
+</body></html>

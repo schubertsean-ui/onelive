@@ -18,26 +18,32 @@ to the saved listing. Nothing about the text changes: the part that reads a show
 out of a page receives exactly the characters it received before, so nothing
 about extraction moved.
 
-What we will and will not treat as an id is the whole of the care here. A show
-that IS a link, or one the page explicitly labels with its own address, is taken
-at its word. The everyday card — a title that links somewhere, plus a "Tickets"
-button — is read by convention: the title's link is taken as the show's. Where a
-card offers two links and says nothing about which is the show, we take neither.
-Where two shows on one page point at the SAME address, that address describes
-something they share (an artist, a series) and not either of them, so it is
-dropped from both. A page's own web address is never a show's, because every
-show on it would then look like the same show. And the AI's guess at a ticket
-link is still not an id — that has not changed and will not.
+What we will and will not treat as an id is the whole of the care here, and one
+of those lines was drawn for us. A show that IS a link, or one the page
+explicitly labels with its own address, is taken at its word — the page has said
+where the show lives. Everything else is not. We first also read the everyday
+card by convention: a title that links somewhere, plus a "Tickets" button, and we
+took the title's link as the show's. Our independent reviewers stopped that, and
+they were right. A venue's title link points at the ARTIST as often as at the
+show, and an artist comes back next month — so a later check would have seen the
+same address on a different night, decided it was the same show, and rewritten a
+published listing with the wrong night's details. We had written that risk down
+and shipped it anyway; writing a risk down is not the same as fixing it, and that
+is the second time that lesson has cost us a round. It is fixed: an unlabelled
+link is now not read at all.
+
+The rest of the care stands. Where two shows on one page point at the SAME
+address, that address describes something they share and not either of them, so
+it is dropped from both. A page's own web address is never a show's, because
+every show on it would then look like the same show. And the AI's guess at a
+ticket link is still not an id — that has not changed and will not.
 
 Where this leaves things, measured rather than assumed: the same scan over the
-same 24 saved pages still finds zero ids, because those particular venues state
-none — so those calendars behave today exactly as they did yesterday. What is
-different is that a venue that does state one now gets the benefit with no
-further work from us. The convention we adopted for ordinary cards carries a
-risk we have written down rather than hidden (R-104): a title link that points
-at an artist's page rather than the show's would be the wrong id, so the first
-time this actually licenses a change to a published listing, we check the real
-pages before trusting it further.
+same 24 saved pages finds zero ids of any kind — no labelled addresses, and no
+links inside listing cards at all — so those calendars behave today exactly as
+they did yesterday, and narrowing what we accept cost no capture we were actually
+getting. What is different is that a venue that publishes its own ids now gets
+the benefit with no further work from us.
 
 ## 2026-09-03 — A listing can now carry the id its own source gave it
 
