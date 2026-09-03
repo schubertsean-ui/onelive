@@ -345,10 +345,17 @@ def test_the_jsonld_carrier_answers_to_the_same_checks_as_the_html_one():
     assert jsonld_identity({"url": ["https://a/1", "https://b/2"]}) == NO_IDENTITY
     assert jsonld_identity({"@id": ["x", "y"]}) == NO_IDENTITY
     assert jsonld_identity({"url": ["https://a/1", "https://a/1"]}).listing_url == "https://a/1"
-    # An opaque, non-url identifier is untouched — it is an id, not an address.
+    # An opaque, non-url identifier is untouched — it is an id, not an address,
+    # and the two carriers deliberately go through DIFFERENT doors (round 4).
     stated = jsonld_identity({"identifier": "8818", "url": "https://v.example/e/8818"})
     assert stated.uid == "8818"
     assert stated.listing_url == "https://v.example/e/8818"
+    # `url` must name a page; `@id` need not. Collapsing the two would either
+    # reject an ICS-style opaque id or accept an address that names no page.
+    relative = jsonld_identity({"identifier": "8818", "url": "details"})
+    assert relative.uid == "8818"
+    assert relative.listing_url is None
+    assert jsonld_identity({"@id": "abc123@venue.example"}).uid == "abc123@venue.example"
 
 
 def test_the_page_s_own_url_never_becomes_a_listing_identity():
@@ -377,22 +384,62 @@ def test_the_anchor_split_path_carries_nothing():
 
 # --- the two rungs, each pinned separately -------------------------------------
 
-def test_a_card_that_is_itself_the_link_declares_its_own_address():
-    """Rung 1: the whole listing IS the anchor, so the markup has said where it
-    lives — a declaration by structure, with nothing to disambiguate. Reachable
-    through the schema.org-microdata strategy, which is the one segmentation
-    rule that can capture an `<a>` element; a plain `<a class="event-card">`
-    calendar does not segment today and this contract does not widen
-    segmentation to make it (that would move which pages split, which is a
-    different change with its own exam baselines)."""
+def test_a_card_that_is_itself_a_link_still_states_nothing():
+    """THE PANEL'S ROUND-4 FINDING, and the third convention to be deleted.
+
+    An Event container that happens to be an `<a>` looks like it declares
+    where the listing lives, and it does not: the markup says "this is an
+    Event", never "this href is this event's url". Such a card can wrap event
+    text while pointing at an artist or series page, and then a later
+    occurrence with the same target would match and rewrite a published row.
+
+    Only a labelled `itemprop="url"` survives."""
     html = ("<div>"
             "<a itemscope itemtype='https://schema.org/MusicEvent' href='/e/1'>"
             "Fri Aug 1, 8pm Castle Creek <span>at Wren Hall</span></a>"
             "<a itemscope itemtype='https://schema.org/MusicEvent' href='/e/2'>"
             "Sat Aug 2, 9pm River Delta</a></div>")
+    blocks = segment_events(html, content_type="text/html")
+    assert len(blocks) == 2
+    assert all(carried_identity(b) == NO_IDENTITY for b in blocks)
+
+
+def test_a_page_relative_address_is_never_an_identity():
+    """ROUND 4's other finding. The segmenter is handed a page's content and
+    never its url, so it cannot resolve `details` or `?id=1` — and stored
+    verbatim, the SAME string on two pages of one source would compare equal
+    and license a write from the wrong occurrence.
+
+    Root-relative survives: `/e/8818` names the path from the host's root, and
+    every identity comparison is already source-scoped."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek<a itemprop='url' href='details'>details</a></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta"
+            "<a itemprop='url' href='/e/8818'>details</a></div></div>")
     hrefs = [carried_identity(b).source_href
              for b in segment_events(html, content_type="text/html")]
-    assert hrefs == ["/e/1", "/e/2"]
+    assert hrefs == [None, "/e/8818"]
+
+
+def test_a_nested_item_stays_closed_through_same_tag_nesting():
+    """The scope stack balances by element, not by tag name. An inner `<div>`
+    inside a nested `performer` item used to pop that item's scope early, so
+    the performer's url became the event's — a fail-OPEN parser bug raised as a
+    nit at round 3 and fixed rather than noted, because open is the direction
+    that puts wrong facts on the public surface."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek"
+            "<div itemprop='performer' itemscope itemtype='https://schema.org/MusicGroup'>"
+            "<div></div><a itemprop='url' href='/artists/cc'>Castle Creek</a></div></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta"
+            "<a itemprop='url' href='/e/8818'>details</a></div></div>")
+    hrefs = [carried_identity(b).source_href
+             for b in segment_events(html, content_type="text/html")]
+    assert hrefs == [None, "/e/8818"]
 
 
 def test_an_itemprop_url_is_read_wherever_it_sits_in_the_card():

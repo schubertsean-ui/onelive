@@ -104,9 +104,9 @@ def normalize_url(url: Optional[str]) -> Optional[str]:
         (`/calendar#event-8817`). A normalizer that strips fragments — which
         most do, because for a page fetch a fragment is noise — would erase
         exactly the identity being captured and silently collapse every listing
-        on a calendar into one. (A FRAGMENT-ONLY value never reaches here:
-        `identity_value` refuses one, because with no path it says nothing
-        about which page it anchors into.)
+        on a calendar into one. (A FRAGMENT-ONLY value never reaches here, and
+        neither does a page-relative one: `identity_address` refuses both,
+        because neither names a page.)
 
     A trailing slash is NOT removed either: `/events` and `/events/` are the
     same page on most servers and different ones on some, and being wrong here
@@ -289,33 +289,25 @@ NON_ADDRESS_SCHEMES: Tuple[str, ...] = (
 )
 
 
-def identity_value(value: Any) -> Optional[str]:
-    """The ONE check every stated identity value passes, or None.
+def identity_token(value: Any) -> Optional[str]:
+    """An OPAQUE id a source stated, or None. For `uid` only.
 
-    Three rounds of the adversarial panel found the same shape three times: a
-    validation applied to one carrier of a value and not to its siblings, all
-    feeding one sink. So the check lives HERE, at the identity module, and
-    every producer routes through it — `worker/segment.py`'s `href` and
-    `<meta content>` declarations, and this module's own JSON-LD reader.
-
-    Refused, and each for a reason about the VALUE rather than a preference:
+    A uid is a token, not an address: an ICS `UID` is `abc123@venue.example`, a
+    JSON-LD `identifier` is often just `8818`. So this refuses only what cannot
+    be an identity at all:
 
       * empty / whitespace — a source that stated nothing stated nothing;
       * a non-address scheme (`javascript:`, `mailto:`, `tel:`, `sms:`,
-        `data:`) — none of these is the address of a listing, so a placeholder
+        `data:`) — no source identifies a listing by one, and a placeholder
         repeated across ticks must not read as one listing;
-      * a FRAGMENT-ONLY value (`#`, `#event-1`) — this is the round-3 finding
-        and the subtle one. `worker/segment.py` deliberately does not resolve a
-        relative address against the page url (it is never given one), so a
-        bare `#event-1` is stored verbatim; the SAME anchor on a different page
-        of the same source would then compare equal and license a write from
-        another occurrence's facts. A fragment WITH a path (`/calendar#e-8817`)
-        is still a per-listing anchor and is still kept — that distinction is
-        the whole point, and `normalize_url` preserves fragments because of it.
+      * a FRAGMENT-ONLY value (`#`, `#event-1`) — with no page to anchor into,
+        the same fragment on two pages of one source compares equal.
 
-    An opaque `uid` goes through the same door: a JSON-LD `@id` of `#event-1`
-    aliases across pages exactly like a url does, while an ordinary token like
-    `"8818"` passes untouched.
+    `identity_address` is the stricter door every URL-VALUED carrier goes
+    through. The two are separate because collapsing them would either reject
+    `8818` (an id) or accept `details` (an address that names no page) — three
+    review rounds arrived at that split, and it is the whole reason this
+    function does not also demand a host or a leading slash.
     """
     raw = _clean(value)
     if raw is None:
@@ -325,6 +317,49 @@ def identity_value(value: Any) -> Optional[str]:
     if raw.lower().startswith(NON_ADDRESS_SCHEMES):
         return None
     return raw
+
+
+def identity_address(value: Any) -> Optional[str]:
+    """An address that names a PAGE-INDEPENDENT location, or None. For every
+    url-valued carrier: an `href`, a `<meta content>`, a JSON-LD `Event.url`.
+
+    `worker/segment.py` is handed a page's CONTENT and never its url, so it
+    cannot resolve a relative address and must not invent one (founder,
+    verbatim: "Do not invent URLs"). That makes page-RELATIVE values unusable
+    as identities, not merely imprecise: `href="details"`, `href="event-1"`,
+    `href="?id=1"` and `href="../e/1"` are resolved by the browser against
+    whatever page they appeared on, so the SAME string on two pages of one
+    source points at two different shows — and stored verbatim, it would let a
+    later tick call them one listing and rewrite a published row with the wrong
+    occurrence's title and clock. The adversarial panel found exactly that at
+    round 4, on both openai seats.
+
+    Accepted, because each names its own location without a page to lean on:
+
+      * an absolute url (`https://v.example/e/8817`), and the
+        protocol-relative form (`//v.example/e/8817`), which names the host;
+      * a ROOT-relative path (`/events/8817`), which names the path from the
+        host's root — still relative to the source, which is exactly the scope
+        every identity comparison already runs in.
+
+    Anything else is refused. Under-matching costs a refusal; over-matching
+    costs a wrong public listing.
+    """
+    raw = identity_token(value)
+    if raw is None:
+        return None
+    try:
+        parts = urllib.parse.urlsplit(raw)
+    except ValueError:
+        # Unparseable: it cannot be shown to name a page-independent location,
+        # so it does not get to be one. (The identity ladder's other rungs are
+        # unaffected — a refusal here is a hole, never a match.)
+        return None
+    if parts.netloc:
+        return raw
+    if not parts.scheme and raw.startswith("/"):
+        return raw
+    return None
 
 
 def ld_scalar(v: Any) -> Optional[str]:
@@ -381,11 +416,12 @@ def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     ``offers.url`` is a ticket vendor's page — a different resource, often
     shared across several listings, and never the listing's identity.
 
-    Both values pass `identity_value` and both are read with `_ld_single`, so
-    the JSON-LD carrier answers to exactly the checks the HTML carrier does: a
-    `javascript:`/`#` placeholder is refused, and a field stating several
-    different values states none. An object stating none of the three returns
-    NO_IDENTITY.
+    Both values are read with `_ld_single` and both pass a validator, so the
+    JSON-LD carrier answers to exactly the checks the HTML carrier does — and
+    to the RIGHT one for each: `url` is an address (`identity_address`, so a
+    page-relative `"details"` is refused) while `@id`/`identifier` is an opaque
+    token (`identity_token`, so `"8818"` is kept). A field stating several
+    different values states none. An object stating none returns NO_IDENTITY.
     """
     if not isinstance(obj, Mapping):
         return NO_IDENTITY
@@ -393,8 +429,8 @@ def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     if stated_id is None:
         stated_id = obj.get("identifier")
     return ListingIdentity(
-        uid=identity_value(_ld_single(stated_id)),
-        listing_url=identity_value(_ld_single(obj.get("url"))),
+        uid=identity_token(_ld_single(stated_id)),
+        listing_url=identity_address(_ld_single(obj.get("url"))),
     )
 
 

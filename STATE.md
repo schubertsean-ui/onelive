@@ -36,20 +36,25 @@ identical: `IdentifiedBlock` compares, slices and serializes as the same string)
 An identity attaches ONLY to a block CUT FROM the thing that stated it: a JSON-LD Event
 object, or an HTML container element. The anchor-split path (text offsets, no structure)
 and the whole-page single-block fallback carry NOTHING — the page url is every listing's
-url, and adopting it would make forty shows one show. Within a container ONLY A
-DECLARATION is read, AT THE CARD'S OWN SCOPE: the container's own `<a href>` if it IS
-the anchor, or an `itemprop="url"` stated exactly once with no nested `itemscope` open —
+url, and adopting it would make forty shows one show. Within a container EXACTLY ONE
+THING is read, AT THE CARD'S OWN SCOPE: an `itemprop="url"` stated exactly once with no
+nested `itemscope` open —
 the microdata spec's own rule, added at the panel's round-2 finding, because a
 well-formed Event card nests `performer`/`location`/`offers` items whose own `url`s are
 the artist's, the venue's and the vendor's pages, which is r1's deleted convention
-walking back in wearing microdata. EVERY carrier of an identity value —
-segment's `href`, segment's `<meta content>`, and the JSON-LD `url` and `@id` — goes
-through ONE validator, `worker.identity.identity_value`, which refuses empty, non-address
-schemes and FRAGMENT-ONLY values while keeping `path#fragment` (the per-listing anchor
-the stack exists for). JSON-LD identity fields also take the HTML path's cardinality rule:
-several DIFFERENT values state none. That structure is the round-3 answer to three
-consecutive rounds of one class — a shared sink needs a shared gate, not a per-carrier
-audit. Nothing conventional — an undeclared `<a href>` is
+walking back in wearing microdata. EVERY carrier goes through a validator, and
+after round 4 there are TWO because the carriers are two kinds: `identity_token` for an
+opaque `uid` (refuse empty, fragment-only, non-address schemes — `8818` is a fine id) and
+`identity_address` for every url-valued carrier (segment's `href`, segment's
+`<meta content>`, the JSON-LD `url`), which adds the requirement that the value name a
+page INDEPENDENTLY — absolute, protocol-relative, or root-relative. A page-relative
+`details` is refused because the segmenter has no page url to resolve it against, so the
+same string on two pages would compare equal. JSON-LD identity fields also take the HTML
+path's cardinality rule: several DIFFERENT values state none. Three conventions were tried
+and all three deleted at panel findings — heading anchor and sole link (round 1), and the
+container-is-an-anchor rung (round 4). Rounds 1-3 kept asking which carrier was missed;
+round 4 asks what a value must BE to serve as an identity, which is the question that
+stops the series. Nothing conventional — an undeclared `<a href>` is
 not counted, ranked or remembered. The first round of this build also read a card's
 heading anchor and a card's sole link, and the adversarial panel blocked both (round 1,
 head 189c56e, openai/attacker-smuggle and openai/absence-only on one defect from opposite

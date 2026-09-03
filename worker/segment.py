@@ -64,7 +64,7 @@ from worker.identity import (
     NO_IDENTITY,
     carried_identity,
     carry_identity,
-    identity_value,
+    identity_address,
     jsonld_identity,
 )
 
@@ -159,12 +159,16 @@ def _href_of(attrs: Dict[str, str]) -> Optional[str]:
     address (founder, verbatim: "Do not invent URLs"). Comparisons downstream
     are source-scoped, so a relative anchor is still a usable identity.
 
-    What counts as usable is `worker.identity.identity_value`'s question, not
-    this module's — one check for every carrier of an identity, here and in the
-    JSON-LD reader, because three review rounds found the same defect three
-    times in the shape of one carrier validated and its siblings not.
+    What counts as usable is `worker.identity.identity_address`'s question, not
+    this module's — one check for every URL-VALUED carrier of an identity, here
+    and in the JSON-LD reader, because four review rounds found the same defect
+    four times in the shape of one carrier validated and its siblings not. That
+    check also refuses a PAGE-RELATIVE address (`details`, `?id=1`): the
+    segmenter has no page url to resolve one against, so the same string on two
+    pages of a source would compare equal and license a write from the wrong
+    occurrence.
     """
-    return identity_value(attrs.get("href"))
+    return identity_address(attrs.get("href"))
 
 
 def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
@@ -187,7 +191,7 @@ def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
     tokens = (attrs.get("itemprop") or "").lower().split()
     if "url" not in tokens:
         return None
-    return _href_of(attrs) or identity_value(attrs.get("content"))
+    return _href_of(attrs) or identity_address(attrs.get("content"))
 
 
 class _ElementTextCollector(HTMLParser):
@@ -199,35 +203,30 @@ class _ElementTextCollector(HTMLParser):
     element containing a same-tag descendant (a <li> inside a <li>) is one
     block, not two — we never split a container at an inner boundary.
 
-    ONLY A DECLARATION IS READ, and that restriction is the whole design:
+    EXACTLY ONE THING IS READ, and the narrowness is the whole design: an
+    address something inside the card labels ``itemprop="url"``, stated once,
+    AT THE CARD'S OWN SCOPE. Anything else is no address.
 
-      1. the container IS an anchor (the card-as-link pattern, reachable via the
-         schema.org-microdata strategy) -> its href: the markup says this whole
-         listing is that link;
-      2. something inside is labelled ``itemprop="url"`` exactly ONCE, AT THE
-         CARD'S OWN SCOPE -> that address: the source has named the field
-         itself, for this listing;
-      3. anything else -> NO address.
-
-    "At the card's own scope" is the microdata spec, and skipping it let the
-    deleted convention back in through the front door (the adversarial panel's
-    round-2 finding): a well-formed Event card nests `performer`, `location`
-    and `offers` items, and each of those has its own `url` — the artist's
-    page, the venue's page, the ticket vendor's. Reading a descendant's `url`
-    as the EVENT's is exactly the artist-link defect wearing microdata clothes,
-    so a declaration is recorded only while no nested `itemscope` is open.
-
-    An earlier round of this module also read two CONVENTIONS — a card's heading
-    anchor, and a card's sole link — and both were removed at the adversarial
-    panel's blocking finding, which was correct and is worth writing down where
-    the next person will be tempted to add them back. An ordinary venue card
-    links the ARTIST or the SERIES from its title as readily as the event, and a
-    card's only link is as often a ticket vendor's. Nothing in the markup says
-    which. Adopting one anyway means a later tick can read the same address on a
-    DIFFERENT occurrence, answer SAME, and rewrite a published listing with
+    Three CONVENTIONS were tried and all three were deleted at the adversarial
+    panel's blocking findings — a card's heading anchor, a card's sole link
+    (round 1), and a container that IS an anchor (round 4). Each looks like the
+    listing's own address and none is declared to be one: an ordinary venue
+    card links the ARTIST or the SERIES from its title as readily as the event,
+    a card's only link is as often a ticket vendor's, and an Event container
+    that happens to be an `<a>` can wrap event text while pointing at an artist
+    page. Adopting any of them means a later tick can read the same address on
+    a DIFFERENT occurrence, answer SAME, and rewrite a published listing with
     another show's title and clock — user-facing false facts, from a guess. The
     page-wide uniqueness pass in `_drop_shared_identities` cannot save it: that
     catches an address repeated on ONE page, and this harm is across ticks.
+
+    "At the card's own scope" is the microdata spec, and skipping it let a
+    deleted convention back in through the front door (round 2): a well-formed
+    Event card nests `performer`, `location` and `offers` items, and each has
+    its own `url` — the artist's page, the venue's page, the vendor's. Reading
+    a descendant's `url` as the EVENT's is the artist-link defect wearing
+    microdata clothes, so a declaration is recorded only while no nested
+    `itemscope` is open.
 
     So the cost is deliberately accepted in the safe direction: a card with a
     title link and a "Tickets" link states NO identity, and the listing keeps
@@ -246,12 +245,16 @@ class _ElementTextCollector(HTMLParser):
         self._cap_tag: Optional[str] = None
         self._depth = 0
         self._buf: List[str] = []
-        self._cap_href: Optional[str] = None
         self._itemprop_urls: List[str] = []
-        #: Tag names of the nested `itemscope` items currently open inside the
-        #: capture. Non-empty means "we are describing something OTHER than
-        #: this listing", so no declaration is read.
-        self._scope_stack: List[str] = []
+        #: Every element open INSIDE the capture, as (tag, opened_an_itemscope).
+        #: Tracking all of them — not only the scope openers — is what makes
+        #: `<div itemscope><div></div></div>` balance correctly: the inner
+        #: `</div>` closes the inner div, never the outer item (the panel's
+        #: round-3 nit, which failed OPEN and so is fixed rather than noted).
+        self._open: List[Tuple[str, bool]] = []
+        #: How many of those are open items. Non-zero means "we are describing
+        #: something OTHER than this listing", so no declaration is read.
+        self._scopes = 0
 
     # -- capture bookkeeping --------------------------------------------------
 
@@ -267,17 +270,19 @@ class _ElementTextCollector(HTMLParser):
         element that is both `itemprop="url"` of the card and a nested item in
         its own right still states the card's url.
         """
-        if not self._scope_stack:
+        if not self._scopes:
             labelled = _itemprop_url_of(attrs)
             if labelled is not None and labelled not in self._itemprop_urls:
                 self._itemprop_urls.append(labelled)
-        if nests and "itemscope" in attrs and tag not in _VOID_TAGS:
-            self._scope_stack.append(tag)
+        if not nests or tag in _VOID_TAGS:
+            return
+        opens_scope = "itemscope" in attrs
+        self._open.append((tag, opens_scope))
+        if opens_scope:
+            self._scopes += 1
 
     def _resolved_href(self) -> Optional[str]:
         """The declared address, or None. Never a conventional one."""
-        if self._cap_href:
-            return self._cap_href
         if len(self._itemprop_urls) == 1:
             return self._itemprop_urls[0]
         # Zero declarations is a hole. TWO different ones is a contradiction,
@@ -290,9 +295,9 @@ class _ElementTextCollector(HTMLParser):
         self._cap_tag = None
         self._depth = 0
         self._buf = []
-        self._cap_href = None
         self._itemprop_urls = []
-        self._scope_stack = []
+        self._open = []
+        self._scopes = 0
 
     # -- parser callbacks -----------------------------------------------------
 
@@ -308,12 +313,12 @@ class _ElementTextCollector(HTMLParser):
             self._cap_tag = t
             self._depth = 1
             self._buf = []
-            self._cap_href = _href_of(a) if t == "a" else None
             self._itemprop_urls = []
             # The CARD's own itemscope is the scope we are reading properties
             # at, so it is deliberately not pushed: only items nested INSIDE it
             # are somebody else's.
-            self._scope_stack = []
+            self._open = []
+            self._scopes = 0
 
     def handle_startendtag(self, tag, attrs):
         # A self-closing element carries no text content; the only effects we
@@ -331,8 +336,17 @@ class _ElementTextCollector(HTMLParser):
         if self._cap_tag is None:
             return
         t = tag.lower()
-        if self._scope_stack and self._scope_stack[-1] == t:
-            self._scope_stack.pop()
+        # Close back to the most recent element with this tag name, so an inner
+        # element that was never closed cannot leave an item open forever and a
+        # same-named inner element cannot close its parent's item. An end tag
+        # matching nothing open is ignored, exactly as a browser ignores it.
+        for i in range(len(self._open) - 1, -1, -1):
+            if self._open[i][0] == t:
+                for _, opened_scope in self._open[i:]:
+                    if opened_scope:
+                        self._scopes -= 1
+                del self._open[i:]
+                break
         # Both apply: a nested item can be opened on the same tag name the
         # capture was opened on, and that end tag closes the item AND one level
         # of same-tag nesting.
