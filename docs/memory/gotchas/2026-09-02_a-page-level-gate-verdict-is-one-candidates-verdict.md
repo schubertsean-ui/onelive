@@ -67,3 +67,34 @@ whether it is validated to the standard the decision deserves.** A guard is
 only as strong as its least-validated input, and the inputs that get missed are
 the ones that feel like context rather than evidence — the other listings on
 the page, the raw text, the title.
+
+## Round three: a shared key is not an identity
+
+Two events at the same venue at 8pm is not a collision to design around — it is
+Tuesday at a multi-room venue. Matching a published row to a freshly parsed one
+on start-time equality treated that as identity, so a *different* band's
+listing could rewrite the published row under its name. The gate PASS on the
+parsed listing proves that IT is real; it proves nothing about it being OURS.
+
+The general shape, and it is the same one as the recurring-title finding a
+round earlier: **when you match two records on a field that is not unique,
+"one hit" is not "the right hit".** Titles repeat across occurrences; start
+times repeat across rooms. Either way the fix is the same — a non-unique match
+needs a second axis, and when no second axis exists the honest answer is
+ambiguous, not a guess.
+
+Following it through cost a feature: `title` is in the founder's enumeration
+and the loop now never writes it, because a rename and a replacement are
+indistinguishable on same-page evidence alone (R-095). That is the right trade
+— one of the two possible outcomes puts a fabricated name on a public listing —
+but it is worth noticing that the guard was only reachable by giving something
+up, and that "keep the feature and add a heuristic" was the tempting wrong turn.
+
+## And a reminder about raw HTML
+
+Any text check against a fetched page must resolve the markup first. `Rock &amp;
+Roll` does not contain "Rock & Roll" once punctuation is stripped — `&amp;`
+normalizes to the word "amp". Titles with an ampersand are ordinary, so this was
+the common case, not an exotic one. Tags become SPACES, never nothing, or a
+title split across two table cells fuses with its neighbour's words into a match
+that was never there.

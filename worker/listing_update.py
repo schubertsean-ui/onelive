@@ -66,6 +66,7 @@ guards and not preferences.
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -217,9 +218,10 @@ MAX_TITLE_ONLY_RETIME = timedelta(hours=12)
 
 #: The identity a match establishes. These are not degrees of confidence —
 #: they are different EVIDENCE, and they license different things.
-MATCH_TIME = "time"        #: same start time: the date pins which occurrence
+MATCH_TIME = "time"        #: same start time, and nothing contradicts it
 MATCH_TITLE = "title"      #: same title, close enough in time to be the same one
 MATCH_FAR = "far"          #: same title, too far away — probably another occurrence
+MATCH_COLLISION = "collision"  #: same start time, but it is plainly a DIFFERENT event
 
 
 def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[str]:
@@ -249,9 +251,20 @@ def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[s
     rewritten listing comes back through the normal extract → gate → promote
     path as the new row it now is.
     """
-    if _same_minute(published.start_time, parsed.start_time):
-        return MATCH_TIME
     pt, ct = normalize_title(published.title), normalize_title(parsed.title)
+    if _same_minute(published.start_time, parsed.start_time):
+        # A SHARED MINUTE IS NOT AN IDENTITY WHEN THE TITLES CONTRADICT IT, and
+        # this was a blocking finding both openai seats raised on PR #214 r3.
+        # A multi-room venue puts two different bands on at 8pm as a matter of
+        # course; a replacement booking takes the slot of the show it replaced.
+        # In both cases the parsed listing's gate PASS proves that IT is real —
+        # it says nothing about it being OURS. Rewriting the published row from
+        # it would replace a real event with a different one under the old
+        # row's identity, which is the most misleading thing this module could
+        # do to a person reading the feed.
+        if pt is not None and ct is not None and pt != ct:
+            return MATCH_COLLISION
+        return MATCH_TIME
     if pt is None or pt != ct:
         return None
     if parsed.start_time is None or published.start_time is None:
@@ -265,9 +278,35 @@ def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[s
 def matches(published: PublishedListing, parsed: ParsedListing) -> bool:
     """True when this parsed listing IDENTIFIES the published row.
 
-    MATCH_FAR is deliberately not an identity — see match_kind.
+    MATCH_FAR and MATCH_COLLISION are deliberately not identities — see
+    match_kind.
     """
     return match_kind(published, parsed) in (MATCH_TIME, MATCH_TITLE)
+
+
+_TAG = re.compile(r"<[^>]*>")
+
+
+def _visible_text(page: str) -> str:
+    """The page's words, with its MARKUP resolved — tags to spaces, entities to
+    the characters they stand for.
+
+    Blocking finding, openai/attacker-smuggle on PR #214 r3: the absence check
+    searched the RAW html. A page that still says `Rock &amp; Roll` or
+    `Beyonc&eacute;` reads as not containing "Rock & Roll" or "Beyoncé" once
+    punctuation is stripped, because `&amp;` normalizes to the word "amp" and
+    `&eacute;` to "eacute" — so a listing plainly present on the page is read
+    as gone, and with a gated bracket that cancels a real event off the live
+    feed. Titles with an ampersand are ordinary ("Sam & Dave", "Rock & Roll"),
+    which makes this the common case rather than an exotic one.
+
+    Tags become SPACES rather than nothing: `<b>Rock</b> &amp; Roll` must not
+    collapse into a single run, and a title split across two table cells must
+    not fuse with its neighbour's words into a match that was never there.
+    Unescaping happens AFTER tag removal so that an escaped `&lt;b&gt;` in the
+    page's own visible text is treated as the text it is, never as a tag.
+    """
+    return html.unescape(_TAG.sub(" ", page))
 
 
 def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optional[bool]:
@@ -293,7 +332,7 @@ def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optio
     needle = normalize_title(title)
     if not needle or not page_text:
         return None
-    haystack = _PUNCT.sub(" ", page_text.casefold())
+    haystack = _PUNCT.sub(" ", _visible_text(page_text).casefold())
     return f" {needle} " in f" {haystack} "
 
 
@@ -361,8 +400,19 @@ def _field_diff(
     module can ever write is the confirmed-gone one, from the absence branch.
     """
     diff: Dict[str, Any] = {}
-    if parsed.title and normalize_title(parsed.title) != normalize_title(published.title):
-        diff["title"] = parsed.title
+    # `title` IS NOT WRITTEN, and its absence here is the honest conclusion of
+    # the r3 finding rather than an oversight. Ask what would license a
+    # rewrite: proof that this parsed listing IS that published row, holding
+    # while the title itself changes. Same start time cannot supply it (a
+    # different band in the other room shares the minute — MATCH_COLLISION),
+    # and same title supplies it only by being EQUAL, in which case there is no
+    # title change to write. On same-page evidence alone there is no third
+    # anchor, so a rename and a replacement are indistinguishable, and one of
+    # those two outcomes puts a fabricated name on a public listing.
+    #
+    # The published row therefore keeps the name it was promoted with until
+    # something can actually identify the listing across a rename. Recorded,
+    # with the shape that closes it: docs/RECORD.md R-095.
     if parsed.start_time is not None and not _same_minute(
             published.start_time, parsed.start_time):
         diff["start_time"] = _as_utc(parsed.start_time)
@@ -452,15 +502,22 @@ def adjudicate_page(
             continue
 
         if not hits:
-            if any(match_kind(row, p) == MATCH_FAR for p in parsed):
-                # Something on the page carries this row's title, just far away
-                # in time — almost always the next occurrence of a recurring
-                # listing. That is a reason to say nothing, never to cancel.
+            near = {match_kind(row, p) for p in parsed}
+            if MATCH_FAR in near or MATCH_COLLISION in near:
+                # Something on the page is close enough to this row to make its
+                # silence unreadable — either our title at a date too far off
+                # to be the same occurrence, or a DIFFERENT event holding our
+                # start time. Both are reasons to say nothing, and neither is a
+                # reason to cancel: an event we cannot cleanly distinguish from
+                # what the page shows has not been shown to be gone.
+                why = ("the page still lists this title, but at a date too far "
+                       "off to be the same occurrence"
+                       if MATCH_FAR in near else
+                       "a different event holds this row's start time on the "
+                       "page, so its absence cannot be read cleanly")
                 decisions.append(ListingDecision(
                     event_id=row.event_id, action=ACTION_NONE,
-                    why=("the page still lists this title, but at a date too "
-                         "far off to be the same occurrence — ambiguous; last "
-                         "good row stands")))
+                    why=f"{why} — ambiguous; last good row stands"))
                 continue
             still_named = title_still_on_page(row.title, page_text)
             if still_named is not False:

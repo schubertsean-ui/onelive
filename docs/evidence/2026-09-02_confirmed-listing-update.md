@@ -15,14 +15,15 @@ runtime EXECUTES; this table proves what it DECIDES.
 
 `check result` is the fail-closed verdict from
 `worker.crawl_state.classify_recheck` — `present`, `absent`, or `no` (nothing
-was learned). Read the four "yes" rows against the seventeen "no" rows: the default is no
+was learned). Read the three "yes" rows against the nineteen "no" rows: the default is no
 mutation, and confirmation is the exception that has to be earned.
 
 ```
 event                                                | check result | mutated? | why
 -----------------------------------------------------+--------------+----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Nightjar — page moved it to 3am                      | present      | yes      | confirmed same-page change, gate PASS on that listing: start_time
-Nightjar — page renamed it                           | present      | yes      | confirmed same-page change, gate PASS on that listing: title
+Nightjar — page renamed it at the same time          | present      | no       | a different event holds this row's start time on the page, so its absence cannot be read cleanly — ambiguous; last good row stands
+Nightjar — a different band holds its 8pm slot       | present      | no       | a different event holds this row's start time on the page, so its absence cannot be read cleanly — ambiguous; last good row stands
 Nightjar — page unchanged                            | present      | no       | the page still says exactly what we published — no change
 Nightjar — page dropped its end time                 | present      | no       | the page still says exactly what we published — no change
 Nightjar — moved, but the gate declined that listing | present      | no       | the page states a change, but the trust gate did not PASS that listing's own evidence — last good row stands
@@ -49,14 +50,13 @@ Nightjar — sensor rejected the page                  | no           | no      
 | row | why it is allowed to change a published listing |
 |---|---|
 | page moved it to 3am | Same page, still lists the show under the same title, states a different time. The MATCHED listing's own trust-gate verdict was re-computed and PASSed. Writes `start_time`; the row stays `scheduled` and visible with the new time. |
-| page renamed it | Same page, same start time, different title. Matched on time, so a rename does not read as a disappearance. Writes `title`. |
 | doors moved one hour | Same title, a shift small enough to be a re-time rather than another occurrence of a recurring series. Writes `start_time`. |
 | absent, page brackets its date | Four things at once: the page loads, the raw page text no longer names the listing, its own listings bracket this date, and **those bracketing listings each pass the trust gate**. Writes `status='cancelled'`; the row is KEPT. |
 | defining page 404 | The founder's 2026-09-02 overrule (`docs/memory/decisions/2026-09-02_404-of-defining-url-marks-the-listing-gone.md`). Writes `status='cancelled'` and nothing else — a page that is gone cannot state a new time or title. The row is KEPT. |
 
-## Reading the seventeen refusals
+## Reading the nineteen refusals
 
-Six of them are the ones worth arguing about, because each is a case where
+Eight of them are the ones worth arguing about, because each is a case where
 something DID change and the loop still refused. **The last two were caught by
 the adversarial panel on this PR, not by me** — both were real defects on the
 published-data path, both are fixed here, and both are pinned by tests:
@@ -85,6 +85,15 @@ published-data path, both are fixed here, and both are pinned by tests:
   Extraction is the one probabilistic stage in the pipeline; a model that skips
   a listing looks exactly like a removed show. Absence is now corroborated
   against the raw fetched text, deterministically and without a model.
+- **"page renamed it at the same time"** and **"a different band holds its 8pm
+  slot"** — the same finding from both sides. A shared minute was treated as
+  identity even when the titles contradicted, so a *different* event at 8pm
+  could rewrite the published row under its identity; a multi-room venue does
+  that nightly. Both are `MATCH_COLLISION` now: no rewrite, and no cancel
+  either, because an event we cannot distinguish from what the page shows has
+  not been shown to be gone. The cost is that `title` is never written at all
+  (R-095) — a rename and a replacement are indistinguishable without a stable
+  per-listing identifier.
 - **"absent, but the bracket failed the gate"** — the asymmetry pointed the
   wrong way. An update already needed the matched listing's own gate PASS,
   while a cancel — the larger, user-visible action — rested on bracket

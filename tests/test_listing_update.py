@@ -26,6 +26,7 @@ from worker.crawl_state import (
     classify_recheck,
 )
 from worker.listing_update import (
+    MATCH_COLLISION,
     MATCH_FAR,
     MATCH_TIME,
     MATCH_TITLE,
@@ -96,7 +97,6 @@ def only(decisions):
 @pytest.mark.parametrize("field,new_value", [
     ("start_time", DAY + timedelta(hours=2)),
     ("end_time", DAY + timedelta(hours=5)),
-    ("title", "Copper Kettle Revue: Farewell Night"),
 ])
 def test_a_confirmed_page_updates_the_field_it_now_states_differently(field, new_value):
     """Founder: "Confirmed check MAY update a published listing (time, cancel,
@@ -474,14 +474,85 @@ def test_the_retime_window_separates_a_correction_from_another_occurrence(shift,
     assert match_kind(published(), parsed(start_time=DAY + shift)) == expected
 
 
-def test_a_matching_start_time_still_licenses_a_rename():
-    """The other direction is unaffected: when the start times agree, the DATE
-    pins which occurrence this is, so a differing title is safely a rename."""
-    assert match_kind(published(), parsed(title="A Whole New Name")) == MATCH_TIME
+def test_a_shared_start_time_with_a_different_title_is_a_collision_not_a_rename():
+    """PR #214 r3, both openai seats: a time-only match could rewrite the
+    published title from a DIFFERENT event.
+
+    A multi-room venue puts two bands on at 8pm as a matter of course, and a
+    replacement booking takes the slot of the show it replaced. The parsed
+    listing's gate PASS proves that IT is real; it says nothing about it being
+    OURS. Rewriting the row from it would put a different event on the feed
+    under the old row's identity."""
+    assert match_kind(published(), parsed(title="A Whole New Name")) == MATCH_COLLISION
     d = only(adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
         parsed=[parsed(title="A Whole New Name")], gate_passes=ALWAYS_PASSES))
-    assert d.action == ACTION_UPDATE and d.fields == {"title": "A Whole New Name"}
+    assert d.action == ACTION_NONE and not d.fields
+
+
+def test_a_collision_blocks_the_cancel_path_too():
+    """A different event holding our start time makes our absence unreadable —
+    it is not evidence we are gone. Fail closed both ways: no rewrite AND no
+    cancel."""
+    other = ParsedListing(candidate_id="cB", title="Another Band", start_time=DAY)
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[other] + bracket(), gate_passes=ALWAYS_PASSES,
+        page_text=PAGE_WITHOUT_IT))
+    assert d.action == ACTION_NONE
+    assert "different event holds this row's start time" in d.why
+
+
+def test_a_shared_start_time_still_identifies_when_nothing_contradicts_it():
+    """The narrowing is only about CONTRADICTION. A page that states no title,
+    or a row that has none, cannot be claiming to be a different event — so the
+    time match still identifies the row and keeps it from reading as absent."""
+    assert match_kind(published(), parsed(title=None)) == MATCH_TIME
+    assert match_kind(published(title=None), parsed()) == MATCH_TIME
+    assert match_kind(published(), parsed()) == MATCH_TIME
+
+
+def test_no_title_is_ever_written_from_same_page_evidence():
+    """The honest conclusion of the r3 finding, and a narrowing of the founder's
+    own enumeration ("time, cancel, postpone, title") recorded as R-095.
+
+    Ask what would license a rewrite: proof this parsed listing IS that
+    published row, holding while the title itself changes. Same start time
+    cannot supply it, and same title supplies it only by being EQUAL — in which
+    case there is nothing to write. No third anchor exists on same-page
+    evidence, so a rename and a replacement are indistinguishable."""
+    for parsed_listing in (
+            parsed(title="Something Else Entirely"),          # collision
+            parsed(title="Copper Kettle Revue: Farewell"),    # would-be rename
+            parsed(title=None, start_time=DAY + timedelta(hours=1)),
+    ):
+        for d in adjudicate_page(
+                verdict=VERIFIED_PRESENT, published=[published()],
+                parsed=[parsed_listing], gate_passes=ALWAYS_PASSES,
+                page_text=PAGE_WITHOUT_IT):
+            assert "title" not in d.fields
+
+
+@pytest.mark.parametrize("page,present", [
+    ("<b>Rock</b> &amp; Roll tonight", True),      # entity + tags
+    ("Rock &#38; Roll tonight", True),             # numeric entity
+    ("Rock &amp;amp; Roll", False),                # double-escaped is NOT it
+    ("Jazz Night only, no rock here", False),
+])
+def test_the_absence_check_reads_markup_the_way_a_person_sees_it(page, present):
+    """PR #214 r3, openai/attacker-smuggle: the check searched RAW html, so a
+    page still saying `Rock &amp; Roll` read as not containing "Rock & Roll" —
+    `&amp;` normalizes to the word "amp". Titles with an ampersand are ordinary
+    ("Sam & Dave"), which made this the common case, and with a gated bracket
+    it cancels a real event off the live feed."""
+    assert title_still_on_page("Rock & Roll", page) is present
+
+
+def test_tags_become_spaces_so_neighbouring_words_never_fuse():
+    """A title split across two table cells must not fuse with its neighbour's
+    words into a match that was never on the page."""
+    assert title_still_on_page("Sam Dave", "<td>Sam</td><td>Dave</td>") is True
+    assert title_still_on_page("Samdave", "<td>Sam</td><td>Dave</td>") is False
 
 
 def test_an_extraction_miss_is_not_a_cancellation():
