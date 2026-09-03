@@ -12,6 +12,77 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #58 (2026-09-03, founder — "pass block href through segment (R-103 cheap path)", branch claude/block-href-segment-xr4v4s) — OPEN
+
+STATUS: OPEN
+WHAT: The missing PRODUCER for the identity stack #217 shipped. (1) `worker/identity.py`:
+`ld_scalar` (the one JSON-LD scalar reader), `jsonld_identity(obj)` (the one place that
+says WHICH JSON-LD keys are an identity: `url` -> listing_url, `@id`/`identifier` -> uid),
+`IdentifiedBlock` (a `str` that also remembers the identity its own markup stated) and
+`carried_identity(value)`. (2) `worker/segment.py`: a block cut from a JSON-LD Event
+object carries that object's identity; a block cut from an HTML container carries that
+container's own `<a href>` as `source_href`. (3) `worker/candidate_store._with_identity`:
+when the caller's `extracted` states no identity, the identity CARRIED BY THE BLOCK
+(`raw_text`) is canonicalized into `extracted["_identity"]` — the existing jsonb, no
+migration, no new column. (4) `worker/importers/structured_feed.py`: `_ld_str` and the
+`url`/`uid` fields of `_jsonld_event_to_intermediate` delegate to (1), so the ICS/JSON-LD
+importer and the crawl path can never disagree about what an identity is.
+(5) `tests/fixtures/block_identity/` (3 pages) + `tests/test_block_identity.py`.
+HOW: The identity rides the BLOCK, which is already the one per-listing object
+`worker/ai_extract.py` hands to `create_candidate` as `raw_text` — so the producer is
+built without opening `ai_extract.py` (founder must-do 2 and 4) and without changing one
+byte of any block's TEXT (the certified extractor's input, and the surface exam's, is
+identical: `IdentifiedBlock` compares, slices and serializes as the same string).
+An identity attaches ONLY to a block CUT FROM the thing that stated it: a JSON-LD Event
+object, or an HTML container element. The anchor-split path (text offsets, no structure)
+and the whole-page single-block fallback carry NOTHING — the page url is every listing's
+url, and adopting it would make forty shows one show. Within a container the href rule is
+ordered and refuses when ambiguous: the container's own `<a href>` if it IS the anchor,
+else an `itemprop="url"`, else the ONE distinct href it contains, else no identity.
+A relative href is stored VERBATIM as `source_href` (not resolved against a page url that
+segment is not given, and never invented) — which is exactly what `source_href` was
+documented in #217 to be.
+WHY: R-103 recorded the stack's honest headline: the ladder, the persist seam and the
+match preference all shipped in #217 with NO producer on the crawl path, so R-095/R-097/
+R-099/R-102 are unblocked in code and still open in effect. The measured reason was
+`worker/segment.py` reducing every block to TEXT: proved again on this branch before any
+edit — the three-card fixture's hrefs (`/events/8817-castle-creek`) are absent from the
+block string entirely, and a JSON-LD `@id` never appears at all, while `Event.url`
+survives only as prose the model may guess at. That is a segmentation defect, not an
+extraction one, so it is fixed where it happens.
+WHY-IT-MATTERS: the reason "no producer" matters is that it decides whether the identity
+stack is machinery or furniture. Until a source's own id reaches a candidate row, every
+match on the crawl path falls to the composite rung, and the composite rung licenses
+NOTHING — so a renamed show, a retimed series and a contested 8pm stay wrong on the public
+map exactly as they were before #217. Fixing it in segment is also the only fix that
+cannot launder a guess: the model's `ticket_link` remains not-an-identity, because the
+href we adopt is one the page's own markup attached to that listing.
+EXPECTED OUTCOMES: the before/after fixture proof (must-do 1); an href-bearing card page
+producing two blocks with two DIFFERENT `source_href`s; a JSON-LD page producing
+`listing_url` + `uid` with no model in the loop; the same page without hrefs still
+segmenting into three blocks, still storing no `_identity`, and still refusing every
+title/start_time write; `tools/identity_capture_scan.py` re-run showing the class_b corpus
+unchanged at zero carriers (R-103's class-B half stays true and MEASURED). Armed-cron
+runtime files change (`worker/segment.py`, `worker/candidate_store.py`,
+`worker/identity.py`), so must-do 5's one dry 2-source smoke is owed and is stated up
+front; the standing dry re-bind is for THIS PR only.
+Out of scope (Must-not): Tonight beauty, cadence, catalog-wide backfill crawl, a
+model-guessed `ticket_link` as identity, `worker/ai_extract.py`, and any URL not stated by
+the page itself.
+
+**Appendix — construction_gate Stage 3 citations (Operating Law rule 9: minimum the gate will accept):**
+[S3:contract-scope-violation] [S3:build-before-plan] [S3:governance-ambiguity] [S3:founder-path-unprobed] [S3:founder-verbatim-corrected] [S3:status-narration-not-progress] Scope is the founder's five Must-dos and the Must-not list; this contract was written to STATE.md before the first product edit. Must-do 4's STOP condition is honored the other way round from #57: the fixture WAS re-probed on this branch and it showed the block object itself (`raw_text`) already reaches `create_candidate` untouched, so `worker/ai_extract.py` is NOT required and is NOT opened. The founder's words are taken at their word — "existing identity.py" means the #217 module's own `ListingIdentity`/`read_identity`, not a new shape.
+[S3:weak-key-accepted-at-custody] [S3:missing-cardinality-check] [S3:destructive-normalization] [S3:swallowed-corrupt-data] [S3:semantic-claim-not-rederived] The central risk is adopting a URL that is not the listing's, and every rung refuses rather than guesses: no page url, no `ticket_link`, no minted hash, no relative-to-absolute resolution, and an AMBIGUOUS container (two or more distinct hrefs with nothing marking which is the listing's) yields NO identity rather than the first one found. Cardinality is asked directly by must-do 3's "two blocks two hrefs" test, and the no-href page pins that a hole stays a hole.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:untested-gate-branch] [S3:rule-stronger-than-mechanism] [S3:release-path-weaker-than-generation] No gate, threshold, workflow, reviewer binding, credential or `tools/` gate file is edited. This ticket LOOSENS nothing: it produces an input the #217 ladder already knew how to refuse, and every #214/#217 refusal is untouched. `worker/segment.py` and `worker/candidate_store.py` are outside `HARNESS_MANIFEST` and outside `tools/classify_extraction_surface._SURFACE_FILES` (checked, not assumed), so no certification hash moves.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:env-dependent-hermetic-test] [S3:volatile-safety-store] [S3:partial-write-whole-row] `IdentifiedBlock` never reaches the driver: `create_candidate` inserts `str(raw_text)`, so the `raw_text` column receives a plain `str` exactly as today (psycopg2 is not installed in this sandbox, so its subclass adaptation could not be verified — the coercion removes the question rather than asserting an answer). No migration, no new column, no new store.
+[S3:deferred-trust-work] [S3:records-sharing-one-trigger] [S3:stale-redclass-count] [S3:missing-record-read-as-state] R-103 is not closed by this PR and is not silently left either: its class-B half is re-measured with the committed scan and it stays open, because a producer that no page in the corpus feeds is still no producer THERE.
+[S3:fabricated-qualitative-copy] [S3:copy-outruns-registry] [S3:false-price-claim] [S3:deliverable-visual-qa] [S3:compounded-ground-contrast] Nothing user-facing changes: no copy, no price, no view contents, no layout. A crawled row's title and start_time are written only on the identity rung that #217 already gated.
+[S3:green-on-stale-base] [S3:pushed-on-red] [S3:retyped-evidence] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:stale-base-widens-range] Base is origin/master tip 3804a97 (the branch is cut from it at drift 0); no renumber script runs and `reconciled_through_commit` is untouched. Evidence is pasted from the tools' own output, never retyped.
+[S3:grant-not-content-bound] Must-do 5's grant is one dry 2-source smoke, and it is spent as exactly that: `max_sources=2`, `source_class=B`, `listing_update=dry`. The standing dry re-bind covers later rounds of THIS PR only and authorizes no armed run and no merge.
+[S3:caller-suppliable-custody-inputs] [S3:fail-open-on-custody-misconfig] [S3:final-gate-trusts-generator] [S3:self-weakenable-review-model] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:workflow-tool-version-skew] No custody input becomes caller-suppliable: the identity a candidate carries is read off the BLOCK THE SEGMENTER CUT, not off anything a caller hands in — and the caller's own payload still wins when it states one, so no producer is demoted. Nothing here reads a credential, a model id, a workflow tool version or an env var, and no reviewer binding, threshold or gate file is touched; the segmenter is pure stdlib and its one new import (`worker/identity.py`) is pure too. The misconfiguration direction is closed by construction rather than by a check: an unreadable, ambiguous or absent address yields NO identity, which is the same state the tree was in before this ticket.
+[S3:nonfinite-decimal-accepted] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:stale-live-incident-state] [S3:stalled-state-needs-active-diagnosis] No numeric or Decimal value is parsed, compared or written anywhere in this change — the capture compares opaque strings and urls only — and no query, cursor or page boundary moves. The sandbox's five red certification tests and its missing deps were DIAGNOSED rather than waited on or reported as this diff's failures: `git fetch --unshallow` (the same diagnosis Contract #56 and #57 recorded) and installing `worker/requirements.txt` at its exact pins made all of them green, and the one remaining red — the arming smoke binding — is this change's own and is named up front, not discovered later.
+[S3:featurability-dimension-missed] [S3:parallel-record-id-collision] The consumer dimension was asked rather than assumed: an adopted `source_href` can license a `title`/`start_time` write that reaches the card and the detail page, which is exactly why the conventional rungs are bounded by the page-wide uniqueness pass and why their residual is R-104 rather than a footnote. R-104 is the next free id on a branch cut from origin/master tip 3804a97 at drift 0; no renumber script runs.
+
 ## Session Contract #57 (2026-09-03, founder — "identity stack (adopt, then composite, then refuse)", branch claude/identity-stack-happenings-66apvi) — OPEN
 
 STATUS: OPEN

@@ -16,6 +16,15 @@ the honest answer has been to refuse, over and over. An identifier the SOURCE
 ITSELF states is that third anchor: an ICS `UID`, a schema.org Event `url` or
 `@id`, the listing's own anchor on the page, a claimant's own row url.
 
+WHERE THEY COME FROM (every producer, so the list is auditable rather than
+implied): `worker/importers/structured_feed.parse_ics`/`parse_jsonld` for the
+licensed store, `worker/claim/intake.py` for a claimant's own row url, and —
+since the crawl path had none, which is what R-103 recorded — `worker/segment.py`,
+which now hands each block the identity the block's OWN markup stated (a JSON-LD
+Event's `url`/`@id`, or an HTML container's own `<a href>`) via `carry_identity`.
+`worker/candidate_store.create_candidate` canonicalizes whichever of those a
+producer supplied onto `extracted["_identity"]`.
+
 THE ORDER IS THE FOUNDER'S, and each rung means something different:
 
     adopt      -> the source stated an id and the ids agree: one listing
@@ -131,10 +140,14 @@ class ListingIdentity:
       distinguished.
     * `listing_url` — the listing's own address, as the source published it
       (an ICS `URL`, a schema.org `Event.url`, a claimant's row url).
-    * `source_href` — the listing's anchor on the page it was read from. NO
-      CAPTURE PATH EXISTS TODAY (see the module docstring's stop condition);
-      the field is here so a producer has somewhere to put one, and it is read
-      exactly like the other two when something states it.
+    * `source_href` — the listing's anchor on the page it was read from, as
+      the page wrote it. `worker/segment.py` produces it: a block cut from an
+      HTML container carries that container's own `<a href>`, VERBATIM — a
+      relative href stays relative, because resolving one against a page url
+      the segmenter is not given would be inventing an address. It is compared
+      exactly like the other two (see `normalize_url`, which folds only what
+      HTTP itself calls case-insensitive), and comparisons are source-scoped by
+      `worker/listing_update.py`, so two sources' `/events/1` never meet.
     """
 
     uid: Optional[str] = None
@@ -264,3 +277,101 @@ def weak_key(
         return None
     when = start if start.tzinfo is not None else start.replace(tzinfo=_dt.timezone.utc)
     return (sid, title, when.astimezone(_dt.timezone.utc).date())
+
+
+def ld_scalar(v: Any) -> Optional[str]:
+    """A JSON-LD scalar string, or None — never a fabricated value.
+
+    Unwraps the two shapes JSON-LD writers actually emit for a value that could
+    have been a bare string: the ``{"@value": ...}`` box, and a list (the first
+    element). A nested node is read through its ``name``/``url`` so a
+    ``{"@type": "Place", "name": "Wren Hall"}`` reads as its name.
+
+    One home, deliberately: `worker/importers/structured_feed.py` imports this
+    as its own scalar reader, so the licensed-feed importer and the crawl path
+    can never drift apart about what a JSON-LD value says.
+    """
+    if isinstance(v, str):
+        return v or None
+    if isinstance(v, dict):
+        return ld_scalar(v.get("@value") or v.get("name") or v.get("url"))
+    if isinstance(v, list) and v:
+        return ld_scalar(v[0])
+    return None
+
+
+def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
+    """The identity ONE schema.org Event object states, and nothing else.
+
+    The single place in the tree that answers "which JSON-LD keys are an
+    identity": ``url`` is the listing's own address (`listing_url`), and
+    ``@id`` / ``identifier`` is the source's own opaque id (`uid`) — the same
+    reading `worker/importers/structured_feed.parse_jsonld` has always used for
+    the licensed store, now shared rather than mirrored.
+
+    Everything else on the object is a FACT about the listing, not a handle on
+    it: ``name`` and ``startDate`` are the weak key's own ingredients, and
+    ``offers.url`` is a ticket vendor's page — a different resource, often
+    shared across several listings, and never the listing's identity.
+
+    An object stating none of the three returns NO_IDENTITY.
+    """
+    if not isinstance(obj, Mapping):
+        return NO_IDENTITY
+    return ListingIdentity(
+        uid=_clean(ld_scalar(obj.get("@id") or obj.get("identifier"))),
+        listing_url=_clean(ld_scalar(obj.get("url"))),
+    )
+
+
+class IdentifiedBlock(str):
+    """A segmented block of text that also remembers the identity ITS OWN
+    markup stated.
+
+    It IS a `str` — the same characters, comparing, slicing, hashing and
+    serializing exactly as the plain block does — because the block travels
+    through `worker/ai_extract.py` untouched (as the extractor's input, as the
+    evidence quote, and as `create_candidate`'s `raw_text`), and the certified
+    extraction surface must receive byte-identical input to what it received
+    before this carrier existed. The identity is a SIDECAR on the object, never
+    a change to the text.
+
+    That sidecar is the whole reason no extraction file is opened to build the
+    producer: the block is already the one per-listing object that reaches the
+    persist seam, so the fact the segmenter knew (this listing's own anchor)
+    can ride with it instead of being discarded at the strip-to-text step.
+    """
+
+    __slots__ = ("identity",)
+
+    def __new__(cls, text: str, identity: ListingIdentity) -> "IdentifiedBlock":
+        obj = super().__new__(cls, text)
+        obj.identity = identity
+        return obj
+
+
+def carry_identity(text: str, identity: ListingIdentity) -> str:
+    """`text` carrying `identity`, or `text` UNCHANGED when nothing is stated.
+
+    The no-identity case stays a plain `str` on purpose: a page whose markup
+    names no listing url must produce blocks that are identical in type and in
+    value to the ones it produced before this module had a carrier, so "we
+    captured nothing" and "there was nothing to capture" cannot be told apart
+    downstream — because they are the same thing.
+    """
+    if not identity.stated:
+        return text
+    return IdentifiedBlock(text, identity)
+
+
+def carried_identity(value: Any) -> ListingIdentity:
+    """The identity an object CARRIES, or NO_IDENTITY.
+
+    Reads only an `identity` attribute that is genuinely a `ListingIdentity`,
+    so an unrelated object that happens to have an `identity` attribute (a DB
+    row wrapper, a mock) can never be mistaken for a stated id. A plain string
+    — every block from a page that stated nothing, and every `raw_text` from a
+    producer that does not segment — carries nothing.
+    """
+    identity = getattr(value, "identity", None)
+    return identity if isinstance(identity, ListingIdentity) else NO_IDENTITY

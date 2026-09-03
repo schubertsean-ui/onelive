@@ -331,8 +331,10 @@ def test_nothing_but_the_three_carriers_is_read_as_an_identity():
 
 
 def test_a_claimed_listing_carries_the_url_its_claimant_typed():
-    """Class E is the one door that states a per-listing url today, and it is
-    first-party: the venue's own row in their own CSV."""
+    """Class E states its url in the CALLER'S OWN payload, and it is first-party:
+    the venue's own row in their own CSV. (Since Session Contract #58 the crawl
+    path has a producer too — but that one rides the BLOCK, as a fallback when
+    the payload states nothing; see tests/test_block_identity.py.)"""
     listing = ClaimedListing(title="Trivia Night", start="2026-09-15 20:00",
                              url="https://venue.example/events/trivia-9-15")
     identity = read_identity(_with_identity(listing.as_extracted()))
