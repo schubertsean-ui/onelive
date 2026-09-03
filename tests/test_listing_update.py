@@ -325,15 +325,19 @@ class FakeCursor:
 
 
 def test_every_mutation_writes_its_evidence_and_its_audit_row():
-    """Founder: "Write evidence." / "mark cancelled/moved with evidence"."""
+    """Founder: "Write evidence." / "mark cancelled/moved with evidence".
+
+    The listing carries its own class here, because that is now the ONLY thing
+    that can label an evidence row — see
+    test_the_writer_cannot_borrow_a_class_from_anywhere."""
     cur = FakeCursor()
     decisions = adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(start_time=DAY + timedelta(hours=2),
+                       source_class="venue_calendar")],
         gate_passes=ALWAYS_PASSES)
     counts = apply_decisions(
-        decisions, source_id="s1", source_name="Granite Hall",
-        source_class="venue_calendar", page_url="https://gh.example/calendar",
+        decisions, source_id="s1", source_name="Granite Hall", page_url="https://gh.example/calendar",
         run_id="run-1", budget=TickBudget(), cur=cur)
     assert counts == {"updated": 1, "marked_gone": 0, "skipped_budget": 0}
     assert len(cur.sql_matching("update event")) == 1
@@ -352,8 +356,7 @@ def test_a_no_op_decision_writes_nothing_at_all():
         published=[published()], parsed=[parsed(start_time=LATER)],
         gate_passes=ALWAYS_PASSES)
     counts = apply_decisions(
-        decisions, source_id="s1", source_name="Granite Hall",
-        source_class="venue_calendar", page_url="https://gh.example/calendar",
+        decisions, source_id="s1", source_name="Granite Hall", page_url="https://gh.example/calendar",
         run_id="run-1", budget=TickBudget(), cur=cur)
     assert cur.calls == []
     assert counts == {"updated": 0, "marked_gone": 0, "skipped_budget": 0}
@@ -368,8 +371,7 @@ def test_the_update_re_asserts_the_human_lock_in_its_own_where_clause():
         verdict=VERIFIED_PRESENT, published=[published()],
         parsed=[parsed(start_time=DAY + timedelta(hours=2))],
         gate_passes=ALWAYS_PASSES)
-    apply_decisions(decisions, source_id="s1", source_name="Granite Hall",
-                    source_class="venue_calendar", page_url="u", run_id="r",
+    apply_decisions(decisions, source_id="s1", source_name="Granite Hall", page_url="u", run_id="r",
                     budget=TickBudget(), cur=cur)
     sql = cur.sql_matching("update event")[0][0].lower()
     assert "override_lock = false" in sql and "status = 'scheduled'" in sql
@@ -381,8 +383,7 @@ def test_a_lost_race_is_a_no_op_never_a_retry():
         verdict=VERIFIED_PRESENT, published=[published()],
         parsed=[parsed(start_time=DAY + timedelta(hours=2))],
         gate_passes=ALWAYS_PASSES)
-    counts = apply_decisions(decisions, source_id="s1", source_name="G",
-                             source_class="venue_calendar", page_url="u",
+    counts = apply_decisions(decisions, source_id="s1", source_name="G", page_url="u",
                              run_id="r", budget=TickBudget(), cur=cur)
     assert counts["updated"] == 0
     assert not cur.sql_matching("insert into audit_log")
@@ -399,8 +400,7 @@ def test_the_tick_mutation_budget_bounds_the_blast_radius():
             for i in range(1)]
     decisions = adjudicate_page(verdict=VERIFIED_PRESENT, published=rows,
                                 parsed=news, gate_passes=ALWAYS_PASSES)
-    counts = apply_decisions(decisions, source_id="s1", source_name="G",
-                             source_class="venue_calendar", page_url="u",
+    counts = apply_decisions(decisions, source_id="s1", source_name="G", page_url="u",
                              run_id="r", budget=budget, cur=cur)
     assert counts["updated"] + counts["marked_gone"] == 1
     assert counts["skipped_budget"] == 2
@@ -702,8 +702,7 @@ def test_the_evidence_quote_is_never_the_adjudicators_own_sentence():
     person words the venue never published."""
     cur = FakeCursor()
     apply_decisions(_one_update(source_class="venue_calendar"),
-                    source_id="s1", source_name="Granite Hall",
-                    source_class="venue_calendar", page_url="https://gh.example/c",
+                    source_id="s1", source_name="Granite Hall", page_url="https://gh.example/c",
                     run_id="run-1", budget=TickBudget(), cur=cur)
     quote = cur.sql_matching("insert into candidate_evidence")[0][1][4]
     assert quote == "", "the quote column holds page text or nothing at all"
@@ -720,7 +719,6 @@ def test_the_evidence_class_is_the_listings_own_never_an_anchor_default():
     cur = FakeCursor()
     apply_decisions(_one_update(source_class="social"),
                     source_id="s1", source_name="Granite Hall",
-                    source_class="venue_calendar",   # the caller's, NOT the listing's
                     page_url="u", run_id="r", budget=TickBudget(), cur=cur)
     written_class = cur.sql_matching("insert into candidate_evidence")[0][1][1]
     assert written_class == "social", "the listing's own class wins"
@@ -731,24 +729,40 @@ def test_an_unlabelled_listing_gets_no_evidence_row_but_still_an_audit_row():
     worse than no row — and the mutation is still recorded."""
     cur = FakeCursor()
     counts = apply_decisions(_one_update(source_class=None),
-                             source_id="s1", source_name="Granite Hall",
-                             source_class="", page_url="u", run_id="r",
+                             source_id="s1", source_name="Granite Hall", page_url="u", run_id="r",
                              budget=TickBudget(), cur=cur)
     assert cur.sql_matching("insert into candidate_evidence") == []
     assert len(cur.sql_matching("insert into audit_log")) == 1
     assert counts["updated"] == 1
 
 
-def test_no_anchor_class_can_be_invented_for_any_caller_input():
-    """Belt and braces over the whole default surface: whatever the caller
-    passes, the written class is one that some row actually recorded."""
-    for caller_class in ("", None, "venue_calendar", "ticketing"):
-        cur = FakeCursor()
-        apply_decisions(_one_update(source_class=None),
-                        source_id="s1", source_name="G", source_class=caller_class,
-                        page_url="u", run_id="r", budget=TickBudget(), cur=cur)
-        rows = cur.sql_matching("insert into candidate_evidence")
-        if rows:
-            assert rows[0][1][1] == caller_class, (
-                "with no class on the listing, only the caller's real value may "
-                "be used — never a substituted anchor")
+def test_the_writer_cannot_borrow_a_class_from_anywhere(monkeypatch):
+    """PR #214 r5, openai/absence-only blocking (and attacker-smuggle's nit on
+    the same line): the code and the rule this module states had drifted apart.
+
+    The docstring already claimed "the listing's OWN class, read from the
+    candidate row", but the code still fell back to the caller's value when the
+    candidate had none — and the caller's value can be an ANCHOR class. That
+    near-miss is the whole risk: the evidence row would look correct, cite a
+    real source-level class, and still assert provenance the listing never had.
+
+    Checked structurally as well as behaviourally, because the honest fix was
+    to DELETE the parameter that carried a caller class into the writer, so no
+    future edit can reintroduce the borrow by accident."""
+    import inspect
+    from worker import listing_update as lu
+    for fn in (lu.apply_decisions, lu._write_all):
+        assert "source_class" not in inspect.signature(fn).parameters, (
+            f"{fn.__name__} still accepts a caller class it could borrow")
+
+
+def test_an_update_whose_candidate_has_no_class_writes_only_the_audit_row():
+    """The regression the panel's nit asked for by name: matched_source_class
+    is None while a caller-side class would have been available."""
+    cur = FakeCursor()
+    counts = apply_decisions(_one_update(source_class=None),
+                             source_id="s1", source_name="Granite Hall",
+                             page_url="u", run_id="r", budget=TickBudget(), cur=cur)
+    assert cur.sql_matching("insert into candidate_evidence") == []
+    assert len(cur.sql_matching("insert into audit_log")) == 1
+    assert counts["updated"] == 1

@@ -1464,7 +1464,6 @@ def _update_listings_for(
         decisions,
         source_id=source_id,
         source_name=result.source_name,
-        source_class=str(source.get("source_class") or ""),
         page_url=url,
         run_id=run_id,
         budget=budget,

@@ -738,7 +738,6 @@ def apply_decisions(
     *,
     source_id: Optional[str],
     source_name: str,
-    source_class: str,
     page_url: str,
     run_id: str,
     budget=None,
@@ -750,11 +749,12 @@ def apply_decisions(
     Every write carries its evidence in the same transaction as the change:
 
       * `candidate_evidence` — the same-page provenance: the matched candidate,
-        the page it was read from, and that listing's OWN source class. Absent
-        for a 404 (no candidate, no page) and absent when the candidate records
-        no class, because an evidence row asserting provenance it cannot
-        support is worse than none. The `quote` column stays EMPTY: it holds
-        text from the page, and this path has no page snippet to put in it.
+        the page it was read from, and that listing's OWN source class, with no
+        fallback to anything the caller holds. Absent for a 404 (no candidate,
+        no page) and absent when the candidate records no class, because an
+        evidence row asserting provenance it cannot support is worse than none.
+        The `quote` column stays EMPTY: it holds text from the page, and this
+        path has no page snippet to put in it.
       * `audit_log` — before and after, the page, the run, and the reason, for
         every mutation including the 404 one. An `edit_event` row on the
         `event` entity, the vocabulary migration 0001 already declares.
@@ -776,17 +776,17 @@ def apply_decisions(
         with db() as conn:
             with conn.cursor() as own:
                 _write_all(own, to_write, counts, source_id=source_id,
-                           source_name=source_name, source_class=source_class,
+                           source_name=source_name,
                            page_url=page_url, run_id=run_id, budget=budget)
             conn.commit()
         return counts
     _write_all(cur, to_write, counts, source_id=source_id,
-               source_name=source_name, source_class=source_class,
+               source_name=source_name,
                page_url=page_url, run_id=run_id, budget=budget)
     return counts
 
 
-def _write_all(cur, decisions, counts, *, source_id, source_name, source_class,
+def _write_all(cur, decisions, counts, *, source_id, source_name,
                page_url, run_id, budget) -> None:
     for d in decisions:
         if budget is not None and not budget.may_mutate_listing():
@@ -835,18 +835,30 @@ def _write_all(cur, decisions, counts, *, source_id, source_name, source_class,
         #     so in the log, because a row asserting a class it cannot support
         #     is worse than no row at all. The audit entry still records the
         #     mutation either way.
-        evidence_class = d.matched_source_class or source_class
-        if d.matched_candidate_id and evidence_class:
+        # THE MATCHED CANDIDATE'S OWN CLASS OR NO ROW AT ALL. There is no
+        # fallback to the caller's class — the parameter that used to carry one
+        # into this function is GONE, so no future edit can reintroduce the
+        # borrow by accident. Removing it is the r5 fix: openai/absence-only blocked on it and
+        # openai/attacker-smuggle raised the same thing as a nit, both
+        # observing that the code and the rule this file states had drifted
+        # apart. The docstring already claimed "the listing's OWN class, read
+        # from the candidate row"; the code still reached for the caller's
+        # value when the candidate had none, and the caller's value can be an
+        # ANCHOR class. A near-miss is the whole risk here: the evidence row
+        # would look correct, cite a real source-level class, and still assert
+        # provenance for a listing that never carried it.
+        if d.matched_candidate_id and d.matched_source_class:
             cur.execute(_EVIDENCE_SQL, (
-                d.matched_candidate_id, evidence_class,
+                d.matched_candidate_id, d.matched_source_class,
                 source_name, page_url, "",
             ))
         elif d.matched_candidate_id:
             logger.warning(
                 "listing update for event %s wrote NO evidence row: candidate "
-                "%s records no source class, and this path will not label "
-                "evidence with a class it cannot support. The audit_log entry "
-                "still records the change.", d.event_id, d.matched_candidate_id)
+                "%s records no source class of its own, and this path will not "
+                "borrow one from the caller to fill the gap. The audit_log "
+                "entry still records the change.",
+                d.event_id, d.matched_candidate_id)
         cur.execute(_AUDIT_SQL, (d.event_id, json.dumps({
             "run_id": run_id,
             "kind": d.action,
