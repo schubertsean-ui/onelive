@@ -26,6 +26,10 @@ from worker.crawl_state import (
     classify_recheck,
 )
 from worker.listing_update import (
+    MATCH_FAR,
+    MATCH_TIME,
+    MATCH_TITLE,
+    MAX_TITLE_ONLY_RETIME,
     ACTION_MARK_GONE,
     ACTION_NONE,
     ACTION_UPDATE,
@@ -34,8 +38,10 @@ from worker.listing_update import (
     PublishedListing,
     adjudicate_page,
     apply_decisions,
+    match_kind,
     normalize_title,
     render_decision_table,
+    title_still_on_page,
 )
 
 DAY = datetime(2026, 9, 15, 1, 0, tzinfo=timezone.utc)   # a published show
@@ -67,6 +73,17 @@ def bracket():
     """
     return [ParsedListing(candidate_id="cA", title="Earlier Show", start_time=EARLIER),
             ParsedListing(candidate_id="cZ", title="Later Show", start_time=LATER)]
+
+
+#: Raw page text for the absence tests: a page that plainly loaded and lists
+#: other things, and does NOT name "Copper Kettle Revue" anywhere. Absence is
+#: corroborated against THIS, never against the extractor's silence.
+PAGE_WITHOUT_IT = """
+    Granite Hall — upcoming shows
+    Earlier Show, doors 7pm.  Later Show, doors 8pm.  Box office open daily.
+"""
+
+PAGE_THAT_STILL_NAMES_IT = PAGE_WITHOUT_IT + "\n  Copper Kettle Revue, 9pm.\n"
 
 
 def only(decisions):
@@ -237,7 +254,7 @@ def test_absent_from_a_clean_parse_that_brackets_the_date_marks_the_row_gone():
     and no longer names this one."""
     d = only(adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()], parsed=bracket(),
-        gate_passes=ALWAYS_PASSES))
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_WITHOUT_IT))
     assert d.action == ACTION_MARK_GONE
     assert d.fields == {"status": GONE_STATUS}
 
@@ -256,7 +273,7 @@ def test_an_unbracketed_absence_keeps_the_row(times, why):
             for i, t in enumerate(times)]
     d = only(adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()], parsed=page,
-        gate_passes=ALWAYS_PASSES))
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_WITHOUT_IT))
     assert d.action == ACTION_NONE, why
     assert "do not reach this date" in d.why
 
@@ -266,7 +283,8 @@ def test_a_marked_row_is_never_deleted_only_restated():
     same thing, and the 4-state model says disputed is shown, never hidden."""
     for verdict in (VERIFIED_PRESENT, VERIFIED_ABSENT, UNVERIFIED, "unknown"):
         for d in adjudicate_page(verdict=verdict, published=[published()],
-                                 parsed=bracket(), gate_passes=ALWAYS_PASSES):
+                                 parsed=bracket(), gate_passes=ALWAYS_PASSES,
+                                 page_text=PAGE_WITHOUT_IT):
             assert d.action in (ACTION_UPDATE, ACTION_MARK_GONE, ACTION_NONE)
             assert "delete" not in d.action
 
@@ -412,3 +430,107 @@ def test_the_table_prints_a_row_per_event_with_its_reason():
         "event", "check result", "mutated?", "why"]
     assert "present" in lines[2] and "yes" in lines[2]
     assert "no" in lines[3] and "rate-limited" in lines[3]
+
+
+# --- the two blocking findings from the PR #214 adversarial panel -------------
+#
+# Both were real, both were on the published-data path, and both are pinned
+# here so neither can come back.
+
+def test_a_recurring_title_never_retimes_the_published_night():
+    """FINDING 1 (openai/attacker-smuggle): title-only identity matching can
+    retime the wrong event.
+
+    "Open Mic" repeats its exact title every week. When the published night has
+    rolled off the calendar and only a LATER occurrence is still listed, a
+    title-only match was a single hit and the published row was moved to the
+    wrong night — a person reads "the show moved" and turns up to a dark room.
+
+    A title match too far away in time is NOT an identity. It is also NOT an
+    absence: something on the page carries our title, which is precisely the
+    reason to say nothing rather than cancel."""
+    next_week = DAY + timedelta(days=7)
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT,
+        published=[published(title="Open Mic")],
+        parsed=[parsed(candidate_id="c9", title="Open Mic", start_time=next_week)],
+        gate_passes=ALWAYS_PASSES, page_text="Open Mic every Tuesday, 9pm."))
+    assert d.action == ACTION_NONE
+    assert not d.fields
+    assert "too far off to be the same occurrence" in d.why
+
+
+@pytest.mark.parametrize("shift,expected", [
+    (timedelta(hours=1), MATCH_TITLE),        # doors moved an hour
+    (timedelta(hours=6), MATCH_TITLE),        # matinee moved to the evening
+    (MAX_TITLE_ONLY_RETIME, MATCH_TITLE),     # the boundary is inclusive
+    (timedelta(hours=13), MATCH_FAR),
+    (timedelta(days=1), MATCH_FAR),           # a DAILY series' next occurrence
+    (timedelta(days=7), MATCH_FAR),           # a weekly series' next occurrence
+])
+def test_the_retime_window_separates_a_correction_from_another_occurrence(shift, expected):
+    """Twelve hours, not twenty-four, and the difference is the point: a daily
+    series at a fixed hour puts its next occurrence exactly 24h away."""
+    assert match_kind(published(), parsed(start_time=DAY + shift)) == expected
+
+
+def test_a_matching_start_time_still_licenses_a_rename():
+    """The other direction is unaffected: when the start times agree, the DATE
+    pins which occurrence this is, so a differing title is safely a rename."""
+    assert match_kind(published(), parsed(title="A Whole New Name")) == MATCH_TIME
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[parsed(title="A Whole New Name")], gate_passes=ALWAYS_PASSES))
+    assert d.action == ACTION_UPDATE and d.fields == {"title": "A Whole New Name"}
+
+
+def test_an_extraction_miss_is_not_a_cancellation():
+    """FINDING 2 (openai, both seats): AI extraction omission can mark a real
+    event cancelled.
+
+    The absence branch read "the extractor did not return this event" as "the
+    page no longer says it". Extraction is the one probabilistic stage in the
+    pipeline, and a model that skips a listing produces exactly the same empty
+    result as a genuinely removed show. Absence is now corroborated against the
+    RAW PAGE TEXT, deterministically and without a model."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()], parsed=bracket(),
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+    assert d.action == ACTION_NONE
+    assert "extraction miss is not a cancellation" in d.why
+
+
+@pytest.mark.parametrize("page_text,title", [
+    (None, "Copper Kettle Revue"),      # no page text (e.g. another queue)
+    ("", "Copper Kettle Revue"),
+    (PAGE_WITHOUT_IT, None),            # a published row with no title to look for
+])
+def test_absence_that_cannot_be_checked_against_the_page_keeps(page_text, title):
+    """None means "we could not ask", and that is never absence."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published(title=title)],
+        parsed=bracket(), gate_passes=ALWAYS_PASSES, page_text=page_text))
+    assert d.action == ACTION_NONE
+    assert "absence unconfirmed" in d.why
+
+
+def test_the_page_text_check_is_deterministic_and_word_boundaried():
+    assert title_still_on_page("Copper Kettle Revue", PAGE_THAT_STILL_NAMES_IT) is True
+    assert title_still_on_page("Copper Kettle Revue", PAGE_WITHOUT_IT) is False
+    # case, punctuation and spacing are noise on both sides, as everywhere else
+    assert title_still_on_page("copper  kettle — revue!", PAGE_THAT_STILL_NAMES_IT) is True
+    # a longer title is not "present" merely because a prefix of it is
+    assert title_still_on_page("Copper Kettle Revue Reunion", PAGE_THAT_STILL_NAMES_IT) is False
+    assert title_still_on_page(None, PAGE_WITHOUT_IT) is None
+    assert title_still_on_page("Anything", None) is None
+
+
+def test_a_404_still_marks_gone_without_any_page_text():
+    """The corroboration applies to a page that LOADS. A clean 404 has no page
+    to quote and is a confirmed-gone shape on the founder's own overrule, so it
+    must not be blocked by a check it can never satisfy."""
+    verdict, reason = classify_recheck(door_kind="missed", http_status=404)
+    d = only(adjudicate_page(verdict=verdict, verdict_reason=reason,
+                             published=[published()], parsed=[],
+                             gate_passes=NEVER_PASSES, page_text=None))
+    assert d.action == ACTION_MARK_GONE

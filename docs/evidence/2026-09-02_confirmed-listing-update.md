@@ -15,20 +15,22 @@ runtime EXECUTES; this table proves what it DECIDES.
 
 `check result` is the fail-closed verdict from
 `worker.crawl_state.classify_recheck` — `present`, `absent`, or `no` (nothing
-was learned). Read the two "yes" rows against the thirteen "no" rows: the
-default is no mutation, and confirmation is the exception that has to be
-earned.
+was learned). Read the four "yes" rows against the sixteen "no" rows: the default is no
+mutation, and confirmation is the exception that has to be earned.
 
 ```
 event                                                | check result | mutated? | why
------------------------------------------------------+--------------+----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------+--------------+----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Nightjar — page moved it to 3am                      | present      | yes      | confirmed same-page change, gate PASS on that listing: start_time
 Nightjar — page renamed it                           | present      | yes      | confirmed same-page change, gate PASS on that listing: title
 Nightjar — page unchanged                            | present      | no       | the page still says exactly what we published — no change
 Nightjar — page dropped its end time                 | present      | no       | the page still says exactly what we published — no change
 Nightjar — moved, but the gate declined that listing | present      | no       | the page states a change, but the trust gate did not PASS that listing's own evidence — last good row stands
 Nightjar — two listings match it                     | present      | no       | 2 listings on the page match this row on title or time — ambiguous; last good row stands
-Nightjar — absent, page brackets its date            | present      | yes      | absent from a clean parse of the page that defines it, and the page's own listings bracket its date — confirmed gone; marked cancelled, row kept with its evidence
+Nightjar — absent, page brackets its date            | present      | yes      | absent from a clean parse of the page that defines it, its title is absent from the page's own raw text, and the page's listings bracket its date — confirmed gone; marked cancelled, row kept with its evidence
+Nightjar — extraction missed it, page still names it | present      | no       | the page still names this listing but the extraction did not return it — an extraction miss is not a cancellation; last good row stands
+Open Mic — only next week's occurrence listed        | present      | no       | the page still lists this title, but at a date too far off to be the same occurrence — ambiguous; last good row stands
+Nightjar — doors moved one hour                      | present      | yes      | confirmed same-page change, gate PASS on that listing: start_time
 Nightjar — absent, calendar stops before its date    | present      | no       | not on the page, but the page's own listings do not reach this date — a short calendar has not said this event is gone; last good row stands
 Nightjar — page loaded but listed nothing            | present      | no       | page verified but it produced no listings this read — nothing to compare; last good row stands
 Nightjar — defining page 404                         | absent       | yes      | the defining page returned a clean 404 — confirmed gone; marked cancelled, row kept with its evidence
@@ -47,13 +49,16 @@ Nightjar — sensor rejected the page                  | no           | no      
 |---|---|
 | page moved it to 3am | Same page, still lists the show under the same title, states a different time. The MATCHED listing's own trust-gate verdict was re-computed and PASSed. Writes `start_time`; the row stays `scheduled` and visible with the new time. |
 | page renamed it | Same page, same start time, different title. Matched on time, so a rename does not read as a disappearance. Writes `title`. |
-| absent, page brackets its date | The page still loads, still lists shows both before and after this date, and no longer names this one. That is same-page evidence of absence. Writes `status='cancelled'`; the row is KEPT. |
+| doors moved one hour | Same title, a shift small enough to be a re-time rather than another occurrence of a recurring series. Writes `start_time`. |
+| absent, page brackets its date | The page still loads, its own listings bracket this date, AND the raw page text no longer names the listing. All three, because any two of them are satisfied by an extraction miss. Writes `status='cancelled'`; the row is KEPT. |
 | defining page 404 | The founder's 2026-09-02 overrule (`docs/memory/decisions/2026-09-02_404-of-defining-url-marks-the-listing-gone.md`). Writes `status='cancelled'` and nothing else — a page that is gone cannot state a new time or title. The row is KEPT. |
 
-## Reading the thirteen refusals
+## Reading the sixteen refusals
 
-Three of them are the ones worth arguing about, because each is a case where
-something DID change and the loop still refused:
+Five of them are the ones worth arguing about, because each is a case where
+something DID change and the loop still refused. **The last two were caught by
+the adversarial panel on this PR, not by me** — both were real defects on the
+published-data path, both are fixed here, and both are pinned by tests:
 
 - **"moved, but the gate declined that listing"** — R-091(a). A page's gate
   verdict is the verdict of its FIRST extracted candidate, so on a
@@ -68,6 +73,17 @@ something DID change and the loop still refused:
   named on PR #213. Conflicting start times, a schema-invalid extraction, a
   private/RSVP listing or dedupe ambiguity are all reasons to distrust what
   this read says a listing now is.
+- **"only next week's occurrence listed"** — normalized-title equality alone
+  was treated as identity. `Open Mic` repeats its exact title weekly, so once
+  the published night rolls off the calendar a title-only match is a single
+  hit, and the row was retimed to the wrong night. A title match beyond
+  `MAX_TITLE_ONLY_RETIME` (12h — a *daily* series' next occurrence is exactly
+  24h away) is not an identity, and it is not an absence either.
+- **"extraction missed it, page still names it"** — the absence branch read
+  "the extractor did not return this event" as "the page no longer says it".
+  Extraction is the one probabilistic stage in the pipeline; a model that skips
+  a listing looks exactly like a removed show. Absence is now corroborated
+  against the raw fetched text, deterministically and without a model.
 
 ## What no row can do
 

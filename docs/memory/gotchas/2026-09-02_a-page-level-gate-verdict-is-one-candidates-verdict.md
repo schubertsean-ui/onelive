@@ -27,3 +27,26 @@ Related: the same session found that `event.title` exists (migration 0010, not
 0001) and that the two published-event readers disagree about which statuses
 are visible (R-093) — both are the kind of thing worth checking against the
 schema and the reader rather than assumed from a nearby file.
+
+## Two more from the same PR, both caught by the panel and not by me
+
+**A repeated title is not an identity.** Normalized-title equality looks like a
+safe match until you remember that recurring listings — "Open Mic", "Trivia
+Night", "Sunday Service" — publish that exact title on every occurrence. Match
+on title alone and the moment the published night rolls off a calendar, the
+next occurrence becomes a single confident hit and you rewrite the published
+row to the wrong night. Any matcher keyed on a human-readable label needs a
+second axis (here: time proximity, `MAX_TITLE_ONLY_RETIME`), and "too far to be
+the same one" must be its own outcome — neither a match nor an absence.
+
+**"The extractor returned nothing" is not "the source says nothing".**
+Extraction is the one probabilistic stage in this pipeline, so a model that
+skips a listing produces a result byte-identical to a genuinely removed one.
+Any inference FROM ABSENCE has to be corroborated against the deterministic
+artifact — here the raw fetched page text (`title_still_on_page`), checked
+without a model. The general rule: never let a negative conclusion rest on an
+AI's silence when the raw input is still in hand.
+
+Both defects had passing tests around them. The tests asserted the guard I had
+thought of (a truncated calendar cannot cancel) and said nothing about the two
+I had not. A green suite is evidence about the cases you imagined.

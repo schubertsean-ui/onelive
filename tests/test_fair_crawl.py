@@ -756,7 +756,7 @@ def test_extraction_is_the_only_stage_that_may_call_a_model():
 # event-proximity queue, and that the verdict it hands over is the defining
 # page's own.
 
-def _install_listings(monkeypatch, *, published, gate_pass=True):
+def _install_listings(monkeypatch, *, published, gate_pass=True, parsed=None):
     """Fake the four DB touches the listing path makes, in the orchestrator's
     namespace. `written` collects the decisions that reached the writer, so a
     test can assert what WOULD have been written without a database."""
@@ -767,9 +767,10 @@ def _install_listings(monkeypatch, *, published, gate_pass=True):
                         lambda source_id, url: list(published))
     monkeypatch.setattr(
         orchestrator, "load_parsed_listings",
-        lambda ids: [listing_update.ParsedListing(
+        (lambda ids: list(parsed)) if parsed is not None else
+        (lambda ids: [listing_update.ParsedListing(
             candidate_id=str(c), title="Nightjar",
-            start_time=_dt.datetime(2026, 9, 15, 2, 0, tzinfo=_TZ)) for c in ids])
+            start_time=_dt.datetime(2026, 9, 15, 2, 0, tzinfo=_TZ)) for c in ids]))
     monkeypatch.setattr(orchestrator, "gate_passes_for", lambda cid: gate_pass)
 
     def fake_apply(decisions, **kw):
@@ -943,3 +944,75 @@ def test_the_founders_listing_table_from_fixtures(monkeypatch, tmp_path, capsys)
         "event", "check result", "mutated?", "why"]
     body = table.splitlines()[2:]
     assert [line.split("|")[2].strip() for line in body] == ["yes", "no", "no", "yes"]
+
+def _bracketing(title_a="Earlier Show", title_b="Later Show"):
+    from worker.listing_update import ParsedListing
+    return [ParsedListing(candidate_id="cA", title=title_a,
+                          start_time=_dt.datetime(2026, 9, 12, 1, 0, tzinfo=_TZ)),
+            ParsedListing(candidate_id="cZ", title=title_b,
+                          start_time=_dt.datetime(2026, 9, 18, 1, 0, tzinfo=_TZ))]
+
+
+def test_an_extraction_miss_on_a_live_page_does_not_cancel_the_row(
+        monkeypatch, tmp_path):
+    """The evaluator's second blocking finding, end to end through the loop.
+
+    The published row is "Nightjar" and the extractor returns only two OTHER
+    listings that bracket its date — the exact shape that used to cancel it.
+    But PAGE_HTML, the page the loop actually fetched, still says "Nightjar":
+    the extraction missed it, the page did not drop it, and the corroboration
+    reads the page rather than the extractor's silence."""
+    assert "Nightjar" in PAGE_HTML, "this fixture is the whole point of the test"
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    written = _install_listings(monkeypatch, published=[_published()],
+                                parsed=_bracketing())
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                      budget=TickBudget())
+
+    assert report.results[0].verdict == VERIFIED_PRESENT
+    assert written == [], "an extraction miss must never cancel a live listing"
+    assert report.counts["listings_marked_gone"] == 0
+    assert "extraction miss is not a cancellation" in \
+        report.results[0].listing_decisions[0].why
+
+
+def test_a_row_the_page_itself_no_longer_names_is_marked_gone(monkeypatch, tmp_path):
+    """The other side of the same guard: when the fetched page genuinely does
+    not name the listing and its own listings bracket the date, that IS
+    same-page evidence of absence, and the row is marked (never deleted)."""
+    assert "Vanished Act" not in PAGE_HTML
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    written = _install_listings(monkeypatch,
+                                published=[_published(title="Vanished Act")],
+                                parsed=_bracketing())
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                      budget=TickBudget())
+
+    assert [d.action for d in written] == ["mark_gone"]
+    assert written[0].fields == {"status": "cancelled"}
+    assert report.counts["listings_marked_gone"] == 1
+
+
+def test_only_the_event_queue_keeps_the_page_text(monkeypatch, tmp_path):
+    """The raw page is carried for ONE purpose and only where it is used, so no
+    other queue pays the memory for bytes it can never consult."""
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    _install_listings(monkeypatch, published=[_published()])
+
+    event = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                     budget=TickBudget()).results[0]
+    src = _source()
+    src["queue"] = QUEUE_REFRESH
+    refresh = run_loop(ai=FakeAIProvider(), sources=[src],
+                       budget=TickBudget()).results[0]
+
+    assert event.page_text, "the event queue must keep the page it adjudicates"
+    assert refresh.page_text == ""

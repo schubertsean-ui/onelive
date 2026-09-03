@@ -70,7 +70,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from worker.crawl_state import (
@@ -190,24 +190,111 @@ def _same_minute(a: Optional[datetime], b: Optional[datetime]) -> bool:
     return ua.replace(second=0, microsecond=0) == ub.replace(second=0, microsecond=0)
 
 
-def matches(published: PublishedListing, parsed: ParsedListing) -> bool:
-    """Is this parsed listing the published row, still on the page?
+#: How far a TITLE-ONLY match may move a published start time before it stops
+#: being a re-time and starts being a different occurrence of the same
+#: recurring listing. Twelve hours.
+#:
+#: This bound exists because of a real defect the adversarial panel caught
+#: (openai/attacker-smuggle, PR #214): normalized-title equality alone was
+#: treated as identity, and recurring listings — "Open Mic", "Trivia Night",
+#: "Sunday Service" — repeat that exact title on every occurrence. When the
+#: published night has rolled off a calendar and only a LATER occurrence of the
+#: same series is still listed, a title-only match is a single hit, and the
+#: published row was retimed to the wrong night. A person reads that as "the
+#: show moved" and turns up on a night with nothing on.
+#:
+#: Twelve hours, not twenty-four, and the difference is the point: a DAILY
+#: series at a fixed hour puts its next occurrence exactly 24h away, so a 24h
+#: window would admit the very case this excludes. Every genuine clock-time
+#: correction is far smaller — doors moved an hour, a matinee moved to the
+#: evening is six. Beyond the window we do not claim to know which occurrence
+#: the page is showing us, and not-knowing keeps the last good row.
+#:
+#: A genuine reschedule of more than half a day is therefore NOT applied. That
+#: is a real narrowing of the founder's "update time", taken deliberately over
+#: a proven way to publish a wrong night, and recorded: docs/RECORD.md R-094.
+MAX_TITLE_ONLY_RETIME = timedelta(hours=12)
+
+#: The identity a match establishes. These are not degrees of confidence —
+#: they are different EVIDENCE, and they license different things.
+MATCH_TIME = "time"        #: same start time: the date pins which occurrence
+MATCH_TITLE = "title"      #: same title, close enough in time to be the same one
+MATCH_FAR = "far"          #: same title, too far away — probably another occurrence
+
+
+def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[str]:
+    """How (and whether) this parsed listing identifies the published row.
 
     Title OR time, never both-required, because the update path exists exactly
     for the cases where one of the two CHANGED: requiring both would make every
-    real change look like a disappearance, and the disappearance branch
-    cancels things.
+    real change look like a disappearance, and the disappearance branch cancels
+    things. But the two are not equally strong evidence, and treating them as
+    if they were is what produced the retiming defect above:
+
+      * MATCH_TIME — the start times agree. The DATE pins which occurrence of a
+        series this is, so a differing title is safely a rename.
+      * MATCH_TITLE — the titles agree and the times are within
+        MAX_TITLE_ONLY_RETIME (or the page states no time at all, which cannot
+        move anything). A re-time.
+      * MATCH_FAR — the titles agree and the times are far apart. This is NOT
+        an identity: it is very likely the next occurrence of a recurring
+        listing. It is reported rather than dropped, because "something on this
+        page carries our title" is exactly the reason NOT to read the row as
+        absent and cancel it.
 
     The cost is stated rather than hidden: a listing whose title AND time both
-    changed in one edit matches nothing and is read as absent. The bracket test
-    still applies to it, the row is marked rather than removed, and the
+    changed in one edit identifies nothing here. It cannot be marked gone
+    either — the page-text check in adjudicate_page sees its title is no longer
+    on the page only if it truly is not — so the row simply stands, and the
     rewritten listing comes back through the normal extract → gate → promote
     path as the new row it now is.
     """
+    if _same_minute(published.start_time, parsed.start_time):
+        return MATCH_TIME
     pt, ct = normalize_title(published.title), normalize_title(parsed.title)
-    if pt is not None and pt == ct:
-        return True
-    return _same_minute(published.start_time, parsed.start_time)
+    if pt is None or pt != ct:
+        return None
+    if parsed.start_time is None or published.start_time is None:
+        # A page that states no time for this listing cannot re-time anything:
+        # _field_diff only ever writes values the page actually states.
+        return MATCH_TITLE
+    shift = abs(_as_utc(parsed.start_time) - _as_utc(published.start_time))
+    return MATCH_TITLE if shift <= MAX_TITLE_ONLY_RETIME else MATCH_FAR
+
+
+def matches(published: PublishedListing, parsed: ParsedListing) -> bool:
+    """True when this parsed listing IDENTIFIES the published row.
+
+    MATCH_FAR is deliberately not an identity — see match_kind.
+    """
+    return match_kind(published, parsed) in (MATCH_TIME, MATCH_TITLE)
+
+
+def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optional[bool]:
+    """Does the page ITSELF still name this listing? True / False / None (cannot tell).
+
+    The second defect the adversarial panel caught (openai, PR #214): the
+    absence branch read "the extractor did not return this event" as "the page
+    no longer says it". Those are different claims. Extraction is the one
+    probabilistic stage in the pipeline — a model that skips a listing, or a
+    segmenter that drops a block, produces exactly the same empty result as a
+    genuinely removed show. Cancelling on that hides a real event from the live
+    feed on evidence that was never about it.
+
+    So absence is corroborated against the RAW FETCHED TEXT, deterministically
+    and without a model: normalize both sides the way titles are normalized
+    everywhere else, and look for the title as a whole-word run. If the page
+    still carries the words, the extractor missed it and nothing is marked.
+
+    None means the question could not be asked at all — no page text, or a
+    published row with no title to look for — and the caller treats that as
+    "cannot tell", never as absence.
+    """
+    needle = normalize_title(title)
+    if not needle or not page_text:
+        return None
+    haystack = _PUNCT.sub(" ", page_text.casefold())
+    return f" {needle} " in f" {haystack} "
 
 
 def _brackets(parsed: Sequence[ParsedListing], start_time: datetime) -> bool:
@@ -259,6 +346,7 @@ def adjudicate_page(
     published: Sequence[PublishedListing],
     parsed: Sequence[ParsedListing],
     gate_passes: Callable[[str], bool],
+    page_text: Optional[str] = None,
 ) -> List[ListingDecision]:
     """One decision per published row this page defines. PURE — no DB, no clock,
     no network, so the whole policy is testable from fixtures.
@@ -267,6 +355,9 @@ def adjudicate_page(
     door. `gate_passes(candidate_id)` answers "did the trust gate PASS this
     specific freshly-extracted listing" — the per-listing licence R-091(a)
     required, injected so this function never decides what it cannot see.
+    `page_text` is the raw fetched page, used ONLY to corroborate absence
+    against what the page says rather than against what the extractor
+    returned; without it, nothing can be marked gone from a page that loads.
     """
     decisions: List[ListingDecision] = []
 
@@ -325,6 +416,30 @@ def adjudicate_page(
             continue
 
         if not hits:
+            if any(match_kind(row, p) == MATCH_FAR for p in parsed):
+                # Something on the page carries this row's title, just far away
+                # in time — almost always the next occurrence of a recurring
+                # listing. That is a reason to say nothing, never to cancel.
+                decisions.append(ListingDecision(
+                    event_id=row.event_id, action=ACTION_NONE,
+                    why=("the page still lists this title, but at a date too "
+                         "far off to be the same occurrence — ambiguous; last "
+                         "good row stands")))
+                continue
+            still_named = title_still_on_page(row.title, page_text)
+            if still_named is not False:
+                # True  — the page names it and the EXTRACTOR missed it.
+                # None  — no page text, or no title to look for: cannot ask.
+                # Both are "we did not establish absence", and both keep.
+                decisions.append(ListingDecision(
+                    event_id=row.event_id, action=ACTION_NONE,
+                    why=("the page still names this listing but the extraction "
+                         "did not return it — an extraction miss is not a "
+                         "cancellation; last good row stands"
+                         if still_named
+                         else "cannot check the page's own text for this "
+                              "listing — absence unconfirmed; last good row stands")))
+                continue
             bracketed = (row.start_time is not None
                          and _brackets(parsed, row.start_time))
             if not bracketed or not may_mark_gone(verdict):
@@ -338,8 +453,9 @@ def adjudicate_page(
                 event_id=row.event_id,
                 action=ACTION_MARK_GONE,
                 why=("absent from a clean parse of the page that defines it, "
-                     "and the page's own listings bracket its date — confirmed "
-                     f"gone; marked {GONE_STATUS}, row kept with its evidence"),
+                     "its title is absent from the page's own raw text, and "
+                     "the page's listings bracket its date — confirmed gone; "
+                     f"marked {GONE_STATUS}, row kept with its evidence"),
                 fields={"status": GONE_STATUS},
             ))
             continue

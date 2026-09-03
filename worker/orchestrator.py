@@ -281,6 +281,13 @@ class SourceResult:
     #: and therefore any listing change — is about.
     defining_url: str = ""
     candidate_ids: List[str] = field(default_factory=list)
+    #: The DEFINING page's raw fetched text, carried for exactly one purpose:
+    #: the listing path corroborates an absence against what the PAGE says, not
+    #: against what the extractor returned (an extraction miss and a removed
+    #: show look identical downstream of the model). Set only on the
+    #: event-proximity queue, so no other queue pays the memory, and never
+    #: printed or logged.
+    page_text: str = ""
 
 
 @dataclass
@@ -1390,6 +1397,8 @@ def _run_one_source(
             skipped_unchanged=probe["unchanged"],
             blocked=probe["blocked_reason"] if probe["walled"] else "",
             candidate_ids=page.candidate_ids,
+            # Only the queue that can adjudicate a listing keeps the bytes.
+            page_text=(door.text or "") if queue == QUEUE_EVENT else "",
             **_verdict_kwargs(page.decision),
         ),
         counts,
@@ -1434,6 +1443,10 @@ def _update_listings_for(
         published=published,
         parsed=parsed,
         gate_passes=gate_passes_for,
+        # The defining page's own words. Absent (a 404, or a queue that keeps
+        # no text) means absence cannot be corroborated, and the adjudicator
+        # fails closed rather than marking anything gone.
+        page_text=result.page_text,
     )
     result.listing_decisions = decisions
     for d in decisions:
