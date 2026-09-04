@@ -512,6 +512,53 @@ def test_an_at_id_must_name_itself_not_merely_carry_a_colon():
     assert identity_iri("8818") is None and identity_token("8818") == "8818"
 
 
+
+def test_an_itemprop_with_no_enclosing_item_declares_nothing():
+    """ROUND 8 — a property of NO item is not a declaration.
+
+    Three of the four capture strategies find cards STRUCTURALLY (`<article>`,
+    a cardish class, `<li>`) and those carry no microdata at all, so the
+    nested-scope counter is trivially zero inside them. Before this round every
+    `itemprop="url"` in such a card therefore read as that card's declaration —
+    but microdata gives an `itemprop` meaning only against its nearest
+    ENCLOSING item, and there is no item here for it to be a property of.
+
+    The fixture is the shape that makes this expensive: a half-finished
+    microdata template where `itemprop="url"` sits on the ARTIST link. Reading
+    it would store the artist's address as the listing's identity, and an
+    artist comes back next month — so the next occurrence answers SAME and
+    licenses a `title`/`start_time` write onto the wrong published row. That is
+    round 1's deleted convention in a fourth spelling, so it is deleted again
+    rather than bounded.
+
+    The page still LISTS: refusing an identity never costs a block.
+    """
+    blocks = blocks_of("cards_with_orphan_itemprop")
+    assert len(blocks) == 3
+    for block in blocks:
+        assert "Wren Hall" in str(block)
+        assert carried_identity(block) == NO_IDENTITY, str(block)
+    # And the artist addresses are provably the ones NOT adopted — the failure
+    # this refuses is specific, not hypothetical.
+    assert "/artists/castle-creek" not in "".join(str(b) for b in blocks)
+
+
+def test_a_card_that_declares_itself_an_item_is_still_read():
+    """The round-8 gate refuses ORPHANS, not microdata — the over-correction
+    check, because round 6 shipped one of those and only an existing test
+    caught it.
+
+    Same three cards, same `itemprop="url"` links, one difference: the card
+    declares `itemscope`. Now the property has an item to belong to, so it is
+    a declaration and is adopted. This is the committed fixture the rest of
+    the suite uses, asserted here for the contrast."""
+    blocks = blocks_of("cards_with_hrefs")
+    urls = [carried_identity(b).source_href for b in blocks]
+    assert urls == ["/events/8817-castle-creek",
+                    "/events/8818-river-delta",
+                    "/events/8819-tin-sparrow"]
+
+
 def test_a_nested_item_stays_closed_through_same_tag_nesting():
     """The scope stack balances by element, not by tag name. An inner `<div>`
     inside a nested `performer` item used to pop that item's scope early, so

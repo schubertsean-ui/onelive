@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- The adversarial panel's ROUND 8 case, as a page.
+
+     Three structurally-found cards: plain <article class="event"> elements
+     with NO itemscope anywhere. Each labels its ARTIST link itemprop="url".
+
+     That markup is a half-finished microdata template, and it is common: the
+     author copied `itemprop="url"` onto a link without ever declaring the item
+     it is a property of. Microdata gives an itemprop meaning only against its
+     nearest enclosing item, so with no item these declare a property of
+     NOTHING.
+
+     If we read them anyway we would store the ARTIST's address as the
+     listing's identity — and an artist comes back next month, so the next
+     occurrence would answer SAME and license a title/start_time write onto the
+     wrong published row. Round 1's deleted convention, wearing microdata. -->
+<html>
+  <body>
+    <h1>Autumn shows</h1>
+    <article class="event">
+      <h2><a itemprop="url" href="/artists/castle-creek">Castle Creek</a></h2>
+      <p>Fri Aug 1, 8pm — Wren Hall</p>
+      <a href="https://tickets.example/buy/8817">Tickets</a>
+    </article>
+    <article class="event">
+      <h2><a itemprop="url" href="/artists/river-delta">River Delta</a></h2>
+      <p>Sat Aug 2, 9pm — Wren Hall</p>
+      <a href="https://tickets.example/buy/8818">Tickets</a>
+    </article>
+    <article class="event">
+      <h2><a itemprop="url" href="/artists/tin-sparrow">Tin Sparrow</a></h2>
+      <p>Sun Aug 3, 7pm — Wren Hall</p>
+    </article>
+  </body>
+</html>

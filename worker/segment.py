@@ -257,6 +257,12 @@ class _ElementTextCollector(HTMLParser):
         #: How many of those are open items. Non-zero means "we are describing
         #: something OTHER than this listing", so no declaration is read.
         self._scopes = 0
+        #: Did the CARD ELEMENT ITSELF declare `itemscope`? An `itemprop` only
+        #: means anything relative to its nearest ENCLOSING item, so when the
+        #: card is not an item there is nothing for the property to be a
+        #: property OF, and reading it as the listing's url would be a
+        #: convention, not a declaration — the round-8 finding.
+        self._card_is_item = False
 
     # -- capture bookkeeping --------------------------------------------------
 
@@ -271,8 +277,21 @@ class _ElementTextCollector(HTMLParser):
         because an `itemprop` belongs to its nearest ENCLOSING scope: an
         element that is both `itemprop="url"` of the card and a nested item in
         its own right still states the card's url.
+
+        And it is read ONLY when the card is itself an item. Three of the four
+        capture strategies find cards STRUCTURALLY — `<article>`, a cardish
+        class, `<li>` — and those carry no microdata at all, so `self._scopes`
+        is trivially 0 inside them and every `itemprop="url"` would look like a
+        declaration. But microdata gives an `itemprop` meaning only against its
+        nearest enclosing item; with no item there is nothing it is a property
+        OF. A venue that sprinkles `itemprop="url"` on the ARTIST link inside a
+        plain `<article class="event">` would otherwise hand us the artist's
+        address as the listing's identity, and the next occurrence by that
+        artist would answer SAME and license a write onto the wrong published
+        row. That is round 1's deleted convention in a fourth spelling, so the
+        card must DECLARE itself an item before any property of it is believed.
         """
-        if not self._scopes:
+        if self._card_is_item and not self._scopes:
             labelled = _itemprop_url_of(attrs)
             if labelled is not None and labelled not in self._itemprop_urls:
                 self._itemprop_urls.append(labelled)
@@ -300,6 +319,7 @@ class _ElementTextCollector(HTMLParser):
         self._itemprop_urls = []
         self._open = []
         self._scopes = 0
+        self._card_is_item = False
 
     # -- parser callbacks -----------------------------------------------------
 
@@ -318,7 +338,10 @@ class _ElementTextCollector(HTMLParser):
             self._itemprop_urls = []
             # The CARD's own itemscope is the scope we are reading properties
             # at, so it is deliberately not pushed: only items nested INSIDE it
-            # are somebody else's.
+            # are somebody else's. But it must EXIST — a structurally-found
+            # card declares no item, and a property of no item is not a
+            # declaration (see _note_attrs).
+            self._card_is_item = "itemscope" in a
             self._open = []
             self._scopes = 0
 

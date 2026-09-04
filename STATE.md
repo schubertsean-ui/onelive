@@ -40,12 +40,18 @@ An identity attaches ONLY to a block CUT FROM the thing that stated it: a JSON-L
 object, or an HTML container element. The anchor-split path (text offsets, no structure)
 and the whole-page single-block fallback carry NOTHING — the page url is every listing's
 url, and adopting it would make forty shows one show. Within a container EXACTLY ONE
-THING is read, AT THE CARD'S OWN SCOPE: an `itemprop="url"` stated exactly once with no
-nested `itemscope` open —
-the microdata spec's own rule, added at the panel's round-2 finding, because a
-well-formed Event card nests `performer`/`location`/`offers` items whose own `url`s are
-the artist's, the venue's and the vendor's pages, which is r1's deleted convention
-walking back in wearing microdata. EVERY carrier goes through a validator, and
+THING is read, AT THE CARD'S OWN SCOPE: an `itemprop="url"` stated exactly once, with no
+nested `itemscope` open AND with the card itself declaring `itemscope` — the microdata
+spec's own rule, in the two halves two separate rounds found. Round 2 added the nested
+half, because a well-formed Event card nests `performer`/`location`/`offers` items whose
+own `url`s are the artist's, the venue's and the vendor's pages. Round 8 added the
+ENCLOSING half, and it is the sharper of the two: three of the four capture strategies
+find cards structurally (`<article>`, a cardish class, `<li>`) and carry no microdata at
+all, so "no nested scope" is trivially true inside them and every `itemprop="url"` looked
+like a declaration — including one a half-finished template put on the ARTIST link. An
+`itemprop` means something only against its nearest enclosing item; with no item it is a
+property of nothing. Both halves are r1's deleted convention walking back in wearing
+microdata, and the second is its FOURTH spelling. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and
