@@ -2673,3 +2673,19 @@ at confidence `unverified`. The two claim classes are named third-party in
 gating.py, so claimed listings HOLD at the existing gate: no self-serve path to
 `confirmed`. No fetch, no schema change. The verify action that ends the hold is
 R-080; the outreach message a human sends is docs/ops/VENUE_CLAIM_OUTREACH.md.
+
+## 2026-09-04 — Finder pass on TAM_CAPCOG holes (this session)
+Goal: apply domain_recipes.md query packs to the 25 hole rows PR #220 left in
+docs/TAM_CAPCOG.csv (all found_unverified + all blocked_now — a capped, finite
+set, not a crawl); write docs/FINDER_CAPCOG.csv + docs/FINDER_CAPCOG.md.
+Files: docs/FINDER_CAPCOG.csv (new), docs/FINDER_CAPCOG.md (new), this note.
+Done test: CSV round-trips through Python's csv module; every row has a
+non-empty hit_kind + evidence_tier; no official_list/publisher claim without a
+citable fetched/search_only hit. Out of scope: no worker/ai_extract/Tonight/
+cadence code, no identity heuristics, no paid Search API, no venue accounts.
+DONE: 27 finder rows (25 TAM holes, grouped-school hole split 3 ways) —
+21 official_list, 3 marketplace, 1 publisher, 1 junk, 1 unknown; WebFetch
+re-confirmed EGRESS_BLOCKED, so all evidence_tier search_only/none, 0 fetched.
+7 blocked_now holes now carry a real candidate URL (none promoted to
+confirmed — needs an actual fetch). TAM_CAPCOG.csv itself untouched. PR opened,
+not merged. STATUS: CLOSED.
