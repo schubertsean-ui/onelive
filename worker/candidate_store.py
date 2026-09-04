@@ -53,11 +53,39 @@ def _with_identity(
     `entity_url` rather than dropped: the door is real, it is simply not a
     handle on a happening, and `identity_verdict` never reads it.
 
-    Only the BLOCK branch is demoted. A caller's own payload is left alone
-    because there the page legitimately IS the listing: a per-event detail feed
-    (`worker/importers/structured_feed.py`) and a claimant's own row
-    (`worker/claim/intake.py`) both state their own page url, and demoting
-    those would delete the strongest identities in the tree.
+    ONLY THE BLOCK BRANCH IS DEMOTED, and the reason is specific to the two
+    producers that actually reach this seam. An earlier version of this
+    docstring justified the exemption by naming
+    `worker/importers/structured_feed.py` as a per-event detail feed whose page
+    IS its listing. THAT WAS FALSE — that module never calls `create_candidate`
+    at all (it writes the licensed store), and an adversarial-review seat
+    questioning the exemption is what sent me to check. The true reason is
+    stronger, and it is about what `source_url` MEANS to each caller:
+
+      * `worker/ai_extract.py` passes the crawled PAGE, which may hold many
+        listings — so a payload url equal to it would indeed be a door. It
+        cannot occur: the certified extraction schema states no
+        identity-shaped field, pinned by a blocking test
+        (`tests/test_identity_stack.py::
+        test_the_certified_extraction_schema_states_no_identity_field`,
+        re-asserted at this seam by
+        `tests/test_entity_vs_happening_id.py::
+        test_a_crawled_payload_states_no_identity_to_demote`), and the provider
+        meta merged beside it is `_`-prefixed. Adding `url` to
+        `worker/ai_models.py` turns that test RED and says why, so the branch
+        is fail-closed rather than merely empty.
+      * `api/claims.py` passes `source_url=listing.url or claim.feed_url`, so
+        when a claimant states a url the page and the listing are THE SAME
+        STRING by construction. Demoting there would move class E's ONLY
+        identity — the url the venue typed into their own row — onto
+        `entity_url` and leave the claim path with nothing. That is not a
+        hypothetical cost: it is every claimed listing, and it is pinned by
+        `tests/test_entity_vs_happening_id.py::
+        test_a_claimed_listings_own_url_survives_being_its_own_source_url`.
+
+    So the exemption is not "callers know best" in general. It is that neither
+    caller can present the shape the demotion exists to catch, and that for one
+    of them the demotion would be the defect.
 
     A COPY is returned rather than a mutation of the caller's dict: the caller
     (worker/ai_extract.py's fan-out, api/claims.py's loop) may hold the payload

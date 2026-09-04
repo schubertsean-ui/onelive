@@ -300,13 +300,66 @@ def test_an_entity_field_is_never_a_comparable_one():
 
 
 def test_a_caller_payload_is_never_demoted():
-    """A per-event detail feed states its own page as the listing's url, and
-    there the page IS the listing. Demoting a CALLER's payload would delete the
-    strongest identities in the tree, so the demotion is block-only."""
+    """The demotion is BLOCK-only: a caller's own payload keeps what it stated
+    even when that value names the page it was submitted with."""
     payload = {"uid": "evt-1@venue.example", "url": "https://v.example/e/8817"}
     out = _with_identity(payload, None, source_url="https://v.example/e/8817")
     assert out[IDENTITY_KEY] == {"uid": "evt-1@venue.example",
                                  "listing_url": "https://v.example/e/8817"}
+
+
+def test_a_claimed_listings_own_url_survives_being_its_own_source_url():
+    """WHY the payload branch is exempt, half one — proven, not asserted.
+
+    An adversarial-review seat asked for `demote_door_addresses` on the payload
+    branch too. It would be a defect, and this is the reason: `api/claims.py`
+    passes `source_url=listing.url or claim.feed_url`, so when a claimant states
+    a url the page and the listing are THE SAME STRING by construction. The
+    demotion would fire on every claimed listing and move class E's ONLY
+    identity — the url the venue typed into their own row
+    (`tests/test_identity_stack.py::
+    test_a_claimed_listing_carries_the_url_its_claimant_typed`) — onto
+    `entity_url`, leaving the claim path with nothing to match on.
+
+    Pinned with the REAL call shape rather than a paraphrase of it, so a change
+    to how claims.py derives `source_url` cannot silently make this stale."""
+    listing_url = "https://venue.example/events/trivia-9-15"
+    stored = _with_identity(
+        {"title": "Trivia Night", "url": listing_url},
+        None,
+        source_url=listing_url or "",          # api/claims.py:213, verbatim shape
+    )
+    identity = read_identity(stored)
+    assert identity.listing_url == listing_url
+    assert identity.entity_url is None
+    assert identity.stated is True
+
+    # And the demotion WOULD have taken it, which is what makes the exemption
+    # load-bearing rather than incidental.
+    taken = demote_door_addresses(ListingIdentity(listing_url=listing_url),
+                                  listing_url)
+    assert taken.listing_url is None and taken.entity_url == listing_url
+
+
+def test_a_crawled_payload_states_no_identity_to_demote():
+    """WHY the payload branch is exempt, half two — the crawl side.
+
+    `worker/ai_extract.py` passes the crawled PAGE as `source_url`, and a page
+    may hold many listings, so a payload url equal to it WOULD be a door. It
+    cannot arise: the certified extraction schema states no identity-shaped
+    field. That is pinned in `tests/test_identity_stack.py`; it is re-asserted
+    HERE, at the seam whose exemption depends on it, so the two cannot drift
+    apart — a schema that grew `url` would turn this red beside that one.
+
+    The provider meta merged into the same payload is `_`-prefixed and so can
+    reach no identity key either; asserted rather than described."""
+    from worker.ai_models import AIEventExtraction
+
+    payload = AIEventExtraction().model_dump()
+    assert set(payload).isdisjoint(set(IDENTITY_FIELDS) | {"url"})
+    assert read_identity(payload) == NO_IDENTITY
+    assert IDENTITY_KEY not in _with_identity(
+        payload, None, source_url="https://venue.example/calendar")
 
 
 def test_same_location_folds_only_what_is_safe_to_fold():
