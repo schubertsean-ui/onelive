@@ -99,8 +99,17 @@ def _with_identity(
     that owns the answer).
     """
     identity = read_identity(extracted)
-    if not identity.stated_any:
-        identity = demote_door_addresses(carried_identity(raw_text), source_url)
+    if not identity.stated:
+        # The caller stated no COMPARABLE identity, so the block decides — and
+        # the test is `stated`, not `stated_any`, which is PR #219 r2's second
+        # fix. A payload stating only a DOOR must not out-rank a block that
+        # knows the listing: a door is not an identity, and letting one win
+        # here silently ERASED the block's `source_href` (an adversarial-panel
+        # smuggle path, reproduced before fixing). Precedence is about identity
+        # authority; a door carries none.
+        block = demote_door_addresses(carried_identity(raw_text), source_url)
+        if block.stated_any:
+            identity = block
     if not identity.stated_any:
         return extracted
     out = dict(extracted)

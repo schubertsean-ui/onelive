@@ -55,6 +55,7 @@ from worker.identity import (
     ENTITY_FIELDS,
     ListingIdentity,
     address_identity,
+    carry_identity,
     demote_door_addresses,
     door_address,
     identity_address,
@@ -356,10 +357,78 @@ def test_a_crawled_payload_states_no_identity_to_demote():
     from worker.ai_models import AIEventExtraction
 
     payload = AIEventExtraction().model_dump()
-    assert set(payload).isdisjoint(set(IDENTITY_FIELDS) | {"url"})
+    # ENTITY_FIELDS is in this set deliberately: PR #219 ADDED `entity_url`,
+    # and the pin it leaned on covered only the pre-existing carriers, so a
+    # schema growing `entity_url` would have slipped past the very test this
+    # seam cites as its guarantee. A new field must join the pin that guards
+    # its siblings in the same change that creates it.
+    assert set(payload).isdisjoint(
+        set(IDENTITY_FIELDS) | set(ENTITY_FIELDS) | {"url"})
     assert read_identity(payload) == NO_IDENTITY
     assert IDENTITY_KEY not in _with_identity(
         payload, None, source_url="https://venue.example/calendar")
+
+
+def test_a_payload_supplied_entity_url_is_validated_not_merely_cleaned():
+    """PR #219 r2, blocking panel finding — REPRODUCED before fixing.
+
+    `entity_url` was the one url-valued carrier in worker/identity.py that
+    reached storage through `_clean` alone, so a payload stating
+    `entity_url: "javascript:alert(1)"` persisted it into
+    `event_candidate.extracted` as machine-read provenance. It is never
+    COMPARED, which is why it was not a matching defect — and that is exactly
+    why it needed catching: PR #218 rounds 3-6 found this same shape four
+    times, one carrier validated and its siblings not, and "it is only
+    metadata" is how the fourth one survived three rounds.
+
+    Both legitimate shapes still round-trip, because both really do land here:
+    a bare ORIGIN from `address_identity`, and a full PAGE address from
+    `demote_door_addresses` when a block declared the page it was read from."""
+    for junk in ("javascript:alert(1)", "mailto:a@b.c", "#frag", "details",
+                 "ftp://v.example/", "   ", "urn:uuid:abc"):
+        assert read_identity({"entity_url": junk}).entity_url is None, junk
+        assert IDENTITY_KEY not in _with_identity({"title": "x", "entity_url": junk}, None)
+
+    for kept in ("https://castlecreek.band/", "https://castlecreek.band",
+                 "//castlecreek.band", "/tour",
+                 "https://marisol-kitchen.example/upcoming"):
+        assert read_identity({"entity_url": kept}).entity_url == kept, kept
+
+    # And a value this stack itself stored reads back unchanged.
+    stored = stored_identity = read_identity(
+        _with_identity({}, blocks_of("presenter_upcoming")[0], source_url=PRESENTER_URL))
+    assert stored.entity_url == PRESENTER_URL
+    assert read_identity({IDENTITY_KEY: stored.as_dict()}) == stored_identity
+
+
+def test_a_payload_door_cannot_suppress_a_blocks_real_identity():
+    """PR #219 r2, the attacker-smuggle seat's nit — and it was worse than the
+    nit framed it, which is why it is fixed rather than noted.
+
+    `_with_identity` chose the block only when the payload stated NOTHING AT
+    ALL (`stated_any`). A payload carrying only a junk `entity_url` therefore
+    counted as "stated" and the block was never consulted — so a door did not
+    merely get stored, it ERASED the listing's real `source_href`. Reproduced
+    before fixing.
+
+    The rule is now about identity AUTHORITY: a door carries none, so it never
+    out-ranks a block that knows the listing. Precedence turns on `stated`
+    (comparable fields) while storage still turns on `stated_any`."""
+    block = carry_identity("Castle Creek Fri Aug 1 8pm Wren Hall",
+                           ListingIdentity(source_href="/events/8817"))
+    out = _with_identity({"title": "Castle Creek", "entity_url": "https://evil.example/"},
+                         block, source_url=VENUE_URL)
+    assert out[IDENTITY_KEY] == {"source_href": "/events/8817"}
+
+    # A caller's COMPARABLE identity still wins outright — unchanged.
+    out = _with_identity({"title": "Castle Creek", "uid": "evt-1@venue.example"},
+                         block, source_url=VENUE_URL)
+    assert out[IDENTITY_KEY] == {"uid": "evt-1@venue.example"}
+
+    # And a payload door with no block to defer to is still recorded.
+    out = _with_identity({"title": "Castle Creek", "entity_url": "https://castlecreek.band/"},
+                         None, source_url=VENUE_URL)
+    assert out[IDENTITY_KEY] == {"entity_url": "https://castlecreek.band/"}
 
 
 def test_same_location_folds_only_what_is_safe_to_fold():

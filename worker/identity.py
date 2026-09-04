@@ -266,7 +266,22 @@ def read_identity(payload: Optional[Mapping[str, Any]]) -> ListingIdentity:
         uid=_clean(payload.get("uid")),
         listing_url=listing_url,
         source_href=_clean(payload.get("source_href")),
-        entity_url=_clean(payload.get("entity_url")),
+        # VALIDATED, not merely cleaned, and this was an adversarial-panel
+        # finding on PR #219 r2: `entity_url` was the one url-valued carrier in
+        # this file that reached storage through `_clean` alone, so a payload
+        # stating `entity_url: "javascript:alert(1)"` persisted it into
+        # `event_candidate.extracted` as machine-read provenance. That is the
+        # exact shape PR #218 rounds 3-6 kept finding — one carrier validated
+        # and its siblings not — and it does not stop being that shape because
+        # the field is never compared.
+        #
+        # The door is `capturable_address` (address OR bare root) rather than
+        # `door_address` alone, because BOTH shapes legitimately land here: an
+        # origin from `address_identity`, and a full page address from
+        # `demote_door_addresses` when a block declared the page it was read
+        # from. Validating on READ covers both directions — a payload stating
+        # one, and a stored value being read back.
+        entity_url=capturable_address(payload.get("entity_url")),
     )
 
 
