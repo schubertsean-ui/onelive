@@ -46,11 +46,12 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from worker.importers.structured_feed import parse_jsonld
+from worker.locale.kind_map import KindMap
 from worker.locale.pack import KIND_OTHER, Door
 
 log = logging.getLogger(__name__)
@@ -67,6 +68,12 @@ _WS_RE = re.compile(r"\s+")
 _EVENT_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]*Event\b", re.I)
 _EVENTISH_CLASS_RE = re.compile(r"\b(?:event|listing|card|show|gig|happening)", re.I)
 _PLACEISH_RE = re.compile(r"venue|location|place|where", re.I)
+#: Where a card may STATE its own category. Every one of these is a DECLARATION
+#: — a `rel` the page wrote, a schema.org property, a class the page named after
+#: its own taxonomy. None of it is a guess from the title, which is why a card
+#: that declares nothing simply has no category (and lands on `other`).
+_CATEGORYISH_CLASS_RE = re.compile(r"categor|section|genre|event-?type|tag\b", re.I)
+_CATEGORY_ITEMPROPS = frozenset({"genre", "eventtype", "keywords"})
 #: A `datetime` attribute we will accept as the page's OWN machine date. ISO
 #: date or date+time; anything else (a duration, a bare year, a weekday) is kept
 #: as text instead of being coerced.
@@ -109,6 +116,14 @@ class Happening:
     locale_id: str
     source_url: str               # the desk page this was read from
     listing_url: Optional[str]    # the row's OWN address, when it stated one
+    #: What the DESK called this, verbatim, when it stated a category we map.
+    #: None when the desk said nothing (or said something unmapped) — their
+    #: label is recorded, never adopted as our schema.
+    category_text: Optional[str] = None
+    #: Which authority set `kind`: the desk's own category, the door's declared
+    #: scope, or the `other` fallback. On the row, so a table can never present
+    #: a fallback as a reading.
+    kind_source: str = "door_scope"
 
 
 @dataclass
@@ -123,6 +138,14 @@ class DeskRead:
     skipped_untitled: int = 0
     truncated_at: Optional[int] = None
     notes: List[str] = field(default_factory=list)
+    #: How many times a second reading of the SAME card was merged into the
+    #: first (its structured statement and its printed HTML). Reported, so a
+    #: page's row count is never quietly two numbers.
+    merged_readings: int = 0
+    #: Categories this page STATED that the committed mapping does not cover.
+    #: Printed by the tools so the table is completed from the desk's own words
+    #: rather than from anyone's memory of its taxonomy.
+    unmapped_categories: List[str] = field(default_factory=list)
 
     @property
     def count(self) -> int:
@@ -277,8 +300,9 @@ def _select_rows(html: str) -> Tuple[List[_Node], Optional[str]]:
     return [], None
 
 
-def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
-    """Reduce one row node to (title, when, when_text, place_text, listing_url).
+def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
+    """Reduce one row node to its stated fields, plus the category signals it
+    declared (`category_labels`, `hrefs`) for a committed mapping to read.
 
     Every value returned is either an attribute the page declared or a substring
     of the text the page printed. Nothing is composed, normalized into an
@@ -290,6 +314,9 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
     heading_parts: List[str] = []
     anchor_parts: List[str] = []
     place_parts: List[str] = []
+    category_parts: List[str] = []
+    category_labels: List[str] = []
+    hrefs: List[str] = []
     time_iso: Optional[str] = None
     itemprop_date: Optional[str] = None
     href: Optional[str] = None
@@ -302,8 +329,20 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
                 return value
         return None
 
+    def _is_categoryish(n: "_Node") -> bool:
+        itemprop = (n.attrs.get("itemprop") or "").lower()
+        if itemprop in _CATEGORY_ITEMPROPS:
+            return True
+        rel = (n.attrs.get("rel") or "").lower()
+        if "categor" in rel or "tag" in rel.split():
+            return True
+        for attr in ("class", "id"):
+            if _CATEGORYISH_CLASS_RE.search(n.attrs.get(attr) or ""):
+                return True
+        return False
+
     def walk(n: _Node, *, in_time: bool, in_name: bool, in_heading: bool,
-             in_anchor: bool, in_place: bool) -> None:
+             in_anchor: bool, in_place: bool, in_category: bool) -> None:
         nonlocal time_iso, itemprop_date, href
         for child in n.children:
             if isinstance(child, str):
@@ -314,12 +353,18 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
                     time_text_parts.append(child)
                 if in_place:
                     place_parts.append(child)
+                if in_category:
+                    category_parts.append(child)
                 if in_name:
                     name_parts.append(child)
+                elif in_heading:
+                    # A heading OUTRANKS an anchor: a card's title is normally a
+                    # link inside its heading, and a card's other links (its
+                    # category, its venue) are anchors too. Reading anchors first
+                    # concatenated the category onto the title.
+                    heading_parts.append(child)
                 elif in_anchor:
                     anchor_parts.append(child)
-                elif in_heading:
-                    heading_parts.append(child)
                 continue
             itemprop = (child.attrs.get("itemprop") or "").lower()
             if child.tag == "time":
@@ -329,11 +374,21 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
             declared = declared_date(child)
             if declared and itemprop_date is None:
                 itemprop_date = declared
-            if child.tag == "a" and href is None:
+            if child.tag == "a":
                 candidate = _ws(child.attrs.get("href") or "")
                 if candidate and not candidate.startswith(
                         ("#", "javascript:", "mailto:", "tel:")):
-                    href = candidate
+                    if href is None:
+                        href = candidate
+                    if candidate not in hrefs:
+                        hrefs.append(candidate)
+            child_category = in_category or _is_categoryish(child)
+            if child_category and itemprop in _CATEGORY_ITEMPROPS:
+                # schema.org states a value in `content` when the visible text
+                # is something else; that stated value is the category.
+                stated = _ws(child.attrs.get("content") or "")
+                if stated and stated not in category_labels:
+                    category_labels.append(stated)
             walk(
                 child,
                 in_time=in_time or child.tag == "time",
@@ -345,7 +400,15 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
                     or itemprop in ("location", "address")
                     or bool(_PLACEISH_RE.search(child.attrs.get("class") or ""))
                 ),
+                in_category=child_category,
             )
+            if child_category and not in_category:
+                # Close this category element: whatever text it printed is one
+                # label, kept verbatim and kept SEPARATE from its siblings.
+                label = _ws(" ".join(category_parts))
+                del category_parts[:]
+                if label and label not in category_labels:
+                    category_labels.append(label)
 
     # The row node's OWN attributes count too: a card may itself be the anchor,
     # or itself carry itemprop="url".
@@ -354,8 +417,13 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
         if own and not own.startswith(("#", "javascript:", "mailto:", "tel:")):
             href = own
     itemprop_date = itemprop_date or declared_date(node)
+    if node.tag == "a":
+        own_href = _ws(node.attrs.get("href") or "")
+        if own_href and not own_href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            if own_href not in hrefs:
+                hrefs.append(own_href)
     walk(node, in_time=node.tag == "time", in_name=False, in_heading=False,
-         in_anchor=node.tag == "a", in_place=False)
+         in_anchor=node.tag == "a", in_place=False, in_category=False)
 
     when_text = _ws(" ".join(time_text_parts)) or None
     when = time_iso or itemprop_date
@@ -376,6 +444,10 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, Optional[str]]:
         "when_text": when_text,
         "place_text": _ws(" ".join(place_parts)) or None,
         "listing_url": _absolutize(href, base_url) if href else None,
+        # Everything the card DECLARED about its own category, for a committed
+        # mapping to read. Lists, not strings — a card may state several.
+        "category_labels": category_labels,
+        "hrefs": [_absolutize(h, base_url) for h in hrefs],
     }
 
 
@@ -397,12 +469,67 @@ def _precision(when: Optional[str]) -> Optional[str]:
     return "date" if len(when.strip()) == 10 else "datetime"
 
 
+def row_key(title: str, when: Optional[str], when_text: Optional[str],
+            listing_url: Optional[str]) -> Tuple[str, str, str]:
+    """The identity two READINGS of the same card share.
+
+    A page is read twice — once as the structured statement it publishes
+    (JSON-LD), once as the HTML it prints — because real desks state different
+    things in each. When the card declares its own address, that address is what
+    makes the two readings the same card: the two readings routinely disagree on
+    the FORM of the date (`2026-09-11T20:00:00-05:00` and the same instant in
+    UTC), so keying on the date text would split one card into two rows and
+    inflate every count downstream.
+
+    With no declared address we fall back to title + whatever was said about
+    when. Identity is used here ONLY to avoid counting one card twice; a card
+    with neither an address nor a date still exists (ONE-LIVE-TRUST.md).
+    """
+    if listing_url and listing_url.strip():
+        return ("url", listing_url.strip(), "")
+    key = _dedupe_key(title, when, when_text)
+    return ("t", key[0], key[1])
+
+
+def fill_holes(kept: Happening, incoming: Happening) -> Happening:
+    """Merge a second reading of the SAME card into the first, filling HOLES
+    only. Nothing already stated is ever overwritten.
+
+    This is same-page evidence in the sense ONE-LIVE-TRUST.md allows, and it is
+    weaker still: no row here is published, nothing is written anywhere, and a
+    value the first reading stated wins by construction. What it buys is that
+    the structured reading's precise instant and the HTML reading's stated
+    category end up on ONE row instead of two half-rows.
+    """
+    patch = {}
+    for hole in ("when", "when_text", "place_text", "listing_url"):
+        if getattr(kept, hole) is None and getattr(incoming, hole) is not None:
+            patch[hole] = getattr(incoming, hole)
+    if "when" in patch:
+        patch["when_precision"] = _precision(patch["when"])
+    # A kind the DESK stated outranks one we defaulted to. The reverse never
+    # happens: a default never displaces a desk's own word.
+    if kept.kind_source != "desk_category" and incoming.kind_source == "desk_category":
+        patch["kind"] = incoming.kind
+        patch["kind_source"] = incoming.kind_source
+        patch["category_text"] = incoming.category_text
+    return replace(kept, **patch) if patch else kept
+
+
 def _dedupe_key(title: str, when: Optional[str], when_text: Optional[str]) -> Tuple[str, str]:
     return (_ws(title).casefold(), (when or when_text or "").strip().casefold())
 
 
-def read(door: Door, html: str, *, base_url: Optional[str] = None) -> DeskRead:
+def read(door: Door, html: str, *, base_url: Optional[str] = None,
+         kind_map: Optional[KindMap] = None) -> DeskRead:
     """Read one public desk page into happening rows.
+
+    `kind_map`, when given, is a committed mapping of THIS desk's own category
+    labels onto our kinds (`worker.locale.kind_map`). A card that states a
+    category the mapping covers takes that kind; a card that states nothing, or
+    states something unmapped, falls back to the door's declared scope and then
+    to `other`. The mapping can only ever change which of OUR kinds a row gets —
+    it cannot make a row exist, disappear, or acquire a date.
 
     `door` must be readable (`Door.readable`) — that is the only gate, and it is
     a door fact, not a fact about any row. A wall or a copy farm raises here
@@ -436,19 +563,31 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None) -> DeskRead:
         result.notes.append("empty page body — nothing read (not 'nothing on')")
         return result
 
-    kind = door.declared_kind or KIND_OTHER
-    seen: set = set()
+    door_kind = door.declared_kind or KIND_OTHER
+    door_kind_source = "door_scope" if door_kind != KIND_OTHER else "default"
+    if kind_map is not None and not kind_map.applies_to(door.door_id):
+        # A mapping for a DIFFERENT desk must never colour this desk's rows.
+        result.notes.append(
+            f"kind map {kind_map.map_id!r} does not claim this door; "
+            f"kinds come from the door's declared scope")
+        kind_map = None
+    at: Dict[Tuple[str, str, str], int] = {}
     rows: List[Happening] = []
 
-    def _add(title: Optional[str], when, when_text, place_text, listing_url) -> None:
+    def _add(title: Optional[str], when, when_text, place_text, listing_url,
+             *, labels: Sequence[str] = (), hrefs: Sequence[str] = ()) -> None:
         if not title:
             result.skipped_untitled += 1
             return
-        key = _dedupe_key(title, when, when_text)
-        if key in seen:
-            return
-        seen.add(key)
-        rows.append(Happening(
+        kind, kind_source, category_text = door_kind, door_kind_source, None
+        if kind_map is not None:
+            mapped, matched = kind_map.resolve(labels=labels, hrefs=hrefs)
+            if mapped:
+                kind, kind_source, category_text = mapped, "desk_category", matched
+            for unmapped in kind_map.unmapped_from(labels=labels, hrefs=hrefs):
+                if unmapped not in result.unmapped_categories:
+                    result.unmapped_categories.append(unmapped)
+        row = Happening(
             title=_ws(title),
             when=when,
             when_text=when_text,
@@ -461,7 +600,20 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None) -> DeskRead:
             locale_id=door.locale_id,
             source_url=source_url,
             listing_url=listing_url,
-        ))
+            category_text=category_text,
+            kind_source=kind_source,
+        )
+        key = row_key(row.title, row.when, row.when_text, row.listing_url)
+        if key in at:
+            # The same card, read a second way. Merge holes; never overwrite.
+            index = at[key]
+            merged = fill_holes(rows[index], row)
+            if merged is not rows[index]:
+                rows[index] = merged
+            result.merged_readings += 1
+            return
+        at[key] = len(rows)
+        rows.append(row)
 
     # 1. The page's own structured statement. parse_jsonld keeps every Event
     #    node whatever fields it lacks; we deliberately do NOT continue into
@@ -474,7 +626,8 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None) -> DeskRead:
         result.notes.append(f"JSON-LD parse raised ({exc}); HTML rows still read")
     for ev in ld_events:
         place = ev.get("venue_name") or ev.get("venue_address") or ev.get("venue_city")
-        _add(ev.get("title"), ev.get("start_time"), None, place, ev.get("url"))
+        _add(ev.get("title"), ev.get("start_time"), None, place, ev.get("url"),
+             hrefs=tuple(u for u in (ev.get("url"),) if u))
 
     # 2. The page's own HTML listing rows.
     try:
@@ -487,7 +640,9 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None) -> DeskRead:
     for row_node in html_rows:
         fields = _row_fields(row_node, base_url=source_url)
         _add(fields["title"], fields["when"], fields["when_text"],
-             fields["place_text"], fields["listing_url"])
+             fields["place_text"], fields["listing_url"],
+             labels=tuple(fields.get("category_labels") or ()),
+             hrefs=tuple(fields.get("hrefs") or ()))
 
     if len(rows) > MAX_ROWS:
         result.truncated_at = MAX_ROWS
@@ -499,4 +654,11 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None) -> DeskRead:
         result.notes.append(
             f"{result.skipped_untitled} block(s) carried no title text and were "
             f"skipped — counted, never silently dropped")
+    if result.unmapped_categories:
+        result.notes.append(
+            f"{len(result.unmapped_categories)} category/categories this page "
+            f"stated are not in the committed mapping "
+            f"({', '.join(result.unmapped_categories[:8])}) — those rows kept "
+            f"the door's kind; the mapping is completed from the desk's own "
+            f"words, never from memory")
     return result

@@ -7,6 +7,7 @@ must not need an identity, or a clock, in order to exist (ONE-LIVE-TRUST.md).
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 
 import pytest
 
@@ -241,3 +242,121 @@ def test_a_read_returns_happening_rows(desk):
 def test_read_refuses_anything_that_is_not_a_door(desk):
     with pytest.raises(DeskReadError):
         read("austin-chronicle-eventsearch", "<html></html>")
+
+
+# --- the card's own category, mapped into OUR kinds --------------------------
+# (Session Contract #62 — the founder's "kind mapped from THEIR category or
+# other". The mapping is data; these tests pin what the READER does with it.)
+
+def test_a_heading_outranks_a_cards_other_anchors_for_the_title(desk):
+    """A card's category link is an anchor too. Reading anchors first
+    concatenated the category onto the title ("Brass Band Live Music")."""
+    html = ('<div class="event"><h3><a href="/e/1">Brass Band</a></h3>'
+            '<a rel="category tag" href="/s?section=music">Live Music</a></div>')
+    result = read(desk, html, base_url="https://desk.example/list")
+    assert [r.title for r in result.rows] == ["Brass Band"]
+
+
+def test_a_stated_category_decides_the_kind(desk):
+    from worker.locale.kind_map import load_kind_map
+    html = ('<div class="event"><h3><a href="/e/1">Brass Band</a></h3>'
+            '<a rel="category tag" href="/s?section=music">Live Music</a></div>')
+    result = read(desk, html, base_url="https://desk.example/list",
+                  kind_map=load_kind_map("austin-chronicle"))
+    row = result.rows[0]
+    assert (row.kind, row.kind_source, row.category_text) == (
+        "music", "desk_category", "Live Music")
+
+
+def test_an_unmapped_category_leaves_the_kind_alone_and_is_reported(desk):
+    from worker.locale.kind_map import load_kind_map
+    html = ('<div class="event"><h3><a href="/e/1">A Happening</a></h3>'
+            '<a rel="category tag" href="/s?section=x">Psychogeography</a></div>')
+    result = read(desk, html, base_url="https://desk.example/list",
+                  kind_map=load_kind_map("austin-chronicle"))
+    row = result.rows[0]
+    assert (row.kind, row.kind_source, row.category_text) == ("other", "default", None)
+    assert result.unmapped_categories == ["Psychogeography"]
+
+
+def test_a_kind_is_never_read_out_of_a_title(desk):
+    from worker.locale.kind_map import load_kind_map
+    html = ('<div class="event"><h3><a href="/e/1">Comedy Night: Live Music '
+            'Farmers Market</a></h3></div>')
+    result = read(desk, html, base_url="https://desk.example/list",
+                  kind_map=load_kind_map("austin-chronicle"))
+    assert result.rows[0].kind == "other"
+
+
+def test_a_mapping_for_another_door_is_refused_with_a_note(doors):
+    from worker.locale.kind_map import load_kind_map
+    other = doors["ut-austin-localist"]
+    result = read(other, fixture("civic_jsonld.html"),
+                  kind_map=load_kind_map("austin-chronicle"))
+    assert all(r.kind_source != "desk_category" for r in result.rows)
+    assert any("does not claim this door" in n for n in result.notes)
+
+
+def test_one_card_read_two_ways_is_one_row(desk):
+    """A desk states a listing in JSON-LD and prints it in HTML. The two
+    readings disagree on the FORM of the date; keying on the date text split one
+    card into two rows and inflated every count downstream."""
+    html = (
+        '<html><head><script type="application/ld+json">'
+        '{"@context":"https://schema.org","@type":"Event","name":"One Card",'
+        '"startDate":"2026-09-11T20:00:00-05:00","url":"https://desk.example/e/1"}'
+        '</script></head><body>'
+        '<div class="event"><h3><a href="https://desk.example/e/1">One Card</a></h3>'
+        '<span class="venue">Shape Hall</span>'
+        '<a rel="category tag" href="/s?section=music">Live Music</a></div>'
+        '</body></html>')
+    from worker.locale.kind_map import load_kind_map
+    result = read(desk, html, base_url="https://desk.example/list",
+                  kind_map=load_kind_map("austin-chronicle"))
+    assert result.count == 1 and result.merged_readings == 1
+    row = result.rows[0]
+    # The structured reading's instant AND the printed reading's category and
+    # venue end up on one row — holes filled, nothing overwritten.
+    assert row.when is not None
+    assert row.kind == "music" and row.place_text == "Shape Hall"
+
+
+def test_filling_holes_never_overwrites_something_already_stated():
+    from worker.locale.desk_read import fill_holes
+    kept = Happening(
+        title="A", when="2026-09-11T20:00:00-05:00", when_text="Fri 8pm",
+        when_precision="datetime", place_text="Shape Hall", via="Desk",
+        kind="music", door_id="d", door_type="local_desk", locale_id="l",
+        source_url="https://desk.example/list", listing_url="https://desk.example/e/1",
+        category_text="Live Music", kind_source="desk_category")
+    incoming = replace(kept, when="2099-01-01T00:00:00Z", place_text="Elsewhere",
+                       kind="film", category_text="Movies")
+    merged = fill_holes(kept, incoming)
+    assert merged.when == kept.when
+    assert merged.place_text == "Shape Hall"
+    assert merged.kind == "music" and merged.category_text == "Live Music"
+
+
+def test_a_default_kind_never_displaces_a_desks_own_word():
+    from worker.locale.desk_read import fill_holes
+    defaulted = Happening(
+        title="A", when=None, when_text=None, when_precision=None, place_text=None,
+        via="Desk", kind="other", door_id="d", door_type="local_desk", locale_id="l",
+        source_url="https://desk.example/list", listing_url=None,
+        category_text=None, kind_source="default")
+    stated = replace(defaulted, kind="film", category_text="Movies",
+                     kind_source="desk_category")
+    assert fill_holes(defaulted, stated).kind == "film"
+    assert fill_holes(stated, defaulted).kind == "film"
+
+
+def test_row_key_prefers_the_cards_own_address():
+    from worker.locale.desk_read import row_key
+    assert row_key("A", "2026-09-11T20:00:00-05:00", None, "https://d/e/1") == \
+        row_key("A", "2026-09-12T01:00:00Z", None, "https://d/e/1")
+
+
+def test_row_key_falls_back_to_title_when_no_address_is_stated():
+    from worker.locale.desk_read import row_key
+    assert row_key("A", None, None, None) == row_key("A", None, None, "")
+    assert row_key("A", None, None, None) != row_key("B", None, None, None)

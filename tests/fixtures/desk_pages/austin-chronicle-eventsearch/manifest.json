@@ -1,0 +1,9 @@
+{
+  "note": "SYNTHETIC shape fixtures for the paginating desk walk. These are NOT a saved copy of any live page: egress to the real desk is denied from the build sandbox (CONNECT 403 at the proxy, 2026-09-04), and every title, venue and date here is invented for the test. What is faithful is the SHAPE \u2014 JSON-LD plus HTML cards, a rel=next link on page 1, a text 'Next' anchor on page 2, no next link on page 3, one listing repeated across pages 1 and 2, two listings with no date in markup, and one untitled block. Counts derived from these files are fixture counts and every table that prints them says so.",
+  "start_url": "https://desk.example/EventSearch?sortType=date&v=g",
+  "pages": {
+    "https://desk.example/EventSearch?sortType=date&v=g": "page-1.html",
+    "https://desk.example/EventSearch?sortType=date&v=g&page=2": "page-2.html",
+    "https://desk.example/EventSearch?sortType=date&v=g&page=3": "page-3.html"
+  }
+}

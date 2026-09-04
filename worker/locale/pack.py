@@ -133,6 +133,17 @@ class LocalePack:
     query_grammar: Mapping[str, Any]
     doors: Tuple[Door, ...]
 
+    @property
+    def kinds(self) -> Tuple[str, ...]:
+        """This locale's kind vocabulary — OUR kinds, stated once in the pack.
+
+        Every consumer of "what kinds are there?" reads it from here, so a
+        mapping from some desk's taxonomy is validated against the same list the
+        query grammar is built from, and no second vocabulary can drift into
+        existence.
+        """
+        return tuple(self.query_grammar.get("kinds") or ())
+
     def queries(self) -> Tuple[str, ...]:
         """The pack's consumer queries, fully expanded: every template crossed
         with every place, and (for a template naming `{kind}`) every kind.
