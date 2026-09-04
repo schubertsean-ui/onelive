@@ -1,0 +1,454 @@
+"""walk(public_desk) — a desk's WHOLE public list, page by page, holes and all.
+
+Founder, this session's ticket: "Paginate until the public list is exhausted (or
+write blocked_reason per page). No login."
+
+`read()` (worker/locale/desk_read.py) turns ONE page into happening rows. A
+desk's list is many pages, and page 2 onward is simply absent from the store
+until something follows it — an unpaginated read looks green while capping
+coverage at whatever the first page happened to hold, which the Coverage Law
+calls a defect, not a limitation.
+
+Four rules hold this to what the desk itself published:
+
+  * THE NEXT PAGE IS THE DESK'S OWN LINK. A next URL comes from markup the page
+    states — `<link rel="next">`, an anchor carrying `rel="next"`, or an anchor
+    whose own text or aria-label says it is the next page. We never SYNTHESISE
+    a page address by incrementing somebody's query parameter: a made-up URL is
+    a guess about a stranger's routing, and the 404 (or the wrong page) it
+    returns would be recorded as their coverage.
+  * A WALL ENDS THE WALK. 401/402/403/407/429 or a redirect onto a sign-in page
+    is class D through the SAME authority the ingest loop uses
+    (`worker.sourcing.source_class.demote_on_response`). We knock once. There is
+    no login, no retry, no work-around — the page gets a `blocked_reason` and
+    the walk stops there with everything read so far intact.
+  * SAME HOST, NO CYCLES, HARD CAP. A next link that leaves the desk's host is
+    not that desk's next page; a link back to a page already visited is a
+    carousel, not a list; and a list that never ends is bounded by `max_pages`,
+    which is REPORTED (`stopped_because`) so a cap can never be mistaken for an
+    exhausted desk.
+  * NOTHING FAILS SILENTLY. Every page visited becomes a `PageVisit` row with
+    its status, its row count and its `blocked_reason` — the founder's per-page
+    column. A page that yields nothing is a page that yielded nothing, never an
+    absent row in the table.
+
+Cross-page duplicates are collapsed on the row's OWN identity when it stated one
+(its listing URL), else on title + the date the page stated. Both numbers are
+kept: `count` (unique happenings) and `rows_seen` (before de-duplication), so
+pagination can neither inflate coverage with repeats nor hide a shrinking list.
+
+Pure: stdlib only plus this repo's own readers. No network, no DB, no clock, no
+model. The caller injects `fetch`; this module decides only what to ask for next
+and what the answer means.
+"""
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass, field
+from html.parser import HTMLParser
+from typing import Callable, List, Optional, Sequence, Tuple
+from urllib.parse import urldefrag, urljoin, urlsplit
+
+from worker.locale.desk_read import DeskReadError, Happening, fill_holes, read, row_key
+from worker.locale.kind_map import KindMap
+from worker.locale.pack import Door
+from worker.sourcing.source_class import ClassVerdict, demote_on_response
+
+log = logging.getLogger(__name__)
+
+#: How many pages one walk may open. A desk with more says so
+#: (`stopped_because="max_pages"`) instead of being silently truncated.
+DEFAULT_MAX_PAGES = 40
+
+#: The class a pack-declared public door starts from, before the desk answers.
+#: Stated here rather than assumed downstream, so the demotion below has
+#: something explicit to demote FROM.
+DECLARED_PUBLIC = ClassVerdict("B", "declared public in the locale pack", fetchable=True)
+
+#: Link text (normalised) that means "the next page of this list". Matched on
+#: the whole normalised text, never on a substring, so "Next Wednesday" in a
+#: listing title is not a pagination control.
+NEXT_TEXTS = frozenset({
+    "next", "next page", "next »", "next >", "next ›", "next 〉",
+    "»", "›", ">", "older", "older posts", "more", "more results", "show more",
+    "next results", "load more",
+})
+
+#: Substrings that make an aria-label a next-page control. An aria-label is
+#: written for a screen reader — it says what the control does.
+NEXT_ARIA = ("next page", "next results", "go to next", "next set")
+
+_WS_RE = re.compile(r"\s+")
+_REL_SPLIT_RE = re.compile(r"[\s,]+")
+
+
+class DeskWalkError(ValueError):
+    """The walk cannot start: a door that may not be read, or a fetcher that
+    does not answer with something this module can classify. Raised, never
+    downgraded to an empty walk that would read as an empty desk.
+    """
+
+
+@dataclass(frozen=True)
+class PageFetch:
+    """One page as the caller's fetcher saw it.
+
+    `status` is the HTTP status when there was one; `error` carries a transport
+    failure text when there was not. `final_url` is where the fetch LANDED after
+    redirects — the value the wall test reads, since a redirect onto a sign-in
+    page is how a login wall usually announces itself.
+    """
+
+    url: str
+    status: Optional[int] = None
+    body: Optional[str] = None
+    final_url: Optional[str] = None
+    error: Optional[str] = None
+
+    @property
+    def landed_url(self) -> str:
+        return self.final_url or self.url
+
+
+@dataclass
+class PageVisit:
+    """One page of the desk's list, and what it gave us."""
+
+    n: int
+    url: str
+    status: Optional[int] = None
+    rows_seen: int = 0            # rows this page printed
+    new_rows: int = 0             # rows not already seen on an earlier page
+    blocked_reason: Optional[str] = None
+    next_url: Optional[str] = None
+    notes: List[str] = field(default_factory=list)
+
+    @property
+    def blocked(self) -> bool:
+        return self.blocked_reason is not None
+
+
+@dataclass
+class DeskWalk:
+    """A whole walk: every page visited, every happening, and why it stopped."""
+
+    door_id: str
+    door_type: str
+    via: Optional[str]
+    start_url: str
+    pages: List[PageVisit] = field(default_factory=list)
+    rows: List[Happening] = field(default_factory=list)
+    duplicates_across_pages: int = 0
+    #: Second readings of one card merged into the first, summed over pages.
+    merged_readings: int = 0
+    skipped_untitled: int = 0
+    #: Categories the desk stated that the committed mapping does not cover.
+    unmapped_categories: List[str] = field(default_factory=list)
+    stopped_because: str = "not started"
+    notes: List[str] = field(default_factory=list)
+
+    @property
+    def count(self) -> int:
+        """Unique happenings across the whole walk."""
+        return len(self.rows)
+
+    @property
+    def rows_seen(self) -> int:
+        """Rows the desk printed, before cross-page de-duplication."""
+        return sum(p.rows_seen for p in self.pages)
+
+    @property
+    def dated(self) -> int:
+        return sum(1 for r in self.rows if r.when)
+
+    @property
+    def pages_read(self) -> int:
+        return sum(1 for p in self.pages if not p.blocked)
+
+    @property
+    def pages_blocked(self) -> int:
+        return sum(1 for p in self.pages if p.blocked)
+
+    @property
+    def exhausted(self) -> bool:
+        """True only when the desk itself ran out of next links.
+
+        Any other stop — a cap, a wall, a cycle — means the list may go on, and
+        no table may call this walk the desk's whole output.
+        """
+        return self.stopped_because == "no_next_link"
+
+
+# --------------------------------------------------------------------------
+# Next-page discovery — the desk's own links, never a synthesised address
+# --------------------------------------------------------------------------
+
+class _LinkScanner(HTMLParser):
+    """Collect the page's candidate next-page links, in document order.
+
+    Two tiers, kept apart so the caller can prefer the declared one:
+      `rel_next`  — `rel="next"` on a `<link>` or `<a>` (the machine statement)
+      `text_next` — an `<a>` whose own text or aria-label says "next"
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rel_next: List[str] = []
+        self.text_next: List[str] = []
+        self._open_anchor: Optional[str] = None
+        self._anchor_text: List[str] = []
+
+    @staticmethod
+    def _attrs(attrs) -> dict:
+        return {k.lower(): (v or "") for k, v in attrs}
+
+    @staticmethod
+    def _is_rel_next(value: str) -> bool:
+        return "next" in {t.lower() for t in _REL_SPLIT_RE.split(value or "") if t}
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        a = self._attrs(attrs)
+        href = a.get("href", "").strip()
+        if tag == "link" and href and self._is_rel_next(a.get("rel", "")):
+            self.rel_next.append(href)
+            return
+        if tag != "a":
+            return
+        if not href:
+            self._open_anchor = None
+            return
+        if self._is_rel_next(a.get("rel", "")):
+            self.rel_next.append(href)
+            return
+        aria = _WS_RE.sub(" ", a.get("aria-label", "").strip().lower())
+        if aria and any(needle in aria for needle in NEXT_ARIA):
+            self.text_next.append(href)
+            return
+        # Otherwise the anchor's own text decides — collected until </a>.
+        self._open_anchor = href
+        self._anchor_text = []
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+
+    def handle_data(self, data):
+        if self._open_anchor is not None:
+            self._anchor_text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() != "a" or self._open_anchor is None:
+            return
+        text = _WS_RE.sub(" ", "".join(self._anchor_text)).strip().lower()
+        if text in NEXT_TEXTS:
+            self.text_next.append(self._open_anchor)
+        self._open_anchor = None
+        self._anchor_text = []
+
+
+def _normalize(url: str) -> str:
+    """Compare form for the visited set: fragment dropped, nothing else.
+
+    Deliberately conservative — two URLs that differ only in a query parameter
+    ORDER are different pages as far as we are concerned, because guessing that
+    a desk treats them alike is exactly the kind of assumption that silently
+    drops a page.
+    """
+    return urldefrag(url or "")[0]
+
+
+def _same_host(candidate: str, current: str) -> bool:
+    a, b = urlsplit(candidate), urlsplit(current)
+    if not a.netloc:
+        return True  # relative link — resolves onto the current host
+    return a.netloc.lower() == b.netloc.lower()
+
+
+def next_page_url(html: str, current_url: str) -> Tuple[Optional[str], Optional[str]]:
+    """The desk's own next-page link, absolutised. Returns `(url, note)`.
+
+    `note` explains a REFUSAL — an off-host next link — so a stopped walk can
+    say why rather than looking like an exhausted list.
+    """
+    if not html:
+        return None, None
+    scanner = _LinkScanner()
+    try:
+        scanner.feed(html)
+        scanner.close()
+    except Exception as exc:  # noqa: BLE001 — a pathological page ends the walk, it never crashes it
+        return None, f"next-link scan raised ({exc}); walk stops here"
+    off_host = None
+    for href in list(scanner.rel_next) + list(scanner.text_next):
+        href = href.strip()
+        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            continue
+        absolute = urljoin(current_url, href)
+        if urlsplit(absolute).scheme not in ("http", "https"):
+            continue
+        if not _same_host(absolute, current_url):
+            off_host = (f"next link leaves the desk's host "
+                        f"({urlsplit(absolute).netloc}) — not followed")
+            continue
+        return absolute, None
+    return None, off_host
+
+
+# --------------------------------------------------------------------------
+# The walk
+# --------------------------------------------------------------------------
+
+def _row_identity(row: Happening) -> Tuple[str, str, str]:
+    """Cross-page identity — the SAME rule one page already uses for its two
+    readings (`worker.locale.desk_read.row_key`), so a listing repeated on
+    page 2 is the same listing by the same test, with its URL defragmented.
+
+    Identity is used here ONLY to avoid counting one listing twice. It is never
+    a condition of existing: a row with no URL and no date still exists, keyed
+    by its title (ONE-LIVE-TRUST.md — existence must not use an identity test).
+    """
+    return row_key(row.title, row.when, row.when_text,
+                   _normalize(row.listing_url) if row.listing_url else None)
+
+
+def walk(door: Door, fetch: Callable[[str], PageFetch], *,
+         max_pages: int = DEFAULT_MAX_PAGES,
+         start_url: Optional[str] = None,
+         kind_map: Optional[KindMap] = None) -> DeskWalk:
+    """Follow one public desk's list to its end (or to the first honest stop).
+
+    `fetch` is injected: this module never opens a socket, so the whole walk is
+    testable against committed pages and a live run differs only in the fetcher
+    it is handed.
+    """
+    if not isinstance(door, Door):
+        raise DeskWalkError(f"walk() takes a Door, got {type(door).__name__}")
+    if not door.readable:
+        raise DeskWalkError(
+            f"door {door.door_id!r} is not a readable public desk "
+            f"(type={door.door_type}, public={door.public}, intake={door.intake})"
+            + (f" — {door.blocked_reason}" if door.blocked_reason else ""))
+    if not callable(fetch):
+        raise DeskWalkError("walk() needs a callable fetch(url) -> PageFetch")
+    if not isinstance(max_pages, int) or max_pages < 1:
+        raise DeskWalkError(f"max_pages must be a positive int, got {max_pages!r}")
+
+    begin = start_url or door.url
+    result = DeskWalk(door_id=door.door_id, door_type=door.door_type,
+                      via=door.via, start_url=begin)
+    seen_identities: dict = {}
+    visited: set = set()
+    url: Optional[str] = begin
+
+    while url is not None:
+        if len(result.pages) >= max_pages:
+            result.stopped_because = "max_pages"
+            result.notes.append(
+                f"stopped at the {max_pages}-page cap with a next link still "
+                f"outstanding ({url}) — this is OUR limit, not the end of the desk")
+            break
+        key = _normalize(url)
+        if key in visited:
+            result.stopped_because = "cycle"
+            result.notes.append(
+                f"next link returns to a page already read ({url}) — "
+                f"pagination cycle, stopped")
+            break
+        visited.add(key)
+
+        page = PageVisit(n=len(result.pages) + 1, url=url)
+        result.pages.append(page)
+
+        try:
+            fetched = fetch(url)
+        except Exception as exc:  # noqa: BLE001 — a fetcher blowing up is one page's news
+            page.blocked_reason = f"fetch raised: {type(exc).__name__}: {exc}"[:300]
+            result.stopped_because = "fetch_error"
+            break
+        if not isinstance(fetched, PageFetch):
+            raise DeskWalkError(
+                f"fetch({url!r}) returned {type(fetched).__name__}; walk() needs a "
+                f"PageFetch so status, body and the landing URL are all classifiable")
+
+        page.status = fetched.status
+
+        # A wall, decided by the ingest loop's own authority. We knock once.
+        verdict = demote_on_response(
+            DECLARED_PUBLIC, status=fetched.status,
+            final_url=fetched.final_url, error=fetched.error)
+        if verdict.is_closed_door:
+            page.blocked_reason = f"class D on contact — {verdict.reason}"
+            result.stopped_because = "wall"
+            break
+        if fetched.error:
+            page.blocked_reason = f"fetch failed: {fetched.error}"[:300]
+            result.stopped_because = "fetch_error"
+            break
+        if fetched.status is not None and fetched.status >= 400:
+            # Triage, never "this desk has nothing on" (ONE-LIVE-OPERATING-LAW,
+            # effectiveness rule 4).
+            page.blocked_reason = (
+                f"HTTP {fetched.status} — triage, not 'no events here'")
+            result.stopped_because = "http_error"
+            break
+        if not fetched.body or not fetched.body.strip():
+            page.blocked_reason = "empty body — nothing read (not 'nothing on')"
+            result.stopped_because = "empty_page"
+            break
+
+        landed = fetched.landed_url
+        try:
+            page_read = read(door, fetched.body, base_url=landed, kind_map=kind_map)
+        except DeskReadError as exc:
+            page.blocked_reason = f"unreadable: {exc}"[:300]
+            result.stopped_because = "unreadable"
+            break
+
+        page.rows_seen = page_read.count
+        page.notes.extend(page_read.notes)
+        result.skipped_untitled += page_read.skipped_untitled
+        result.merged_readings += page_read.merged_readings
+        for unmapped in page_read.unmapped_categories:
+            if unmapped not in result.unmapped_categories:
+                result.unmapped_categories.append(unmapped)
+        for row in page_read.rows:
+            identity = _row_identity(row)
+            if identity in seen_identities:
+                # A later page may state something the first one left as a hole
+                # (a category, a venue). Fill holes, never overwrite, and count
+                # the repeat so pagination cannot inflate coverage.
+                index = seen_identities[identity]
+                result.rows[index] = fill_holes(result.rows[index], row)
+                result.duplicates_across_pages += 1
+                continue
+            seen_identities[identity] = len(result.rows)
+            result.rows.append(row)
+            page.new_rows += 1
+
+        following, note = next_page_url(fetched.body, landed)
+        if note:
+            page.notes.append(note)
+        page.next_url = following
+        if following is None:
+            result.stopped_because = "no_next_link"
+            break
+        url = following
+
+    if result.stopped_because == "not started":  # pragma: no cover - loop always sets it
+        result.stopped_because = "no_pages"
+    return result
+
+
+def walk_table(walks: Sequence[DeskWalk]) -> str:
+    """The founder's per-page column, as a markdown table over one or more walks."""
+    lines = ["| door | page | url | status | rows | new | blocked_reason |",
+             "|---|---|---|---|---|---|---|"]
+    for one in walks:
+        for page in one.pages:
+            reason = (page.blocked_reason or "—").replace("|", "\\|")
+            lines.append(
+                f"| `{one.door_id}` | {page.n} | {page.url.replace('|', '%7C')} | "
+                f"{page.status if page.status is not None else '—'} | "
+                f"{page.rows_seen} | {page.new_rows} | {reason} |")
+    return "\n".join(lines)
