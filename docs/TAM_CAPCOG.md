@@ -66,6 +66,15 @@ page was even proposed).
 **clear_state** — `in_catalog` (already resolved) / `found_unverified` (new lead,
 not fetch-confirmed) / `blocked_now` (a real hole, see retry_paths).
 
+**Precedence, stated once so an automated consumer never gets this backwards:**
+`ingest_rec` is a RECOMMENDATION (what this row's door looks like); `clear_state`
+is the GATE (whether that door has actually been confirmed). A row can carry
+`ingest_rec: official` while `clear_state: found_unverified` — that pairing means
+"this looks like a first-party page," not "this is ready to fetch." Any future
+importer reading this CSV must key its ready/not-ready decision on `clear_state`,
+never on `ingest_rec` alone (evaluator finding, PR #220 openai/attacker-smuggle
+seat — real and worth stating explicitly rather than left implicit).
+
 ## What "Harbor" means here
 
 The ticket names "Harbor/claim" as a stage below finder queries and publisher cover.

@@ -52,7 +52,11 @@ not left at a plain "scraper" default.
 
 WHY: founder ticket, verbatim goal — "verified universe of entities (all categories),
 aggregator map, activity surfaces, ingest recommendation, and a method to open closed
-doors."
+doors." (Gloss, added at the evaluator's openai/attacker-smuggle-seat nit on PR
+#220: the STATED goal says "verified" — what this session actually delivers is 142
+rows already verified via the existing census PLUS 25 new found_unverified leads,
+never asserted as more than that; see EXPECTED OUTCOMES below and both docs'
+own found_unverified labeling.)
 
 WHY-THAT-WHY-MATTERS: the existing catalog census (Contract #53) is 100%
 venue/institution-shaped — zero presenter-type rows exist anywhere in 180 entries — so
