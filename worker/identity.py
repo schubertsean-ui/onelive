@@ -66,6 +66,19 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 #: fourth carrier is a deliberate edit with a test behind it.
 IDENTITY_FIELDS: Tuple[str, ...] = ("uid", "listing_url", "source_href")
 
+#: The fields that are RECORDED and never COMPARED. An address that names a
+#: DOOR — a site origin, a presenter's front page, or the very page a listing
+#: was read from — belongs to every happening behind it and therefore
+#: identifies none of them. Founder, Session Contract #59: "If a captured url
+#: is only the source origin / profile ... store it as entity / door identity —
+#: not as happening listing_url for match."
+#:
+#: Kept as its OWN constant, disjoint from IDENTITY_FIELDS, because the split is
+#: the entire safety property: `identity_verdict` iterates the comparable
+#: fields by name, so a door can never reach the adopt rung by accident, and a
+#: reader can check the two lists rather than re-derive the rule.
+ENTITY_FIELDS: Tuple[str, ...] = ("entity_url",)
+
 #: Where a canonicalized identity lives on `event_candidate.extracted`. The
 #: `_provenance` key on the same jsonb is the precedent: a namespaced sub-object
 #: for a machine-read fact, so no migration and no new column is needed to carry
@@ -153,20 +166,52 @@ class ListingIdentity:
       exactly like the other two (see `normalize_url`, which folds only what
       HTTP itself calls case-insensitive), and comparisons are source-scoped by
       `worker/listing_update.py`, so two sources' `/events/1` never meet.
+    * `entity_url` — the address of a DOOR the capture landed on instead of a
+      happening: a site origin, a presenter's front page, or the very page the
+      listing was read from. RECORDED and never compared — it is in
+      `ENTITY_FIELDS`, not `IDENTITY_FIELDS`, and `identity_verdict` does not
+      read it. Keeping it is the constructive half of the founder's rule: the
+      door is a real fact about the listing (it is how we got there), it is
+      simply not a handle on the NIGHT.
     """
 
     uid: Optional[str] = None
     listing_url: Optional[str] = None
     source_href: Optional[str] = None
+    entity_url: Optional[str] = None
 
     @property
     def stated(self) -> bool:
-        """True when the source stated at least one identity field."""
+        """True when the source stated at least one COMPARABLE identity field.
+
+        Deliberately blind to `entity_url`, and every caller depends on that:
+        `worker/listing_update._contested_minutes` reads this to decide whether
+        two listings sharing a minute are SEPARATED by their ids, and two
+        listings that share only a door are not separated by anything — they
+        share the door precisely BECAUSE it is not per-listing. Widening this
+        to "any field" would let a shared homepage unblock a write on a
+        contested minute, which is the exact harm this file's door rules exist
+        to prevent.
+        """
         return any((self.uid, self.listing_url, self.source_href))
 
-    def as_dict(self) -> Dict[str, str]:
-        """The stated fields only — an absent field is absent from the jsonb,
-        never stored as an empty string that would later read as 'stated'."""
+    @property
+    def stated_any(self) -> bool:
+        """True when ANY field is stated, comparable or not. The question
+        `carry_identity` and the persist seam ask — "is there something here
+        worth carrying?" — as opposed to `stated`'s "can this MATCH?"."""
+        return self.stated or bool(self.entity_url)
+
+    def comparable(self) -> Dict[str, str]:
+        """The stated COMPARABLE fields only (`IDENTITY_FIELDS`).
+
+        Its one caller is `worker/segment._drop_shared_identities`, and the
+        reason it needs this rather than `as_dict` is the same reason the two
+        constants are separate: that function drops any value two blocks on a
+        page share, on the ground that a shared address identifies neither —
+        which is true of identities and is the DEFINITION of a door. Counting
+        doors there would delete every one of them.
+        """
         out: Dict[str, str] = {}
         if self.uid:
             out["uid"] = self.uid
@@ -174,6 +219,14 @@ class ListingIdentity:
             out["listing_url"] = self.listing_url
         if self.source_href:
             out["source_href"] = self.source_href
+        return out
+
+    def as_dict(self) -> Dict[str, str]:
+        """The stated fields only — an absent field is absent from the jsonb,
+        never stored as an empty string that would later read as 'stated'."""
+        out = self.comparable()
+        if self.entity_url:
+            out["entity_url"] = self.entity_url
         return out
 
 
@@ -213,6 +266,7 @@ def read_identity(payload: Optional[Mapping[str, Any]]) -> ListingIdentity:
         uid=_clean(payload.get("uid")),
         listing_url=listing_url,
         source_href=_clean(payload.get("source_href")),
+        entity_url=_clean(payload.get("entity_url")),
     )
 
 
@@ -432,7 +486,9 @@ def identity_address(value: Any) -> Optional[str]:
     coming back. (`identity_token` keeps a denylist because a uid is opaque —
     there is no set of schemes an id must be drawn from.)
 
-    A bare SITE ROOT is refused too, and that rule is the founder's own, from
+    A bare SITE ROOT is refused here and BINNED as a door by `address_identity`
+    (Session Contract #59 — the value is recorded on `entity_url`, not thrown
+    away). The refusal is the founder's own, from
     the 2026-09-04 presenter ruling: "Refuse only: using a Person/presenter
     homepage url on another entity's card as listing_url for that card." A
     homepage is where a venue's card points when it links the ARTIST rather
@@ -468,6 +524,206 @@ def identity_address(value: Any) -> Optional[str]:
     if not parts.scheme and raw.startswith("/"):
         return raw
     return None
+
+
+# --- DOORS -------------------------------------------------------------------
+#
+# A DOOR is an address that names WHERE a happening was found rather than WHICH
+# happening it is: a site origin, a presenter's front page, or the very page a
+# listing was read from. Founder, Session Contract #59, on the harm: "artist.com
+# (or chef.com, professor page, venue homepage) used as listing_url makes every
+# gig the same row and licenses a write onto the wrong night."
+#
+# That harm is specifically an ADOPT-rung harm, and that is why it is worse than
+# it sounds. `identity_verdict` treats a stated address as DECISIVE in both
+# directions, deliberately, because a stated id is meant to be STRONGER than a
+# title and a clock — it is what lets a renamed, re-timed listing still be
+# recognized (R-095/R-097/R-099/R-102). Hand that rung an address that belongs
+# to a presenter rather than to a night, and its strength becomes the fastest
+# route in the tree to writing one night's facts onto another night's public
+# row: rung 1 answers SAME and every guard the composite rung carries — the
+# collision check, the untitled check, the source scoping — is skipped, because
+# they only ever run when nobody stated an id.
+#
+# TWO tests, and both are FACTS rather than guesses about who owns a page:
+#
+#   1. ORIGIN — the value is a bare site root in any of its spellings.
+#   2. THE PAGE ITSELF — the value names the same location as the page the
+#      listing was read from (`same_location`, applied at the persist seam,
+#      which is the only place that holds both the block and its `source_url`).
+#
+# WHAT IS DELIBERATELY NOT HERE, because the founder's Must-not for this
+# contract is "ownership heuristics beyond origin/profile vs dated path": there
+# is no test for whose page an address belongs to, no card-type test, no
+# path-shape or slug scoring, and no "looks like an artist page" rule. Four
+# review rounds on PR #218 deleted four separate conventions of exactly that
+# family, and round 12 established the reason they cannot be rescued: this path
+# is handed a page's CONTENT and never its authorship, so every such rule is a
+# guess wearing a fact's clothes.
+#
+# THE RESIDUAL, named rather than implied: a per-ENTITY path that is neither the
+# origin nor the page — `/artists/castle-creek` declared as a card's own url on
+# a venue's calendar. WITHIN one page it is already refused, by the rule that
+# owns that question: `worker/segment._drop_shared_identities` drops any address
+# two blocks state, which is what "every gig the same row" looks like on one
+# page. ACROSS ticks — one Castle Creek card in August, another in September,
+# each the only card stating that path — the evidence is identical to a listing
+# that was RESCHEDULED from August to September, which is the write this whole
+# stack was built to license. No rule can separate them from the values alone,
+# so nothing here pretends to.
+
+
+def door_address(value: Any) -> Optional[str]:
+    """The address of a DOOR — a bare site ORIGIN — or None.
+
+    Accepts exactly the shapes `identity_address` refuses for being a bare
+    root, and nothing else: `https://castlecreek.band`, its slashed form, the
+    protocol-relative `//castlecreek.band`, and a root-relative `/`. A root
+    carrying a QUERY is not a bare root (`https://v.example/?event=8817` names
+    one thing), so it is not a door and `identity_address` keeps it.
+
+    The two functions are complements ON PURPOSE rather than by coincidence:
+    `address_identity` runs `identity_address` FIRST and only offers a refused
+    value to this one, so no value can ever be both, and widening this function
+    can never widen what reaches the adopt rung — only what gets recorded.
+    """
+    raw = identity_token(value)
+    if raw is None:
+        return None
+    try:
+        parts = urllib.parse.urlsplit(raw)
+    except ValueError:
+        return None
+    if parts.scheme and parts.scheme.lower() not in WEB_SCHEMES:
+        return None
+    if parts.path not in ("", "/") or parts.query:
+        return None
+    if parts.netloc:
+        return raw
+    if not parts.scheme and raw.startswith("/"):
+        return raw
+    return None
+
+
+def capturable_address(value: Any) -> Optional[str]:
+    """The address a carrier states, if it is worth CAPTURING at all — either
+    as a happening identity or as a door — else None.
+
+    `worker/segment.py` uses this as its carrier gate so a door survives
+    segmentation to be binned at the persist seam. It widens what is CARRIED,
+    never what is COMPARED: `address_identity` re-asks `identity_address` to
+    decide the bin, so a value refused as an identity before this existed is
+    still refused as one now.
+    """
+    return identity_address(value) or door_address(value)
+
+
+def address_identity(value: Any, *, field: str = "listing_url") -> ListingIdentity:
+    """One captured url, BINNED: a happening address on `field`, a door on
+    `entity_url`, or NO_IDENTITY.
+
+    The single place a captured address is sorted, so the two bins cannot drift
+    apart in the several carriers that feed them (`worker/segment.py`'s `href`
+    and `<meta content>`, and a JSON-LD `Event.url`).
+
+    `field` must name a COMPARABLE field. A typo would otherwise create an
+    attribute nothing compares and nothing stores — an identity that silently
+    disappears — so it fails loudly instead.
+    """
+    if field not in IDENTITY_FIELDS:
+        raise ValueError(f"{field!r} is not one of IDENTITY_FIELDS {IDENTITY_FIELDS}")
+    address = identity_address(value)
+    if address is not None:
+        return ListingIdentity(**{field: address})
+    door = door_address(value)
+    if door is not None:
+        return ListingIdentity(entity_url=door)
+    return NO_IDENTITY
+
+
+def _path_key(path: str) -> str:
+    """A path reduced for the DOOR comparison only: one trailing slash folded,
+    and empty read as root.
+
+    `normalize_url` refuses to do this, for a stated reason — there, a false
+    SAME writes to a published row, so `/events` and `/events/` must stay
+    distinct. Here the error direction is the OPPOSITE: a false "this is the
+    page" costs a refusal (the candidate falls to the composite rung), while a
+    miss leaves a door on the adopt rung. So this comparison folds and
+    `normalize_url` does not, and the asymmetry is deliberate rather than an
+    inconsistency between two nearly-identical helpers.
+    """
+    return path.rstrip("/") or "/"
+
+
+def same_location(address: Any, page_url: Optional[str]) -> bool:
+    """True when `address` names the same page as `page_url`.
+
+    Scheme is ignored (`http://v.example/tour` and its https form are one
+    page); host is folded to lower case, as HTTP defines it; path is compared
+    through `_path_key`; QUERY and FRAGMENT must match exactly, because both
+    are how a calendar distinguishes one listing on a shared path —
+    `/tour?event=8817` and `/tour#2026-09-15` are NOT the tour page, they are
+    listings on it, and folding them into it would throw away exactly the
+    identities this stack exists to capture.
+
+    A root-relative address is same-host by construction (that is what makes it
+    resolvable at all), so only its path/query/fragment are compared. Anything
+    else — a page-relative value, an unparseable one, a missing page url —
+    answers False, which leaves the value wherever it already was.
+    """
+    raw = _clean(address)
+    page = _clean(page_url)
+    if raw is None or page is None:
+        return False
+    try:
+        a = urllib.parse.urlsplit(raw)
+        p = urllib.parse.urlsplit(page)
+    except ValueError:
+        return False
+    if a.query != p.query or a.fragment != p.fragment:
+        return False
+    if _path_key(a.path) != _path_key(p.path):
+        return False
+    if a.netloc:
+        return a.netloc.lower() == p.netloc.lower()
+    return raw.startswith("/")
+
+
+def demote_door_addresses(
+    identity: ListingIdentity, page_url: Optional[str],
+) -> ListingIdentity:
+    """`identity` with any comparable address that names the PAGE ITSELF moved
+    to `entity_url`. Unchanged when none does.
+
+    THE PAGE IS A LIST WHENEVER THIS CAN FIRE, and that is what makes the rule
+    a fact rather than a guess. `worker/segment.segment_events` attaches a
+    carried identity only on the branch that found TWO OR MORE blocks; a page
+    that yields one block falls through to the whole-page path and carries
+    nothing at all. So a block that declares the page it was read from is a
+    listing on a LIST saying "my address is the list" — which is the door for
+    every listing on it, and cannot be the handle on any one of them.
+
+    That is also why the persist seam applies this to the BLOCK-carried
+    identity only, never to a caller's own payload: a per-event detail feed
+    (`worker/importers/structured_feed.py`) or a claimant's own row
+    (`worker/claim/intake.py`) legitimately states its own page as the
+    listing's url, and there the page IS the listing.
+
+    `uid` is never touched — it is a token, not an address, and a source's own
+    id does not stop being one because it resembles the page it was found on.
+    """
+    kept = {
+        f: v for f, v in identity.comparable().items()
+        if f == "uid" or not same_location(v, page_url)
+    }
+    if len(kept) == len(identity.comparable()):
+        return identity
+    door = identity.entity_url or next(
+        v for f, v in identity.comparable().items()
+        if f != "uid" and same_location(v, page_url)
+    )
+    return ListingIdentity(entity_url=door, **kept)
 
 
 def ld_scalar(v: Any) -> Optional[str]:
@@ -546,9 +802,16 @@ def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     uid = identity_iri(_ld_single(obj.get("@id")))
     if uid is None:
         uid = identity_token(_ld_single(obj.get("identifier")))
+    # `url` is BINNED rather than validated-or-dropped: a presenter whose Event
+    # objects all carry `"url": "https://castlecreek.band/"` has stated their
+    # door on every one of them, and recording it as a door is the founder's
+    # Session Contract #59 rule. It is not compared, so this widens what is
+    # KNOWN and nothing about what MATCHES.
+    binned = address_identity(_ld_single(obj.get("url")), field="listing_url")
     return ListingIdentity(
         uid=uid,
-        listing_url=identity_address(_ld_single(obj.get("url"))),
+        listing_url=binned.listing_url,
+        entity_url=binned.entity_url,
     )
 
 
@@ -601,8 +864,13 @@ def carry_identity(text: str, identity: ListingIdentity) -> str:
     value to the ones it produced before this module had a carrier, so "we
     captured nothing" and "there was nothing to capture" cannot be told apart
     downstream — because they are the same thing.
+
+    A block that states ONLY a door is carried (`stated_any`, not `stated`):
+    the door is a fact the page stated and the founder asked for it to be
+    stored, and carrying it can never widen a match because `identity_verdict`
+    does not read `ENTITY_FIELDS`.
     """
-    if not identity.stated:
+    if not identity.stated_any:
         return text
     return IdentifiedBlock(text, identity)
 

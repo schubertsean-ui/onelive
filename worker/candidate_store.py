@@ -7,14 +7,24 @@ import json
 import psycopg2
 
 from worker.db_config import resolve_dsn
-from worker.identity import IDENTITY_KEY, carried_identity, read_identity
+from worker.identity import (
+    IDENTITY_KEY,
+    carried_identity,
+    demote_door_addresses,
+    read_identity,
+)
 
 
 def db():
     return psycopg2.connect(resolve_dsn())
 
 
-def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str, Any]:
+def _with_identity(
+    extracted: Dict[str, Any],
+    raw_text: Any = None,
+    *,
+    source_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """`extracted` plus a canonical `_identity`, or unchanged when neither the
     payload nor the raw block states one.
 
@@ -32,6 +42,23 @@ def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str,
     second source's fields into it could assemble an identity no one stated.
     A payload that states nothing takes the block's whole identity or none.
 
+    THE BLOCK'S IDENTITY IS THEN CHECKED AGAINST THE PAGE IT CAME FROM
+    (`demote_door_addresses`, founder Session Contract #59). A block that
+    declares the very page it was read from has named the DOOR, not the night:
+    a block carries an identity only when `worker/segment.py` found two or more
+    listings on that page, so the page is a LIST by construction and its own
+    address belongs to every listing on it. Left on `listing_url`/`source_href`
+    it would answer SAME for two different nights on the adopt rung and license
+    a write onto the wrong one — the founder's stated harm. It is MOVED to
+    `entity_url` rather than dropped: the door is real, it is simply not a
+    handle on a happening, and `identity_verdict` never reads it.
+
+    Only the BLOCK branch is demoted. A caller's own payload is left alone
+    because there the page legitimately IS the listing: a per-event detail feed
+    (`worker/importers/structured_feed.py`) and a claimant's own row
+    (`worker/claim/intake.py`) both state their own page url, and demoting
+    those would delete the strongest identities in the tree.
+
     A COPY is returned rather than a mutation of the caller's dict: the caller
     (worker/ai_extract.py's fan-out, api/claims.py's loop) may hold the payload
     across events, and a shared dict that grows an `_identity` from one listing
@@ -44,9 +71,9 @@ def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str,
     that owns the answer).
     """
     identity = read_identity(extracted)
-    if not identity.stated:
-        identity = carried_identity(raw_text)
-    if not identity.stated:
+    if not identity.stated_any:
+        identity = demote_door_addresses(carried_identity(raw_text), source_url)
+    if not identity.stated_any:
         return extracted
     out = dict(extracted)
     out[IDENTITY_KEY] = identity.as_dict()
@@ -80,7 +107,7 @@ def create_candidate(
     machine-read sub-object, so this needs no migration, no new column and no
     change to any workflow that applies one.
     """
-    extracted = _with_identity(extracted, raw_text)
+    extracted = _with_identity(extracted, raw_text, source_url=source_url)
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("""

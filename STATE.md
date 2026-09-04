@@ -12,9 +12,37 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
-## Session Contract #58 (2026-09-03, founder — "pass block href through segment (R-103 cheap path)", branch claude/block-href-segment-xr4v4s) — OPEN
+## Session Contract #59 (2026-09-04, founder — "profile URL is entity id, not happening id", branch claude/profile-url-entity-id-kazj41) — OPEN
 
 STATUS: OPEN
+WHAT: A captured url that names a DOOR — a bare site origin/homepage, or the very page
+the listings were read from — is stored as `_identity.entity_url` and is NEVER compared
+for happening match. The ladder (uid -> declared listing url / dated path -> composite ->
+refuse) is untouched.
+HOW: `worker/identity.py` gains `entity_url` (outside `IDENTITY_FIELDS`, unread by
+`identity_verdict`), `door_address`, `address_identity` and `demote_door_addresses`;
+`worker/segment.py` bins a captured address instead of discarding a root;
+`worker/candidate_store._with_identity` demotes a BLOCK-carried url that names the page
+itself (block identities exist only on >=2-block pages, so the page is a list by
+construction). Caller payloads are never demoted.
+WHY: `identity_verdict` is decisive in both directions off `listing_url`; one profile url
+on two candidates reads SAME and licenses a write onto the wrong night.
+WHY-THAT-WHY-MATTERS: the stated id is STRONGER than title+clock and overrules them, so a
+non-per-listing id turns the stack's strength into the fastest route to a wrong public row.
+EXPECTED OUTCOMES: profile/origin/page urls never reach the adopt rung; dated paths, declared
+per-listing urls and uids still match; composite and collision unchanged; no source or row
+dropped; the door url is now KEPT rather than discarded.
+
+**Appendix — construction_gate Stage 3 citations (founder-capped at 5 lines):**
+[S3:hygiene-narrows-coverage] Blast radius ZERO publishers, checked against Coverage Law before shipping: no source is dropped, no row is dropped, and nothing newly refused — the bare root was ALREADY refused (PR #218 r11) and is now RECORDED, and the page-own-url rule MOVES a value between fields on the same candidate. Presenter sites stay trusted doors (Must-do 3). Same answer for [S3:featurability-dimension-missed] [S3:copy-outruns-registry] [S3:semantic-claim-not-rederived]: no user-facing copy, registry or claim is touched.
+[S3:missing-cardinality-check] The page-wide cardinality rule (`_drop_shared_identities`) is UNCHANGED except to count comparable fields only — a door is shared by definition and counting doors would delete every one. The hole this ships for is the CROSS-TICK case that rule structurally cannot see, and the residual it cannot close either is named in worker/identity.py rather than implied. [S3:weak-key-accepted-at-custody] No weak key is accepted: this REMOVES an over-strong key from the adopt rung; `weak_key` is untouched and pinned. [S3:destructive-normalization] `_path_key` folds a trailing slash ONLY in the door comparison, never in `normalize_url`, because the two comparisons fail in opposite directions — asserted in test_same_location_folds_only_what_is_safe_to_fold.
+[S3:untested-gate-branch] [S3:env-dependent-hermetic-test] Every new branch (door / happening / refuse / demote / no-page-url) has a test; the new tests run the real segmenter and the real persist seam over real fixtures with no DB, no network and no model. [S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:fail-open-on-custody-misconfig] [S3:untested-gate-branch] No gate code, threshold, workflow or reviewer binding is touched; `address_identity` raises on a field outside IDENTITY_FIELDS rather than silently creating an uncompared one. Same answer for [S3:governance-ambiguity] [S3:mutable-model-alias] [S3:workflow-tool-version-skew] [S3:scripted-transform-order] [S3:excluded-surface-widening] [S3:volatile-safety-store].
+[S3:contract-scope-violation] Scope is the founder's six Must-dos; ai_extract.py is not opened, no cron/workflow file is touched, no Tonight surface and no cadence YAML. Refused items are printed in the PR body. [S3:founder-verbatim-corrected] No founder text is edited; the one place this contract could not follow the founder's wording (a per-value "event slug" test) is SURFACED in the PR, not silently resolved. [S3:deferred-trust-work] The trust defect ships in this PR — proven failing on HEAD and passing here — and no R-row is opened for it. [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] No narration added.
+[S3:pushed-on-red] [S3:retyped-evidence] [S3:stale-base-widens-range] [S3:stale-redclass-count] Every blocking check in `tools/validate` is PASS on this tree and the evidence block is pasted verbatim from the tool, never retyped; base is origin/master tip fcb10f6 at drift 0 per the gate's own freshness line. [S3:partial-write-whole-row] [S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:pagination-integrity-gap] [S3:parallel-record-id-collision] [S3:records-sharing-one-trigger] No schema, migration, query or RECORD row: the door rides the EXISTING `extracted._identity` jsonb, no new column. [S3:green-on-stale-base] Same freshness line. [S3:caller-suppliable-custody-inputs] `source_url` is the crawl's own fetched address, never caller-chosen, and it can only move a value INTO a non-comparable field. Not applicable, nothing of the kind is touched: [S3:deliverable-visual-qa] [S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:nonfinite-numeric-accepted] [S3:nonfinite-decimal-accepted] [S3:self-weakenable-review-model] [S3:unusable-credential-tier].
+
+## Session Contract #58 (2026-09-03, founder — "pass block href through segment (R-103 cheap path)", branch claude/block-href-segment-xr4v4s) — CLOSED
+
+STATUS: CLOSED — merged as PR #218 (commit fcb10f6).
 WHAT: The missing PRODUCER for the identity stack #217 shipped. (1) `worker/identity.py`:
 `ld_scalar` (the one JSON-LD scalar reader), `jsonld_identity(obj)` (the one place that
 says WHICH JSON-LD keys are an identity: `url` -> listing_url, `@id`/`identifier` -> uid),

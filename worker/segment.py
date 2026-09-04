@@ -64,6 +64,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 from worker.identity import (
     ListingIdentity,
     NO_IDENTITY,
+    address_identity,
+    capturable_address,
     carried_identity,
     carry_identity,
     identity_address,
@@ -161,16 +163,22 @@ def _href_of(attrs: Dict[str, str]) -> Optional[str]:
     address (founder, verbatim: "Do not invent URLs"). Comparisons downstream
     are source-scoped, so a relative anchor is still a usable identity.
 
-    What counts as usable is `worker.identity.identity_address`'s question, not
-    this module's — one check for every URL-VALUED carrier of an identity, here
-    and in the JSON-LD reader, because four review rounds found the same defect
-    four times in the shape of one carrier validated and its siblings not. That
-    check also refuses a PAGE-RELATIVE address (`details`, `?id=1`): the
-    segmenter has no page url to resolve one against, so the same string on two
-    pages of a source would compare equal and license a write from the wrong
-    occurrence.
+    What counts as usable is `worker.identity`'s question, not this module's —
+    one check for every URL-VALUED carrier of an identity, here and in the
+    JSON-LD reader, because four review rounds found the same defect four times
+    in the shape of one carrier validated and its siblings not. That check also
+    refuses a PAGE-RELATIVE address (`details`, `?id=1`): the segmenter has no
+    page url to resolve one against, so the same string on two pages of a
+    source would compare equal and license a write from the wrong occurrence.
+
+    The gate is `capturable_address`, which is `identity_address` WIDENED BY A
+    DOOR (Session Contract #59): a bare site root passes here so that
+    `_collect` can record it as `entity_url` instead of dropping it on the
+    floor. It is binned, never adopted — `address_identity` re-asks
+    `identity_address` to decide the bin, so nothing this function now lets
+    through can reach a comparable field that it could not reach before.
     """
-    return identity_address(attrs.get("href"))
+    return capturable_address(attrs.get("href"))
 
 
 def _itemprop_url_of(attrs: Dict[str, str]) -> Tuple[Optional[str], bool]:
@@ -204,7 +212,7 @@ def _itemprop_url_of(attrs: Dict[str, str]) -> Tuple[Optional[str], bool]:
     if "url" not in tokens:
         return None, False
     href = _href_of(attrs)
-    content = identity_address(attrs.get("content"))
+    content = capturable_address(attrs.get("content"))
     if href is not None and content is not None and href != content:
         return None, True
     return (href if href is not None else content), False
@@ -538,7 +546,11 @@ def _collect(html: str, should_start: Callable[[str, Dict[str, str]], bool]) -> 
         logger.warning("HTML element collection failed", exc_info=True)
         return []
     return [
-        carry_identity(text, ListingIdentity(source_href=href))
+        # BINNED, not assigned: an address that names a DOOR (a bare site root
+        # — a presenter's or venue's front page) is recorded on `entity_url`
+        # and never compared, while a per-listing address becomes the block's
+        # `source_href` exactly as before (Session Contract #59).
+        carry_identity(text, address_identity(href, field="source_href"))
         for text, href in c.blocks
         if len(text.strip()) >= _MIN_BLOCK_CHARS
     ]
@@ -698,6 +710,14 @@ def _drop_shared_identities(blocks: List[str]) -> List[str]:
     rewrite one listing's public row from the other's facts, which is exactly
     the harm R-095/R-097/R-099 refuse to risk.
 
+    Only COMPARABLE fields are counted, and that exclusion is the rule read
+    correctly rather than an exception to it: a door (`entity_url`) is shared
+    BY DEFINITION — every listing behind one front page states the same one —
+    so counting doors here would delete every door on every page, which is the
+    precise opposite of the founder's "store it as entity / door identity".
+    The sharing test is about values claiming to be per-listing; a door never
+    claims that.
+
     Only the SHARED field is dropped, per block: a page whose two listings
     share a `listing_url` but state distinct `uid`s keeps both uids. A block
     left with nothing stated becomes a plain `str` again, indistinguishable
@@ -709,7 +729,7 @@ def _drop_shared_identities(blocks: List[str]) -> List[str]:
     """
     counts: Dict[Tuple[str, str], int] = {}
     for block in blocks:
-        for field, value in carried_identity(block).as_dict().items():
+        for field, value in carried_identity(block).comparable().items():
             counts[(field, value)] = counts.get((field, value), 0) + 1
     shared = {key for key, n in counts.items() if n > 1}
     if not shared:
@@ -722,12 +742,14 @@ def _drop_shared_identities(blocks: List[str]) -> List[str]:
     )
     out: List[str] = []
     for block in blocks:
-        stated = carried_identity(block).as_dict()
+        identity = carried_identity(block)
+        stated = identity.comparable()
         kept = {f: v for f, v in stated.items() if (f, v) not in shared}
         if kept == stated:
             out.append(block)
         else:
-            out.append(carry_identity(str(block), ListingIdentity(**kept)))
+            out.append(carry_identity(str(block), ListingIdentity(
+                entity_url=identity.entity_url, **kept)))
     return out
 
 

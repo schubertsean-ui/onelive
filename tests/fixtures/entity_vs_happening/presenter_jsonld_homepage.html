@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- Fixture: a band's own site emitting JSON-LD Events whose `url` is the
+     band's HOMEPAGE on every one of them — the founder's harm sentence in its
+     most literal form: "artist.com ... used as listing_url makes every gig the
+     same row." Two gigs, two different nights, one address. -->
+<html><body>
+<script type="application/ld+json">
+[
+ {"@context":"https://schema.org","@type":"MusicEvent","name":"Castle Creek at The Deer",
+  "startDate":"2026-09-15T20:00:00-05:00","url":"https://castlecreek.band",
+  "location":{"@type":"Place","name":"The Deer","address":"Austin"}},
+ {"@context":"https://schema.org","@type":"MusicEvent","name":"Castle Creek at Wren Hall",
+  "startDate":"2026-10-20T21:00:00-05:00","url":"https://castlecreek.band",
+  "location":{"@type":"Place","name":"Wren Hall","address":"Austin"}}
+]
+</script>
+<h1>Castle Creek — Shows</h1>
+</body></html>
