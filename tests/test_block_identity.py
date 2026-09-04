@@ -618,6 +618,65 @@ def test_a_presenter_s_own_page_may_declare_its_own_listings():
         assert carried_identity(block) == NO_IDENTITY, str(block)
 
 
+
+def test_an_element_that_states_two_addresses_states_none():
+    """ROUND 9 — a duplicate attribute is a contradiction, and the dict was
+    silently resolving it.
+
+    `HTMLParser` hands back a LIST of attribute pairs and preserves duplicates,
+    so malformed-but-real markup reaches this file intact:
+
+        <a itemprop="url" href="/events/8817" href="/artists/castle-creek">
+
+    The obvious `{k: v for k, v in attrs}` keeps the LAST value — here the
+    ARTIST's page, not the event's — and stores it as the listing's identity.
+    Which one the source meant is exactly what cannot be known, and this file
+    already answers that question one level up: a CARD declaring two different
+    addresses states none. An element contradicting itself is the same
+    statement in a smaller box, so it gets the same answer.
+
+    The refusal is per CARD, not per page: a source that gets one card wrong is
+    not a reason to discard a card it got right — the same rule
+    `_drop_shared_identities` follows.
+    """
+    page = (
+        "<html><body>"
+        '<article class="event" itemscope itemtype="https://schema.org/MusicEvent">'
+        '<h2><a itemprop="url" href="/events/8817" href="/artists/castle-creek">'
+        "Castle Creek</a></h2><p>Fri Aug 1, 8pm — Wren Hall</p></article>"
+        '<article class="event" itemscope itemtype="https://schema.org/MusicEvent">'
+        '<h2><a itemprop="url" href="/events/8818">River Delta</a></h2>'
+        "<p>Sat Aug 2, 9pm — Wren Hall</p></article>"
+        "</body></html>"
+    )
+    got = [carried_identity(b).source_href
+           for b in segment_events(page, content_type="text/html")]
+    assert got == [None, "/events/8818"]
+
+    # The SAME value twice is sloppy markup, not a contradiction: the source
+    # said one thing, twice. Refusing it would cost a real capture for nothing.
+    same = page.replace('href="/artists/castle-creek"', 'href="/events/8817"')
+    assert [carried_identity(b).source_href
+            for b in segment_events(same, content_type="text/html")] == [
+        "/events/8817", "/events/8818"]
+
+    # A contradicted `content=` carrier answers the same way — the rule is on
+    # the attribute this file READS, not on one tag's spelling of it.
+    meta = (
+        "<html><body>"
+        '<article class="event" itemscope itemtype="https://schema.org/MusicEvent">'
+        '<meta itemprop="url" content="/events/8817" content="/artists/x"/>'
+        "<p>Fri Aug 1, 8pm — Wren Hall</p></article>"
+        '<article class="event" itemscope itemtype="https://schema.org/MusicEvent">'
+        '<meta itemprop="url" content="/events/8818"/>'
+        "<p>Sat Aug 2, 9pm — Wren Hall</p></article>"
+        "</body></html>"
+    )
+    assert [carried_identity(b).source_href
+            for b in segment_events(meta, content_type="text/html")] == [
+        None, "/events/8818"]
+
+
 def test_a_nested_item_stays_closed_through_same_tag_nesting():
     """The scope stack balances by element, not by tag name. An inner `<div>`
     inside a nested `performer` item used to pop that item's scope early, so

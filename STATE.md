@@ -66,7 +66,15 @@ another entity's listing_url on that entity's card — was already served by two
 that never changed: an undeclared link is never read at all, and an address two cards on
 one page both declare is dropped from both. New red class `hygiene-narrows-coverage`: a
 tightening states which PUBLISHERS it removes, checked against Coverage Law, before it
-ships. EVERY carrier goes through a validator, and
+ships. ROUND 9 then found the same contradiction rule missing ONE SCOPE DOWN: `HTMLParser`
+preserves DUPLICATE attributes, so `<a itemprop="url" href=A href=B>` reached the dict
+comprehension and it silently kept the LAST value. `_attr_map` now reports a contradiction
+on any identity attribute (`href`, `content`, `itemprop`) and the CARD then states
+nothing; the same value twice is not a contradiction and is kept. Round 9's OTHER finding
+— a source-ownership/type invariant on Person-typed cards — is NOT actioned and is
+answered in the PR instead: it asks for exactly the rule the founder struck by name hours
+earlier, and OPERATING_RULES §3.5 is that gates ADVISE while the founder DECIDES. The
+tension is surfaced rather than resolved silently in either direction. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and

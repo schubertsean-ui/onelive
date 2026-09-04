@@ -196,6 +196,43 @@ def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
     return _href_of(attrs) or identity_address(attrs.get("content"))
 
 
+#: Attributes whose value this file READS to decide an identity. A duplicate of
+#: one of these, with two DIFFERENT values, is the source contradicting itself
+#: about the very thing we are about to believe.
+_IDENTITY_ATTRS: Tuple[str, ...] = ("href", "content", "itemprop")
+
+
+def _attr_map(attrs) -> Tuple[Dict[str, str], bool]:
+    """`(attributes, contradicted)` for one start tag.
+
+    `HTMLParser` hands back a LIST of pairs and preserves duplicates, so
+    malformed-but-real markup like
+
+        <a itemprop="url" href="/events/8817" href="/artists/castle-creek">
+
+    reaches us intact — and the obvious dict comprehension silently keeps the
+    LAST value, which here is the artist's page rather than the event's. That is
+    the round-9 finding, and it is the same defect this file already refuses one
+    level up: `_resolved_href` answers None when a CARD declares two different
+    addresses, because a contradiction is never an identity. An ELEMENT that
+    contradicts itself is the same statement in a smaller box.
+
+    A repeated attribute with the SAME value is not a contradiction (`itemscope
+    itemscope` is merely sloppy), so the values are compared rather than the
+    keys counted. `contradicted` is True only when an attribute this file reads
+    for identity states two different things; the card then declares nothing.
+    """
+    out: Dict[str, str] = {}
+    contradicted = False
+    for raw_key, raw_value in attrs:
+        key = raw_key.lower()
+        value = raw_value or ""
+        if key in out and out[key] != value and key in _IDENTITY_ATTRS:
+            contradicted = True
+        out[key] = value
+    return out, contradicted
+
+
 class _ElementTextCollector(HTMLParser):
     """Collect the concatenated text of each OUTERMOST element for which
     ``should_start(tag, attrs)`` is true, together with the address that
@@ -257,6 +294,10 @@ class _ElementTextCollector(HTMLParser):
         #: How many of those are open items. Non-zero means "we are describing
         #: something OTHER than this listing", so no declaration is read.
         self._scopes = 0
+        #: Did any element inside this card contradict itself on an attribute
+        #: this file reads for identity (round 9)? A card containing such an
+        #: element declares nothing — see `_attr_map`.
+        self._contradicted = False
         #: Did the CARD ELEMENT ITSELF declare an item? An `itemprop` means
         #: something only relative to its nearest ENCLOSING item, so with no
         #: item there is nothing for the property to be a property OF (round
@@ -323,6 +364,11 @@ class _ElementTextCollector(HTMLParser):
 
     def _resolved_href(self) -> Optional[str]:
         """The declared address, or None. Never a conventional one."""
+        if self._contradicted:
+            # An element inside this card stated one identity attribute twice,
+            # with two different values. Which one the source meant is exactly
+            # what we cannot know, so the card states nothing (round 9).
+            return None
         if len(self._itemprop_urls) == 1:
             return self._itemprop_urls[0]
         # Zero declarations is a hole. TWO different ones is a contradiction,
@@ -339,15 +385,18 @@ class _ElementTextCollector(HTMLParser):
         self._open = []
         self._scopes = 0
         self._card_is_item = False
+        self._contradicted = False
 
     # -- parser callbacks -----------------------------------------------------
 
     def handle_starttag(self, tag, attrs):
         t = tag.lower()
-        a = {k.lower(): (v or "") for k, v in attrs}
+        a, contradicted = _attr_map(attrs)
         if self._cap_tag is not None:
             if t == self._cap_tag:
                 self._depth += 1
+            if contradicted:
+                self._contradicted = True
             self._note_attrs(t, a, nests=True)
             return
         if self._should_start(t, a):
@@ -373,9 +422,10 @@ class _ElementTextCollector(HTMLParser):
         if self._cap_tag is not None:
             # A self-closing element is closed the moment it opens, so it never
             # nests a scope — recording only.
-            self._note_attrs(tag.lower(),
-                             {k.lower(): (v or "") for k, v in attrs},
-                             nests=False)
+            a, contradicted = _attr_map(attrs)
+            if contradicted:
+                self._contradicted = True
+            self._note_attrs(tag.lower(), a, nests=False)
             self._buf.append(" ")
 
     def handle_endtag(self, tag):
