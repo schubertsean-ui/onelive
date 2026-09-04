@@ -12,6 +12,168 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #60 (2026-09-04, founder — "CAPCOG TAM + aggregators + doors + clear-the-door (docs)", branch claude/capcog-tam-aggregators-entities-3bb4sg) — OPEN
+
+STATUS: OPEN
+
+WHAT: Two new docs-only files — `docs/TAM_CAPCOG.md` and `docs/TAM_CAPCOG.csv` — a
+verified-universe TAM (total addressable entities) table spanning every category the
+founder named (venue/presenter/group/civic/education/market/other, not music-only), an
+aggregator table covering desks/campus/civic/marketplace/social surfaces, a presenter
+methodology (chef/visual artist/professor/author/speaker/personality/band), and a
+clear-the-door ladder for closed doors. Schema and rows are written to generalize past
+music to lecture/market/Meetup/exhibition/club-night without a later migration, per the
+founder's own framing.
+
+HOW: The CSV is a mechanical UNION: the 142 catalog rows graded `official` in
+`docs/CENSUS_CAPCOG.md` (bucket/grade read from the same live
+`worker/sourcing/source_class.py::classify_entry()` the census uses, never re-derived)
+are mapped into the new 11-column TAM schema by a category→type rule table (documented
+in the doc's methodology section, with named per-row overrides for the 16
+`entity_type=="org"` rows where the catalog's org/venue split doesn't match a
+visitor-facing type — e.g. Bullock Museum stays a venue, Austin Symphony becomes a
+group). The 21 aggregator_lead + 4 social + 12 trusted_publisher + 1 unknown catalog
+rows are EXCLUDED from the TAM entity table (they are platforms, not entities) and
+live in the aggregator table instead — a scratch mapping script did the mechanical
+transform (run locally, not committed — same one-time-snapshot precedent as Contract
+#53's census). 25 NEW TAM rows and 7 new aggregator rows come from this session's
+`WebSearch` research (WebFetch was confirmed EGRESS_BLOCKED on 4 domains this session —
+every new row is labeled `found_unverified`, never asserted as fetch-confirmed),
+discovered via already-catalogued aggregators (UT's Localist feed, Meetup, Do512) and
+direct civic/market/campus/presenter search across CAPCOG counties the catalog
+under-covers (Hays, Williamson, Bastrop, Burnet, Caldwell, Llano). New aggregator rows
+are graded trusted_publisher/marketplace/scraper per a documented rule — tourism-board
+and chamber-of-commerce calendars are graded `trusted_publisher`, per
+ONE-LIVE-TRUST.md's own explicit inclusion of "tourism board" in the trusted-door list,
+not left at a plain "scraper" default.
+
+WHY: founder ticket, verbatim goal — "verified universe of entities (all categories),
+aggregator map, activity surfaces, ingest recommendation, and a method to open closed
+doors."
+
+WHY-THAT-WHY-MATTERS: the existing catalog census (Contract #53) is 100%
+venue/institution-shaped — zero presenter-type rows exist anywhere in 180 entries — so
+a future session trying to cover a chef's dinner series, a touring act, or a public
+lecture would have no map and no doorway convention to follow. This ticket exists so
+that gap is named, a few real doors are opened, and the ones that could not be resolved
+honestly (SEO tour-date farms outranking real artist sites in search results, confirmed
+this session) are shelved with a concrete next query instead of silently vanishing or
+being guessed into a fabricated "official" URL.
+
+EXPECTED OUTCOMES: (1) `docs/TAM_CAPCOG.md` exists with both required tables printed, a
+presenter section, a 6-stage clear-the-door ladder (public list → finder queries →
+publisher cover → Harbor/claim → one outreach → blocked_now-with-review-date) defined
+and worked through real holes, and a holes/proposed-queries backlog covering every
+CAPCOG county/category gap found; (2) `docs/TAM_CAPCOG.csv` carries 167 rows (142
+catalog-derived + 25 new) in the 11-column schema, round-trip-parses clean; (3) zero
+catalog/worker/orchestrator/ai_extract/cadence-YAML/Tonight files touched; (4) PR opened
+as draft, standing adversarial-review workflow runs; (5) founder gets a stop-and-look
+artifact — this session does not merge.
+
+AMENDMENT (mid-session founder addendum, same PR, no new ticket): "fold into
+TAM_CAPCOG.md / recipes" — (1) the cultural-domain grid is a starter seed, not a
+cap; an unmapped happening still lists as `other/raw`, never refused; a repeated
+unmatched shape triggers a new recipe row; (2) new `docs/domain_recipes.md`: domain
+| seed desks/registries | query pack | CAPCOG hole, with an always-open
+`other/raw` row, and category assigned per happening (not per place) when one
+place programs more than one domain; (3) the six-rung ladder is reframed onto five
+intake CHANNELS (registries, desks/marketplaces, finder queries — write only, no
+paid API — Harbor/claim, and a not-yet-built future "own-on-1Live" self-serve
+path); (4) every new row stays `found_unverified`, no official URL invented, no
+merge without the founder's word. All four folded into this same commit/PR before
+first push — no second PR.
+
+OUT OF SCOPE (Must-not, founder, verbatim): worker/segment/identity/ai_extract, Tonight
+beauty, cadence YAML, ownership heuristic, 100k subscriptions. Also refused by me:
+adding TODOS.md/docs/ONE_LIVE_CHANGE_LOG.md entries (Must-do #6 named STATE.md only — a
+TODOS worklist entry is genuinely useful follow-up but is not what this ticket asked
+for, so it is named here and left undone rather than added unasked); committing the
+mapping/generation script (same precedent as Contract #53 — a one-time snapshot, not a
+new pipeline tool); resolving every hole this session found (civic/education/presenter
+holes are shelved with proposed queries instead, per the ticket's own "propose search
+queries for holes" cap).
+
+**Appendix — construction_gate Stage 3 citations (docs-only ticket):**
+[S3:hygiene-narrows-coverage] The opposite of a narrowing: this PR's Presenters
+section states the founder's own PR #218 r8b ruling verbatim as canon —
+"Official presenters are trusted doors: musician, chef, visual artist, professor,
+author, speaker, personality, company … a public list of upcoming work on their
+site is enough" — and every presenter row (chef series, lecture series, speaker
+series) is included on exactly that bar; the 4 presenter subtypes that did NOT
+clear it (band/author/artist/personality) are recorded as holes, never as refused
+sources, and Coverage Law's own text (no dropped row) is quoted before the holes
+list.
+[S3:contract-scope-violation] Scope is the founder's 6 Must-dos plus the
+mid-session addendum, amended in this same push (quoted verbatim above, not
+silently absorbed); nothing else was built. [S3:founder-verbatim-corrected] Every
+quoted founder line (Operating Law, Coverage Law, ONE-LIVE-TRUST.md, both the
+ticket and the addendum) is copied verbatim, never "corrected" — the one place a
+category might read as a defect (SXSW's low "festivals"-domain count in
+`docs/domain_recipes.md`) is flagged as a possible non-defect, not silently fixed
+either way.
+[S3:copy-outruns-registry] [S3:deliverable-visual-qa] No customer/partner-facing
+copy or printed/rendered deliverable exists in this PR — two internal docs and a
+CSV, read in a repo, not shipped to a user surface.
+[S3:retyped-evidence] [S3:stale-redclass-count] Every count in both new docs (167
+CSV rows, the 142/25 split, the cultural-domain distribution) is either the output
+of a command shown in the same doc or a Python round-trip check run this session
+and reported verbatim — never a hand-typed guess. [S3:stale-base-widens-range]
+construction_gate's own freshness probe printed `origin/master == remote tip` on
+every run this session.
+[S3:stalled-state-needs-active-diagnosis] `WebFetch` was not just waited on: it
+was tried against 4 different domains and each returned an explicit
+`EGRESS_BLOCKED` error, which is the diagnostic, not a guess that the network is
+down. [S3:status-narration-not-progress] The two docs are the finished thing this
+session delivers; nothing here is a status update standing in for one.
+[S3:deferred-trust-work] No trust-path code is touched — nothing here is
+deferrable trust work because there is no trust-path change to defer.
+Not applicable, nothing of the kind exists in a docs-only change: no gate,
+threshold, workflow, model pin, or reviewer binding
+([S3:self-weakenable-gate] [S3:self-weakenable-review-model]
+[S3:workflow-tool-version-skew] [S3:mutable-model-alias]
+[S3:fail-open-on-custody-misconfig] [S3:governance-ambiguity] — this contract's
+own OUT-OF-SCOPE section states its scope precisely, which is what that class
+asks for); no schema, migration, query, or write path ([S3:db-type-mismatch-invisible-to-hermetic-tests]
+[S3:pagination-integrity-gap] [S3:missing-cardinality-check]
+[S3:partial-write-whole-row] [S3:parallel-record-id-collision]
+[S3:volatile-safety-store] [S3:weak-key-accepted-at-custody]
+[S3:semantic-claim-not-rederived]); no scripted renumber or `--heal` run
+([S3:scripted-transform-order] [S3:heal-drops-guard-marker]); no numeric field
+written into a schema or gate threshold ([S3:nonfinite-numeric-accepted]
+[S3:nonfinite-decimal-accepted]).
+[S3:pushed-on-red] `tools/validate` (or its docs-relevant legs) is run and its
+exit code checked before this branch is pushed — see the commit that follows this
+line.
+
+**Note for whoever reads this next** (same structural point Contract #53's own
+appendix made): citing a matched class by name re-introduces sibling triggers at
+this index size (common words like "gate," "path," "rule," "test," "credential"
+appear inside many token names), so a match set this size does not reach a fixed
+point by adding more citation prose. The paragraph below substantively answers
+every remaining class rather than chasing the count to zero.
+[S3:caller-suppliable-custody-inputs] [S3:false-confidence-gate]
+[S3:untested-gate-branch] [S3:unusable-credential-tier] No gate, custody
+mechanism, credential, or model pin exists in a two-markdown-file-plus-CSV PR —
+nothing here has a "custody input" for a caller to supply, a self-description to
+overclaim, a branch to leave untested, or a tier to be unusable.
+[S3:env-dependent-hermetic-test] No test in this repo is touched or claimed
+hermetic by this PR; the one environment-dependent fact stated (`WebFetch` =
+`EGRESS_BLOCKED`) is reported as exactly that, an environment fact, not dressed up
+as a hermetic test result.
+[S3:fabricated-qualitative-copy] [S3:false-price-claim] No caption, hook, or price
+appears anywhere in either new doc — nothing is sold, nothing is captioned for a
+user-facing card.
+[S3:founder-path-unprobed] No founder-facing walkthrough or sign-in step is
+shipped or claimed working; every new door is explicitly labelled
+`found_unverified`, the opposite of an unprobed step asserted as proven.
+[S3:green-on-stale-base] [S3:release-path-weaker-than-generation]
+[S3:rule-stronger-than-mechanism] No base-state-branching gate, render/release
+path, or charter rule is added or amended by this PR for either class to attach
+to.
+[S3:records-sharing-one-trigger] No `docs/RECORD.md` `[R-###]` entry is opened by
+this PR (the holes below are TAM-table rows with a `review_after`, not deferral
+records), so there is no cluster to grep for.
+
 ## Session Contract #59 (2026-09-04, founder — "profile URL is entity id, not happening id", branch claude/profile-url-entity-id-kazj41) — OPEN
 
 STATUS: OPEN
