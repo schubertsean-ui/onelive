@@ -46,6 +46,7 @@ from worker.identity import (
     IdentifiedBlock,
     carried_identity,
     identity_address,
+    identity_iri,
     identity_token,
     jsonld_identity,
     read_identity,
@@ -267,12 +268,13 @@ def test_a_shared_field_is_dropped_without_taking_a_distinct_one_with_it():
     field is not a reason to discard a field the source got right."""
     html = ("<script type='application/ld+json'>"
             '[{"@type":"Event","name":"A","startDate":"2026-08-01T20:00:00Z",'
-            '"url":"https://v.example/shared","@id":"a-1"},'
+            '"url":"https://v.example/shared","@id":"https://v.example/id/a-1"},'
             '{"@type":"Event","name":"B","startDate":"2026-08-02T20:00:00Z",'
-            '"url":"https://v.example/shared","@id":"b-2"}]</script>')
+            '"url":"https://v.example/shared","@id":"https://v.example/id/b-2"}]</script>')
     ids = {carried_identity(b).uid: carried_identity(b).listing_url
            for b in segment_events(html, content_type="text/html")}
-    assert ids == {"a-1": None, "b-2": None}
+    assert ids == {"https://v.example/id/a-1": None,
+                   "https://v.example/id/b-2": None}
 
 
 def test_a_card_declaring_two_different_urls_states_no_identity():
@@ -343,9 +345,24 @@ def test_the_jsonld_carrier_answers_to_the_same_checks_as_the_html_one():
     assert jsonld_identity({"url": "javascript:alert(1)"}) == NO_IDENTITY
     assert jsonld_identity({"url": "#e1"}) == NO_IDENTITY
     assert jsonld_identity({"@id": "#frag"}) == NO_IDENTITY
+    # ROUND 6: `@id` is an IRI resolved against the DOCUMENT BASE, so a
+    # page-relative one means something different on every page that states it
+    # — and this path has no base url. It goes through the IRI door, which
+    # demands a name, not a fetchable address. `identifier` is schema.org's
+    # opaque property and keeps the token door.
+    assert jsonld_identity({"@id": "event-1"}).uid is None
+    assert jsonld_identity({"@id": "https://v.example/id/1"}).uid == "https://v.example/id/1"
+    assert jsonld_identity({"@id": "/id/1"}).uid == "/id/1"
+    # A URN @id NAMES ITSELF and is kept: an `@id` only has to identify, while
+    # a `url` has to be fetchable, so they do not share a scheme rule. A
+    # calendar whose events have no separate pages states exactly this.
+    assert jsonld_identity({"@id": "urn:uuid:abc"}).uid == "urn:uuid:abc"
+    # An unusable @id does not suppress a usable identifier beside it: they are
+    # two fields, and the source stated both.
+    assert jsonld_identity({"@id": "details", "identifier": "8818"}).uid == "8818"
     # Several DIFFERENT values is a contradiction; the same value twice is not.
     assert jsonld_identity({"url": ["https://a/1", "https://b/2"]}) == NO_IDENTITY
-    assert jsonld_identity({"@id": ["x", "y"]}) == NO_IDENTITY
+    assert jsonld_identity({"identifier": ["x", "y"]}) == NO_IDENTITY
     assert jsonld_identity({"url": ["https://a/1", "https://a/1"]}).listing_url == "https://a/1"
     # An opaque, non-url identifier is untouched — it is an id, not an address,
     # and the two carriers deliberately go through DIFFERENT doors (round 4).
@@ -357,7 +374,8 @@ def test_the_jsonld_carrier_answers_to_the_same_checks_as_the_html_one():
     relative = jsonld_identity({"identifier": "8818", "url": "details"})
     assert relative.uid == "8818"
     assert relative.listing_url is None
-    assert jsonld_identity({"@id": "abc123@venue.example"}).uid == "abc123@venue.example"
+    assert jsonld_identity(
+        {"identifier": "abc123@venue.example"}).uid == "abc123@venue.example"
 
 
 def test_the_page_s_own_url_never_becomes_a_listing_identity():
@@ -441,9 +459,15 @@ def test_only_a_web_scheme_can_be_a_listings_address():
     for refused in ("ftp://v.example/e/1", "webcal://v.example/e.ics",
                     "custom://v.example/e/1", "details", "?id=1", "#e1", ""):
         assert identity_address(refused) is None, refused
-    # An opaque id is not an address and keeps its own, looser door.
+    # Three kinds, three doors. An `@id` must NAME ITSELF but need not be
+    # fetchable, so a URN passes the IRI door and fails the address door; an
+    # `identifier` is opaque and passes neither but keeps its own.
+    assert identity_iri("urn:venue:the-deer") == "urn:venue:the-deer"
+    assert identity_address("urn:venue:the-deer") is None
+    assert identity_iri("event-1") is None
     assert identity_token("8818") == "8818"
     assert identity_token("abc123@venue.example") == "abc123@venue.example"
+    assert identity_iri("8818") is None
 
 
 def test_a_nested_item_stays_closed_through_same_tag_nesting():

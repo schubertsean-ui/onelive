@@ -136,10 +136,12 @@ class ListingIdentity:
     """What a source SAID identifies one listing. Every field is optional and
     an absent field is a hole, never a guess.
 
-    * `uid` — the source's own opaque id: an ICS `UID`, a JSON-LD `@id` or
-      `identifier`. Compared verbatim (case-SENSITIVE): a UID is an opaque
-      token and folding its case would merge two ids a source deliberately
-      distinguished.
+    * `uid` — the source's own id: an ICS `UID`, a JSON-LD `identifier`, or a
+      JSON-LD `@id` that NAMES ITSELF (an `@id` is an IRI against the document
+      base, so a page-relative one is refused while a URN is kept — see
+      `jsonld_identity`). Compared verbatim (case-SENSITIVE): a UID is an
+      opaque token and folding its case would merge two ids a source
+      deliberately distinguished.
     * `listing_url` — the listing's own address, as the source published it
       (an ICS `URL`, a schema.org `Event.url`, a claimant's row url).
     * `source_href` — the listing's anchor on the page it was read from, as
@@ -324,6 +326,44 @@ def identity_token(value: Any) -> Optional[str]:
     return raw
 
 
+def identity_iri(value: Any) -> Optional[str]:
+    """An identifier that names itself, or None. For a JSON-LD `@id`.
+
+    An `@id` is an IRI resolved against the DOCUMENT BASE, so a page-relative
+    one (`event-1`, `details`, `?id=1`) means something different on every page
+    that states it — and this path has no base url to resolve it against, so
+    the same raw string on two pages of a source would be stored as one uid and
+    could license a write from the wrong occurrence. That is the round-6
+    finding, and it is why `@id` cannot share the opaque-token door with
+    `identifier`.
+
+    But it does not belong in `identity_address` either, and the difference is
+    the point: a `url` must be FETCHABLE, so its scheme is restricted to the
+    web; an `@id` only has to NAME something, so any absolute IRI qualifies —
+    including `urn:venue:the-deer-2026-09-15`, which a calendar whose events
+    have no separate pages uses precisely because it is stable and belongs to
+    nobody's page. Refusing that would have thrown away the case
+    `tests/test_identity_stack.py` was built for, which is how this rule was
+    caught being too strict before it shipped.
+
+    Accepted: any absolute IRI (a scheme), the protocol-relative form (a
+    host), and a root-relative path. Refused: anything page-relative, plus
+    everything `identity_token` already refuses.
+    """
+    raw = identity_token(value)
+    if raw is None:
+        return None
+    try:
+        parts = urllib.parse.urlsplit(raw)
+    except ValueError:
+        return None
+    if parts.scheme or parts.netloc:
+        return raw
+    if raw.startswith("/"):
+        return raw
+    return None
+
+
 def identity_address(value: Any) -> Optional[str]:
     """An address that names a PAGE-INDEPENDENT location, or None. For every
     url-valued carrier: an `href`, a `<meta content>`, a JSON-LD `Event.url`.
@@ -433,20 +473,28 @@ def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     ``offers.url`` is a ticket vendor's page — a different resource, often
     shared across several listings, and never the listing's identity.
 
-    Both values are read with `_ld_single` and both pass a validator, so the
-    JSON-LD carrier answers to exactly the checks the HTML carrier does — and
-    to the RIGHT one for each: `url` is an address (`identity_address`, so a
-    page-relative `"details"` is refused) while `@id`/`identifier` is an opaque
-    token (`identity_token`, so `"8818"` is kept). A field stating several
-    different values states none. An object stating none returns NO_IDENTITY.
+    Every value is read with `_ld_single` and passes the validator its KIND
+    calls for: `url` must be fetchable (`identity_address`), `@id` must name
+    itself (`identity_iri` — a URN qualifies, a page-relative string does not),
+    and `identifier` is opaque (`identity_token`, so `"8818"` is kept). A field
+    stating several different values states none. An object stating none
+    returns NO_IDENTITY.
     """
     if not isinstance(obj, Mapping):
         return NO_IDENTITY
-    stated_id = obj.get("@id")
-    if stated_id is None:
-        stated_id = obj.get("identifier")
+    # Three carriers, three kinds, three doors — and the round-6 finding was
+    # that `@id` and `identifier` had been sharing one:
+    #   url        must be FETCHABLE   -> identity_address (web schemes only)
+    #   @id        must NAME ITSELF    -> identity_iri (any absolute IRI, or
+    #                                     root-relative; never page-relative,
+    #                                     because an @id resolves against the
+    #                                     document base and this path has none)
+    #   identifier is OPAQUE           -> identity_token (`8818` is a fine id)
+    uid = identity_iri(_ld_single(obj.get("@id")))
+    if uid is None:
+        uid = identity_token(_ld_single(obj.get("identifier")))
     return ListingIdentity(
-        uid=identity_token(_ld_single(stated_id)),
+        uid=uid,
         listing_url=identity_address(_ld_single(obj.get("url"))),
     )
 

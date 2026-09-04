@@ -46,8 +46,11 @@ the microdata spec's own rule, added at the panel's round-2 finding, because a
 well-formed Event card nests `performer`/`location`/`offers` items whose own `url`s are
 the artist's, the venue's and the vendor's pages, which is r1's deleted convention
 walking back in wearing microdata. EVERY carrier goes through a validator, and
-after round 4 there are TWO because the carriers are two kinds: `identity_token` for an
-opaque `uid` (refuse empty, fragment-only, non-address schemes — `8818` is a fine id) and
+after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
+an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
+`8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF (any
+absolute IRI, so `urn:venue:the-deer` is kept, but never a page-relative `event-1`,
+because an `@id` resolves against a document base this path does not have), and
 `identity_address` for every url-valued carrier (segment's `href`, segment's
 `<meta content>`, the JSON-LD `url`), which adds the requirement that the value name a
 page INDEPENDENTLY — absolute, protocol-relative, or root-relative — under an ALLOW-LIST
