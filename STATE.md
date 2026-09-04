@@ -74,7 +74,15 @@ nothing; the same value twice is not a contradiction and is kept. Round 9's OTHE
 — a source-ownership/type invariant on Person-typed cards — is NOT actioned and is
 answered in the PR instead: it asks for exactly the rule the founder struck by name hours
 earlier, and OPERATING_RULES §3.5 is that gates ADVISE while the founder DECIDES. The
-tension is surfaced rather than resolved silently in either direction. EVERY carrier goes through a validator, and
+tension is surfaced rather than resolved silently in either direction. ROUND 10 then found
+the same contradiction rule missing one AXIS over, and a second defect that was a
+DOCSTRING'S REASONING: `_itemprop_url_of` combined `href` and `content` with `or` (so one
+element stating both silently preferred href), and `_note_attrs` read the property before
+pushing the element's own `itemscope` on my round-2 claim that such an element "still
+states the card's url" — which the microdata spec contradicts outright, since with
+`itemprop` AND `itemscope` the property's value is the ITEM, not the href. Both fixed and
+both proven to fail without their gate; the second removes no publisher, because markup
+that opens an item on its url property is malformed by the spec's own reading. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and

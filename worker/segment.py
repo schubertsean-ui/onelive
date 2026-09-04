@@ -173,7 +173,7 @@ def _href_of(attrs: Dict[str, str]) -> Optional[str]:
     return identity_address(attrs.get("href"))
 
 
-def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
+def _itemprop_url_of(attrs: Dict[str, str]) -> Tuple[Optional[str], bool]:
     """The address an element states while LABELLING itself the listing's url
     (``itemprop="url"``), or None — the source naming the field itself, which
     is the strongest signal a card can carry short of being the anchor.
@@ -189,11 +189,25 @@ def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
     "this is a url", so the value has to be one — and since round 3 that one
     validation is `worker.identity.identity_value`, shared with the JSON-LD
     carrier rather than mirrored beside it.
+
+    Returns `(address, contradicted)`. ROUND 10: the two carriers used to be
+    combined with `or`, which silently PREFERRED `href` when one element stated
+    both — so `<a itemprop="url" href="/artists/castle-creek"
+    content="/events/8817">` handed back the artist's page and never mentioned
+    that the source had said two different things. That is round 9's rule on a
+    second axis: round 9 caught one attribute NAME stated twice, this is two
+    DIFFERENT attribute names carrying an address on one element. Same answer,
+    because the question is the same — which did the source mean? — and the
+    honest answer is that we cannot know.
     """
     tokens = (attrs.get("itemprop") or "").lower().split()
     if "url" not in tokens:
-        return None
-    return _href_of(attrs) or identity_address(attrs.get("content"))
+        return None, False
+    href = _href_of(attrs)
+    content = identity_address(attrs.get("content"))
+    if href is not None and content is not None and href != content:
+        return None, True
+    return (href if href is not None else content), False
 
 
 #: Attributes whose value this file READS to decide an identity. A duplicate of
@@ -315,10 +329,17 @@ class _ElementTextCollector(HTMLParser):
         Undeclared `<a href>`s are not recorded at all — not counted, not
         ranked, not remembered. There is no rung they could feed.
 
-        The property is read BEFORE this element's own `itemscope` is pushed,
-        because an `itemprop` belongs to its nearest ENCLOSING scope: an
-        element that is both `itemprop="url"` of the card and a nested item in
-        its own right still states the card's url.
+        An element that opens its OWN `itemscope` is skipped, and ROUND 10
+        corrected this file's reasoning to get there. The docstring used to
+        claim that such an element "still states the card's url" — but the
+        microdata spec is explicit that when an element carries `itemprop` AND
+        `itemscope`, the property's value is the ITEM the element creates, not
+        its href. So `<a itemprop="url" itemscope itemtype=".../Person"
+        href="/artists/castle-creek">` inside an Event card states a nested
+        person, and reading its href handed us the ARTIST's page as the event's
+        identity while `_scopes` was still 0 — the nested-item defect arriving
+        ON the declaring element rather than around it. It states no url, which
+        is a hole, not a contradiction.
 
         And it is read ONLY when the card is itself the LISTING's item, which
         took two passes to state properly. Three of the four capture strategies
@@ -351,9 +372,11 @@ class _ElementTextCollector(HTMLParser):
         removes it from both, because an address two listings share describes
         neither.
         """
-        if self._card_is_item and not self._scopes:
-            labelled = _itemprop_url_of(attrs)
-            if labelled is not None and labelled not in self._itemprop_urls:
+        if self._card_is_item and not self._scopes and "itemscope" not in attrs:
+            labelled, contradicted = _itemprop_url_of(attrs)
+            if contradicted:
+                self._contradicted = True
+            elif labelled is not None and labelled not in self._itemprop_urls:
                 self._itemprop_urls.append(labelled)
         if not nests or tag in _VOID_TAGS:
             return

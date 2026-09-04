@@ -677,6 +677,85 @@ def test_an_element_that_states_two_addresses_states_none():
         None, "/events/8818"]
 
 
+
+def test_one_element_stating_two_addresses_states_none():
+    """ROUND 10a — round 9's rule on a SECOND AXIS.
+
+    Round 9 caught one attribute NAME stated twice. This is two DIFFERENT
+    attribute names each carrying an address on ONE element:
+
+        <a itemprop="url" href="/artists/castle-creek" content="/events/8817">
+
+    The carriers used to be combined with `or`, which silently PREFERRED
+    `href` — handing back the artist's page and never mentioning that the
+    source had said two different things. Same question as round 9 (which did
+    the source mean?), same honest answer (we cannot know), same refusal.
+    """
+    card = ('<div itemscope itemtype="https://schema.org/MusicEvent">'
+            "Fri Aug 1, 8pm Castle Creek"
+            '<a itemprop="url" href="/artists/castle-creek" '
+            'content="/events/8817">details</a></div>')
+    other = ('<div itemscope itemtype="https://schema.org/MusicEvent">'
+             "Sat Aug 2, 9pm River Delta"
+             '<a itemprop="url" href="/events/8818">details</a></div>')
+    page = f"<div>{card}{other}</div>"
+    assert [carried_identity(b).source_href
+            for b in segment_events(page, content_type="text/html")] == [
+        None, "/events/8818"]
+
+    # Both carriers naming the SAME address is one statement, twice — kept.
+    agreeing = page.replace('content="/events/8817"',
+                            'content="/artists/castle-creek"')
+    assert [carried_identity(b).source_href
+            for b in segment_events(agreeing, content_type="text/html")] == [
+        "/artists/castle-creek", "/events/8818"]
+
+
+def test_a_declaring_element_that_opens_its_own_item_states_no_url():
+    """ROUND 10b — the nested-item defect arriving ON the declaring element.
+
+    This file used to claim, in a docstring, that an element which is both
+    `itemprop="url"` of the card and an item in its own right "still states the
+    card's url". That reasoning was wrong, and the microdata spec is explicit:
+    when an element carries `itemprop` AND `itemscope`, the property's value is
+    the ITEM the element creates — not its href.
+
+        <a itemprop="url" itemscope itemtype=".../Person"
+           href="/artists/castle-creek">Castle Creek</a>
+
+    inside an Event card therefore states a nested person, and reading its href
+    handed us the ARTIST's page as the event's identity while the nested-scope
+    counter was still 0 — the round-2 defect wearing the declaring element
+    itself. It states no url: a hole, not a contradiction, so a valid
+    declaration elsewhere on the same card would still be read.
+
+    Blast radius, stated because `hygiene-narrows-coverage` requires it: this
+    removes no publisher. Markup that opens an item on its url property is
+    malformed for the purpose by the spec's own reading, never a house style.
+    """
+    page = ('<div>'
+            '<div itemscope itemtype="https://schema.org/MusicEvent">'
+            "Fri Aug 1, 8pm Castle Creek"
+            '<a itemprop="url" itemscope itemtype="https://schema.org/Person" '
+            'href="/artists/castle-creek">Castle Creek</a></div>'
+            '<div itemscope itemtype="https://schema.org/MusicEvent">'
+            "Sat Aug 2, 9pm River Delta"
+            '<a itemprop="url" href="/events/8818">details</a></div></div>')
+    assert [carried_identity(b).source_href
+            for b in segment_events(page, content_type="text/html")] == [
+        None, "/events/8818"]
+
+    # A hole, not a contradiction: the card's OWN declaration beside such an
+    # element is still read, which is what separates this from round 9/10a.
+    with_own = page.replace(
+        'href="/artists/castle-creek">Castle Creek</a></div>',
+        'href="/artists/castle-creek">Castle Creek</a>'
+        '<a itemprop="url" href="/events/8817">details</a></div>')
+    assert [carried_identity(b).source_href
+            for b in segment_events(with_own, content_type="text/html")] == [
+        "/events/8817", "/events/8818"]
+
+
 def test_a_nested_item_stays_closed_through_same_tag_nesting():
     """The scope stack balances by element, not by tag name. An inner `<div>`
     inside a nested `performer` item used to pop that item's scope early, so
