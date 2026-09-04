@@ -50,8 +50,13 @@ find cards structurally (`<article>`, a cardish class, `<li>`) and carry no micr
 all, so "no nested scope" is trivially true inside them and every `itemprop="url"` looked
 like a declaration — including one a half-finished template put on the ARTIST link. An
 `itemprop` means something only against its nearest enclosing item; with no item it is a
-property of nothing. Both halves are r1's deleted convention walking back in wearing
-microdata, and the second is its FOURTH spelling. EVERY carrier goes through a validator, and
+property of nothing. Requiring an item is necessary and NOT sufficient, though, and that
+was SELF-CAUGHT while writing round 8's ledger row: the item can be somebody else's.
+`<article itemscope itemtype=".../Person">` is how an artist is marked up and a roster
+page with tour dates segments that way, so a card that says WHAT it is must say Event,
+while a card declaring `itemscope` and no type is the listing itself and is still read.
+All of these are r1's deleted convention walking back in wearing microdata — its fourth
+and fifth spellings. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and

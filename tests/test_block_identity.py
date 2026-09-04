@@ -559,6 +559,56 @@ def test_a_card_that_declares_itself_an_item_is_still_read():
                     "/events/8819-tin-sparrow"]
 
 
+
+def test_a_card_whose_item_is_somebody_else_declares_nothing():
+    """Requiring an item is necessary and NOT sufficient — the item can be
+    somebody else's.
+
+    `<article itemscope itemtype="https://schema.org/Person">` is exactly how
+    an artist is marked up, and a roster page with tour dates segments that
+    way: strategy 2 finds no Event itemtype, so strategy 3 captures the
+    `<article>` — which IS an item, so round 8's gate passes it. But its `url`
+    is the ARTIST's page, and adopting it puts us back where round 1 started:
+    the next occurrence by that artist answers SAME and licenses a write onto
+    the wrong published row.
+
+    A card that says WHAT it is must say Event. A card that declares
+    `itemscope` and no type is the listing itself — pinned below, because this
+    rule must refuse impostors without refusing untyped microdata.
+    """
+    roster = (
+        "<html><body>"
+        '<article class="event" itemscope itemtype="https://schema.org/Person">'
+        '<h2><a itemprop="url" href="/artists/castle-creek">Castle Creek</a></h2>'
+        "<p>Fri Aug 1, 8pm — Wren Hall</p></article>"
+        '<article class="event" itemscope itemtype="https://schema.org/Person">'
+        '<h2><a itemprop="url" href="/artists/river-delta">River Delta</a></h2>'
+        "<p>Sat Aug 2, 9pm — Wren Hall</p></article>"
+        "</body></html>"
+    )
+    blocks = segment_events(roster, content_type="text/html")
+    assert len(blocks) == 2
+    for block in blocks:
+        assert carried_identity(block) == NO_IDENTITY, str(block)
+
+    # THE OTHER DIRECTION, because round 6 shipped an over-correction and only
+    # an existing test caught it: an item that declares no type is the card
+    # itself, so its declared url IS the listing's and is still adopted.
+    untyped = (
+        "<html><body>"
+        '<article class="event" itemscope><h2>Castle Creek</h2>'
+        "<p>Fri Aug 1, 8pm — Wren Hall</p>"
+        '<a itemprop="url" href="/events/1">details</a></article>'
+        '<article class="event" itemscope><h2>River Delta</h2>'
+        "<p>Sat Aug 2, 9pm — Wren Hall</p>"
+        '<a itemprop="url" href="/events/2">details</a></article>'
+        "</body></html>"
+    )
+    kept = [carried_identity(b).source_href
+            for b in segment_events(untyped, content_type="text/html")]
+    assert kept == ["/events/1", "/events/2"]
+
+
 def test_a_nested_item_stays_closed_through_same_tag_nesting():
     """The scope stack balances by element, not by tag name. An inner `<div>`
     inside a nested `performer` item used to pop that item's scope early, so

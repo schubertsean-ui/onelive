@@ -257,11 +257,15 @@ class _ElementTextCollector(HTMLParser):
         #: How many of those are open items. Non-zero means "we are describing
         #: something OTHER than this listing", so no declaration is read.
         self._scopes = 0
-        #: Did the CARD ELEMENT ITSELF declare `itemscope`? An `itemprop` only
-        #: means anything relative to its nearest ENCLOSING item, so when the
-        #: card is not an item there is nothing for the property to be a
-        #: property OF, and reading it as the listing's url would be a
-        #: convention, not a declaration — the round-8 finding.
+        #: Is the CARD ELEMENT ITSELF the item whose url we are reading? Two
+        #: conditions, found one layer apart. It must declare `itemscope` at
+        #: all — an `itemprop` means something only relative to its nearest
+        #: ENCLOSING item, so with no item there is nothing for the property to
+        #: be a property OF (round 8). And if it declares a TYPE, that type
+        #: must be an Event: `<article itemscope itemtype=".../Person">` is how
+        #: an artist is marked up, and its `url` is the ARTIST's page, not this
+        #: listing's — the same "somebody else's item" the nested-scope counter
+        #: keeps out, arriving as the card instead of inside it.
         self._card_is_item = False
 
     # -- capture bookkeeping --------------------------------------------------
@@ -278,18 +282,27 @@ class _ElementTextCollector(HTMLParser):
         element that is both `itemprop="url"` of the card and a nested item in
         its own right still states the card's url.
 
-        And it is read ONLY when the card is itself an item. Three of the four
-        capture strategies find cards STRUCTURALLY — `<article>`, a cardish
-        class, `<li>` — and those carry no microdata at all, so `self._scopes`
-        is trivially 0 inside them and every `itemprop="url"` would look like a
-        declaration. But microdata gives an `itemprop` meaning only against its
-        nearest enclosing item; with no item there is nothing it is a property
-        OF. A venue that sprinkles `itemprop="url"` on the ARTIST link inside a
-        plain `<article class="event">` would otherwise hand us the artist's
-        address as the listing's identity, and the next occurrence by that
-        artist would answer SAME and license a write onto the wrong published
-        row. That is round 1's deleted convention in a fourth spelling, so the
-        card must DECLARE itself an item before any property of it is believed.
+        And it is read ONLY when the card is itself the LISTING's item, which
+        took two passes to state properly. Three of the four capture strategies
+        find cards STRUCTURALLY — `<article>`, a cardish class, `<li>` — and
+        those carry no microdata at all, so `self._scopes` is trivially 0
+        inside them and every `itemprop="url"` would look like a declaration.
+        But microdata gives an `itemprop` meaning only against its nearest
+        enclosing item; with no item there is nothing it is a property OF. A
+        venue that sprinkles `itemprop="url"` on the ARTIST link inside a plain
+        `<article class="event">` would otherwise hand us the artist's address
+        as the listing's identity, and the next occurrence by that artist would
+        answer SAME and license a write onto the wrong published row.
+
+        Requiring an item is necessary and not sufficient, though, because the
+        item can be somebody else's: `<article itemscope
+        itemtype="https://schema.org/Person">` is exactly how an artist is
+        marked up, and a roster page with tour dates on it segments that way.
+        Its `url` is the artist's page. So a card that says WHAT it is must say
+        Event; a card that declares `itemscope` and no type is the listing
+        itself and is read. Both halves are round 1's deleted convention
+        walking back in — the fourth and fifth spellings — so both are refused
+        rather than bounded.
         """
         if self._card_is_item and not self._scopes:
             labelled = _itemprop_url_of(attrs)
@@ -340,8 +353,13 @@ class _ElementTextCollector(HTMLParser):
             # at, so it is deliberately not pushed: only items nested INSIDE it
             # are somebody else's. But it must EXIST — a structurally-found
             # card declares no item, and a property of no item is not a
-            # declaration (see _note_attrs).
-            self._card_is_item = "itemscope" in a
+            # declaration (see _note_attrs) — and it must be an EVENT if it
+            # says what it is, because a Person's url is the artist's page.
+            # An UNtyped `itemscope` card is the listing itself, so it stays.
+            itemtype = a.get("itemtype", "")
+            self._card_is_item = "itemscope" in a and (
+                not itemtype or bool(_EVENT_ITEMTYPE_RE.search(itemtype))
+            )
             self._open = []
             self._scopes = 0
 
