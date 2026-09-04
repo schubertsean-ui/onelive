@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Fixture: two schema.org Events, each stating its own url and @id. -->
+<html><body>
+<script type="application/ld+json">
+[
+ {"@context":"https://schema.org","@type":"MusicEvent","name":"Castle Creek",
+  "startDate":"2026-08-01T20:00:00-05:00","url":"https://wrenhall.example/events/8817",
+  "@id":"https://wrenhall.example/id/8817",
+  "location":{"@type":"Place","name":"Wren Hall","address":"Austin"}},
+ {"@context":"https://schema.org","@type":"MusicEvent","name":"River Delta",
+  "startDate":"2026-08-02T21:00:00-05:00","url":"https://wrenhall.example/events/8818",
+  "identifier":"8818",
+  "location":{"@type":"Place","name":"Wren Hall","address":"Austin"}}
+]
+</script>
+<h1>Wren Hall</h1>
+</body></html>

@@ -7,16 +7,30 @@ import json
 import psycopg2
 
 from worker.db_config import resolve_dsn
-from worker.identity import IDENTITY_KEY, read_identity
+from worker.identity import IDENTITY_KEY, carried_identity, read_identity
 
 
 def db():
     return psycopg2.connect(resolve_dsn())
 
 
-def _with_identity(extracted: Dict[str, Any]) -> Dict[str, Any]:
-    """`extracted` plus a canonical `_identity`, or unchanged when the payload
-    states none.
+def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str, Any]:
+    """`extracted` plus a canonical `_identity`, or unchanged when neither the
+    payload nor the raw block states one.
+
+    Two producers, in a fixed order, and the order is a rule about authority:
+
+      1. the CALLER'S OWN payload (`worker/claim/intake.py` stating a
+         claimant's row url, a structured parse stating an ICS `UID`);
+      2. failing that, the identity CARRIED BY THE BLOCK the payload was
+         extracted from — `raw_text` is the per-listing block
+         `worker/segment.py` cut, and it remembers the `<a href>` or JSON-LD
+         `url`/`@id` its own markup stated (`worker.identity.carry_identity`).
+
+    The block is only ever a FALLBACK, never a merge: a payload that states an
+    identity is the producer that knows what it is describing, and mixing a
+    second source's fields into it could assemble an identity no one stated.
+    A payload that states nothing takes the block's whole identity or none.
 
     A COPY is returned rather than a mutation of the caller's dict: the caller
     (worker/ai_extract.py's fan-out, api/claims.py's loop) may hold the payload
@@ -30,6 +44,8 @@ def _with_identity(extracted: Dict[str, Any]) -> Dict[str, Any]:
     that owns the answer).
     """
     identity = read_identity(extracted)
+    if not identity.stated:
+        identity = carried_identity(raw_text)
     if not identity.stated:
         return extracted
     out = dict(extracted)
@@ -52,16 +68,19 @@ def create_candidate(
 
     `extracted` is stored with a canonical `_identity` sub-object holding
     whatever identity the CALLER'S OWN payload stated (an ICS `UID`, a
-    schema.org `Event.url`/`@id`, a claimant's row url, a listing's anchor) —
-    see worker/identity.py for the three carriers and for what is deliberately
-    NOT read as one. Nothing is invented: a payload stating no identity gets no
-    `_identity` key at all, and the ladder then falls to its composite rung.
+    schema.org `Event.url`/`@id`, a claimant's row url) or, failing that,
+    whatever the BLOCK in `raw_text` carried from its own markup (a listing's
+    anchor, a JSON-LD Event's url/@id — `worker/segment.py`) — see
+    worker/identity.py for the three carriers and for what is deliberately NOT
+    read as one. Nothing is invented: a listing that neither states an identity
+    nor was cut from markup that stated one gets no `_identity` key at all, and
+    the ladder then falls to its composite rung.
 
     The `_provenance` key on the same jsonb is the precedent for a namespaced
     machine-read sub-object, so this needs no migration, no new column and no
     change to any workflow that applies one.
     """
-    extracted = _with_identity(extracted)
+    extracted = _with_identity(extracted, raw_text)
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -81,7 +100,13 @@ def create_candidate(
                 source_name,
                 source_url,
                 source_class,
-                raw_text,
+                # str(), not the object: a segmented block reaches here as an
+                # `IdentifiedBlock` (a str subclass carrying its identity), and
+                # the driver is handed the plain text it has always been handed
+                # rather than a subclass whose adaptation would be one more
+                # thing to be right about. The identity has already been read
+                # off it above, into the jsonb.
+                str(raw_text) if raw_text is not None else None,
                 json.dumps(extracted),
                 extracted.get("title"),
                 extracted.get("start_time"),

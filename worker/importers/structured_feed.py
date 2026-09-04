@@ -34,6 +34,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from worker.classify import resolve_category
+from worker.identity import jsonld_identity, ld_scalar
 from worker.importers.domain_map import UNMAPPED, classify_from_title
 
 # Two stable provenance tokens (mirrored by the provider CHECK in
@@ -332,16 +333,12 @@ def _iter_ld_objects(doc: Any):
         yield doc
 
 
-def _ld_str(v: Any) -> Optional[str]:
-    """A JSON-LD scalar string, unwrapping the common {'@value': ...} form and
-    taking the first of a list. None (never fabricated) otherwise."""
-    if isinstance(v, str):
-        return v or None
-    if isinstance(v, dict):
-        return _ld_str(v.get("@value") or v.get("name") or v.get("url"))
-    if isinstance(v, list) and v:
-        return _ld_str(v[0])
-    return None
+#: A JSON-LD scalar string, unwrapping the common {'@value': ...} form and
+#: taking the first of a list. None (never fabricated) otherwise.
+#: Defined in `worker/identity.py` and imported rather than mirrored: the crawl
+#: path reads the same JSON-LD through the same reader, and a second copy here
+#: would be free to drift from it.
+_ld_str = ld_scalar
 
 
 def _ld_location(loc: Any) -> tuple[Optional[str], Optional[str], Optional[str]]:
@@ -413,6 +410,10 @@ def _jsonld_event_to_intermediate(obj: dict) -> dict:
     end = _ld_str(obj.get("endDate"))
     venue_name, venue_city, venue_address = _ld_location(obj.get("location"))
     price_min, price_max, currency = _ld_offers(obj.get("offers"))
+    # ONE home for "which JSON-LD keys are an identity" (worker/identity.py):
+    # this importer feeds the licensed store and worker/segment.py feeds the
+    # crawl path, and the two must never disagree about what a source stated.
+    identity = jsonld_identity(obj)
     # startDate/endDate are ISO-8601; convert to UTC 'Z' when they carry a time,
     # keep an honest all-day date when the value is date-only.
     start_all_day = bool(start) and _is_date_only(start)
@@ -424,12 +425,12 @@ def _jsonld_event_to_intermediate(obj: dict) -> dict:
         "venue_name": venue_name,
         "venue_city": venue_city,
         "venue_address": venue_address,
-        "url": _ld_str(obj.get("url")),
+        "url": identity.listing_url,
         "image_url": _ld_image(obj.get("image")),
         "price_min": price_min,
         "price_max": price_max,
         "currency": currency,
-        "uid": _ld_str(obj.get("@id") or obj.get("identifier")),
+        "uid": identity.uid,
         "_raw_props": obj,
     }
 

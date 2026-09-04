@@ -12,6 +12,249 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #58 (2026-09-03, founder — "pass block href through segment (R-103 cheap path)", branch claude/block-href-segment-xr4v4s) — OPEN
+
+STATUS: OPEN
+WHAT: The missing PRODUCER for the identity stack #217 shipped. (1) `worker/identity.py`:
+`ld_scalar` (the one JSON-LD scalar reader), `jsonld_identity(obj)` (the one place that
+says WHICH JSON-LD keys are an identity: `url` -> listing_url, `@id`/`identifier` -> uid),
+`IdentifiedBlock` (a `str` that also remembers the identity its own markup stated) and
+`carried_identity(value)`. (2) `worker/segment.py`: a block cut from a JSON-LD Event
+object carries that object's identity; a block cut from an HTML container carries as
+`source_href` only the address that container DECLARES for itself — an `itemprop="url"`
+stated once at its own scope. (The first rounds also read a heading anchor, a sole link
+and an anchor container; all three were conventions and all three were deleted at panel
+findings.) (3) `worker/candidate_store._with_identity`:
+when the caller's `extracted` states no identity, the identity CARRIED BY THE BLOCK
+(`raw_text`) is canonicalized into `extracted["_identity"]` — the existing jsonb, no
+migration, no new column. (4) `worker/importers/structured_feed.py`: `_ld_str` and the
+`url`/`uid` fields of `_jsonld_event_to_intermediate` delegate to (1), so the ICS/JSON-LD
+importer and the crawl path can never disagree about what an identity is.
+(5) `tests/fixtures/block_identity/` (3 pages) + `tests/test_block_identity.py`.
+HOW: The identity rides the BLOCK, which is already the one per-listing object
+`worker/ai_extract.py` hands to `create_candidate` as `raw_text` — so the producer is
+built without opening `ai_extract.py` (founder must-do 2 and 4) and without changing one
+byte of any block's TEXT (the certified extractor's input, and the surface exam's, is
+identical: `IdentifiedBlock` compares, slices and serializes as the same string).
+An identity attaches ONLY to a block CUT FROM the thing that stated it: a JSON-LD Event
+object, or an HTML container element. The anchor-split path (text offsets, no structure)
+and the whole-page single-block fallback carry NOTHING — the page url is every listing's
+url, and adopting it would make forty shows one show. Within a container EXACTLY ONE
+THING is read, AT THE CARD'S OWN SCOPE: an `itemprop="url"` stated exactly once, with no
+nested `itemscope` open AND with the card itself declaring `itemscope` — the microdata
+spec's own rule, in the two halves two separate rounds found. Round 2 added the nested
+half, because a well-formed Event card nests `performer`/`location`/`offers` items whose
+own `url`s are the artist's, the venue's and the vendor's pages. Round 8 added the
+ENCLOSING half, and it is the sharper of the two: three of the four capture strategies
+find cards structurally (`<article>`, a cardish class, `<li>`) and carry no microdata at
+all, so "no nested scope" is trivially true inside them and every `itemprop="url"` looked
+like a declaration — including one a half-finished template put on the ARTIST link. An
+`itemprop` means something only against its nearest enclosing item; with no item it is a
+property of nothing. That is r1's deleted convention walking back in wearing
+microdata, its FOURTH spelling. A fifth restriction was added on top and then REVERSED BY
+THE FOUNDER (2026-09-04): I had required a typed card to be an Event, which refused
+`<article itemscope itemtype=".../Person">` — exactly how an OFFICIAL PRESENTER's own
+page is marked up. Founder ruling, verbatim: "Official presenters are trusted doors:
+musician, chef, visual artist, professor, author, speaker, personality, company — any
+named person or group. A public list of upcoming work on their site is enough … Do not
+require a calendar UI or /events. Do not exclude those sites as sources. … Identity on
+the presenter's own page may use that page's Event.url / UID / per-item declaration."
+Coverage Law outranks this file on SCOPE, and an identity rule becomes a scope rule the
+moment it decides which sources can carry an identity. The item's TYPE is therefore not
+checked. The refusal the ruling DOES keep — a presenter homepage url standing in as
+another entity's listing_url on that entity's card — was already served by two mechanisms
+that never changed: an undeclared link is never read at all, and an address two cards on
+one page both declare is dropped from both. New red class `hygiene-narrows-coverage`: a
+tightening states which PUBLISHERS it removes, checked against Coverage Law, before it
+ships. ROUND 9 then found the same contradiction rule missing ONE SCOPE DOWN: `HTMLParser`
+preserves DUPLICATE attributes, so `<a itemprop="url" href=A href=B>` reached the dict
+comprehension and it silently kept the LAST value. `_attr_map` now reports a contradiction
+on any identity attribute (`href`, `content`, `itemprop`) and the CARD then states
+nothing; the same value twice is not a contradiction and is kept. Round 9's OTHER finding
+— a source-ownership/type invariant on Person-typed cards — is NOT actioned and is
+answered in the PR instead: it asks for exactly the rule the founder struck by name hours
+earlier, and OPERATING_RULES §3.5 is that gates ADVISE while the founder DECIDES. The
+tension is surfaced rather than resolved silently in either direction. ROUND 10 then found
+the same contradiction rule missing one AXIS over, and a second defect that was a
+DOCSTRING'S REASONING: `_itemprop_url_of` combined `href` and `content` with `or` (so one
+element stating both silently preferred href), and `_note_attrs` read the property before
+pushing the element's own `itemscope` on my round-2 claim that such an element "still
+states the card's url" — which the microdata spec contradicts outright, since with
+`itemprop` AND `itemscope` the property's value is the ITEM, not the href. Both fixed and
+both proven to fail without their gate; the second removes no publisher, because markup
+that opens an item on its url property is malformed by the spec's own reading. ROUND 11
+then produced a correction I owed the founder rather than a panel fix: checking the
+premise of the seat's (thrice-repeated, still-struck) type invariant showed that the one
+refusal the presenter ruling KEEPS — "a Person/presenter homepage url on another entity's
+card as listing_url for that card" — had NO mechanism, despite my having written in the PR
+body and the commit that it was "already served by two mechanisms that never changed". It
+was not: a venue card declaring an artist's homepage IS a declaration (round 1's rule never
+sees it) and each card names a different artist (`_drop_shared_identities` never sees it),
+so the homepage was accepted as the show's identity. `identity_address` now refuses a bare
+site ROOT in every spelling — no type check, the founder's own sentence, justified by
+reasoning this file already used for a page's own url. Blast radius zero publishers. ROUND 12 is the
+first round with NO code change: three seats APPROVE (including openai/absence-only, which
+blocked r11), and the one blocking seat NARROWED its finding, explicitly disclaiming the
+struck remedy — "not a request to reinstate an Event-only rule; it is the narrower missing
+validation that the non-Event declaration is actually the listing/presenter-owned item". It
+is not actioned, and the reason is sharper than "the founder struck it": the fact it asks
+for is WHOSE PAGE THIS IS, which `worker/segment.py` structurally cannot know (it receives a
+page's CONTENT, never its url). Every per-page approximation — card type, type homogeneity,
+path shape — is a heuristic, and heuristics in this exact position are what rounds 1-4
+deleted four times. Answered on the PR; the decision is the founder's. EVERY carrier goes through a validator, and
+after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
+an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
+`8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and
+round 7 made that a MEANING test rather than a shape test: the scheme must be in
+`SELF_NAMING_SCHEMES` (`http`, `https`, `urn`) with a non-empty remainder, so
+`urn:venue:the-deer` is kept while BOTH the page-relative `event-1` and the
+compact-IRI-shaped `event:8817` are refused — the first because an `@id` resolves against
+a document base this path does not have, the second because a compact IRI resolves
+against the document's `@context`, which this path never reads and `urlsplit` cannot
+distinguish from a real scheme — and
+`identity_address` for every url-valued carrier (segment's `href`, segment's
+`<meta content>`, the JSON-LD `url`), which adds the requirement that the value name a
+page INDEPENDENTLY — absolute, protocol-relative, or root-relative — under an ALLOW-LIST
+of schemes (`http`, `https`, or none). Round 5 inverted that check: a denylist let
+`ftp://` and `webcal://` through, because each has a host and so looked like an address. A page-relative
+`details` is refused because the segmenter has no page url to resolve it against, so the
+same string on two pages would compare equal. JSON-LD identity fields also take the HTML
+path's cardinality rule: several DIFFERENT values state none. Three conventions were tried
+and all three deleted at panel findings — heading anchor and sole link (round 1), and the
+container-is-an-anchor rung (round 4). Rounds 1-3 kept asking which carrier was missed;
+round 4 asks what a value must BE to serve as an identity, which is the question that
+stops the series. Nothing conventional — an undeclared `<a href>` is
+not counted, ranked or remembered. The first round of this build also read a card's
+heading anchor and a card's sole link, and the adversarial panel blocked both (round 1,
+head 189c56e, openai/attacker-smuggle and openai/absence-only on one defect from opposite
+lenses): an ordinary venue card links the ARTIST from its title as readily as the event,
+so a later tick reading the same address on a DIFFERENT occurrence would answer SAME and
+rewrite a published listing with another show's facts. The page-wide uniqueness pass does
+not cover that — it catches an address repeated on ONE page. The residual had been
+RECORDED (R-104) instead of fixed, which is the mistake R-096 stands as the lesson for;
+R-104 is now RESOLVED in this same PR by deleting both rungs.
+A relative href is stored VERBATIM as `source_href` (not resolved against a page url that
+segment is not given, and never invented) — which is exactly what `source_href` was
+documented in #217 to be.
+WHY: R-103 recorded the stack's honest headline: the ladder, the persist seam and the
+match preference all shipped in #217 with NO producer on the crawl path, so R-095/R-097/
+R-099/R-102 are unblocked in code and still open in effect. The measured reason was
+`worker/segment.py` reducing every block to TEXT: proved again on this branch before any
+edit — the three-card fixture's hrefs (`/events/8817-castle-creek`) are absent from the
+block string entirely, and a JSON-LD `@id` never appears at all, while `Event.url`
+survives only as prose the model may guess at. That is a segmentation defect, not an
+extraction one, so it is fixed where it happens.
+WHY-IT-MATTERS: the reason "no producer" matters is that it decides whether the identity
+stack is machinery or furniture. Until a source's own id reaches a candidate row, every
+match on the crawl path falls to the composite rung, and the composite rung licenses
+NOTHING — so a renamed show, a retimed series and a contested 8pm stay wrong on the public
+map exactly as they were before #217. Fixing it in segment is also the only fix that
+cannot launder a guess: the model's `ticket_link` remains not-an-identity, because the
+href we adopt is one the page's own markup attached to that listing.
+EXPECTED OUTCOMES: the before/after fixture proof (must-do 1); a card page whose listings
+DECLARE their own addresses producing three blocks with three DIFFERENT `source_href`s
+while the artist and vendor links in the same cards are refused; a JSON-LD page producing
+`listing_url` + `uid` with no model in the loop; the same page without hrefs still
+segmenting into three blocks, still storing no `_identity`, and still refusing every
+title/start_time write; the ordinary undeclared card (title link + Tickets link) likewise
+storing nothing; `tools/identity_capture_scan.py` re-run showing the class_b corpus
+unchanged at zero carriers (R-103's class-B half stays true and MEASURED). Armed-cron
+runtime files change (`worker/segment.py`, `worker/candidate_store.py`,
+`worker/identity.py`, `worker/importers/structured_feed.py`), so must-do 5's one dry
+2-source smoke is owed and is stated up front; the standing dry re-bind is for THIS PR
+only, and it WAS needed: the panel's round-1 fix edits `worker/segment.py`, so the first
+binding no longer covered the head. SPENT and recorded: run 33794455238 at head 5749c24
+($0.1119), the re-bind 33796653453 at head 3f02d95 (Stubb's Austin segmented into 82
+blocks, 50 extracted under the per-page cap with 32 deferred per R-043; 51 candidates,
+`passed: 2`, $0.5614), the re-bind 33799033633 at head 312d3ec after round 2 (60
+candidates, `passed: 1` + `held: 1` — Waterloo Greenway PASS beside Meetup HELD on
+"Insufficient corroboration (have 1; need 2)", the corroboration floor in live output;
+$0.3211), the re-bind 33815025433 at head 400429e after round 3 (78
+candidates, `passed: 2`, $0.2830; that rotation reached both shapes the capture reads —
+Stubb's 82-block HTML calendar and ACL Live, the one fixture source publishing a JSON-LD
+Event at all), the re-bind 33817652536 at head 8478681 after round 4 (75
+candidates, `passed: 2`, $0.4189), the re-bind 33819399578 at head 23418a9 after round 5
+(27 candidates, `passed: 2`, $0.1450), the re-bind 33821965150 at head dfe22e7 after
+round 6 (36 candidates, `passed: 1`, $0.2711; Emo's Austin — a venue no earlier binding
+reached — extracted and the AUDITED gate returned "PASS (trust gate); awaiting
+authenticated ops promote" beside The Contemporary Austin's live HTTP 304, and the tick
+printed TWELVE same-page-date refusals, the fail-closed date resolver refusing at volume
+on real markup rather than guessing a day), the re-bind 33823432627 at head 5aa70b0 after
+round 7 (7 candidates, `passed: 2`, $0.0405 — the tick that FIRST reached the
+event-proximity queue in eight bindings, Cap City Comedy Club on the EVENT queue, and the
+tick that printed `AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED` for Come and Take It
+Live: zero events from 53,598 characters, a flagged empty candidate recorded for ops
+rather than the source silently dropped), the re-bind 33825005901 at head 0592b9e after
+round 8 (26 candidates, `passed: 2`, $0.1310; Antone's Nightclub 24 and the George
+Washington Carver Museum 2, both gate PASS and verified "present", with SEVEN
+same-page-date refusals across the two), and after the FOUNDER RULING of 2026-09-04 the
+re-bind 33825792917 at head 6f0b45d, conclusion success — 2 sources, 2 fetches, 59
+candidates, `passed: 2`, 0 errors, `listings_updated: 0`, the dry writer disabled in the
+loop's own output, $0.2969. That rotation is the Coverage Law dimension the ruling is
+about: BOTH sources are non-music presenters no earlier binding reached — Waterloo
+Greenway Conservancy (a park conservancy, 48 candidates) and Zach Theatre (11) — both gate
+"PASS (trust gate); awaiting authenticated ops promote", both verified "present". Its
+THREE same-page-date refusals named BOTH ends (`start_time` AND `end_time` stored NULL
+with the raw values kept in provenance), a field pair earlier bindings had not shown. This
+dispatch sat PENDING ~11 minutes behind the SCHEDULED cron run 33825778700 on master,
+which entered the shared `ingest` concurrency group 14 seconds first; it was QUEUED rather
+than cancelled and ran on its own. After round 9 the re-bind 33828054270 at head 483b119, conclusion success —
+and it is WEAKER than the ten before it, said plainly rather than left in the numbers:
+BOTH doors answered HTTP 304 (The Parish Austin, Universe/Ticketmaster), so the tick made
+ZERO extract calls, wrote no candidate and returned no gate verdict. It binds that the
+runtime IMPORTS and EXECUTES — scheduler selected and reached 2 class-B sources, the
+conditional-request path fired on both, the skip-unchanged branch ran, dead-man green — and
+nothing wider is claimed. The capture seam's live demonstration remains the PREVIOUS
+binding 33825792917 at 6f0b45d, which differs from this head by exactly the round-9
+contradiction fix, a change that can only ever REFUSE an identity and never add one. Its
+cost printed as "unknown (the provider reported no token usage)" rather than $0.00 — the
+runtime declining to state a number it has no evidence for, which is correct. And after round 10 the re-bind 33829760499 at head
+41c6e2b, conclusion success — 2 sources, 2 fetches, 19 candidates, `passed: 1` + `held: 1`,
+0 errors, `listings_updated: 0`, $0.0711. That tick DOES exercise the capture seam again
+and shows BOTH gate branches at once: UMLAUF Sculpture Garden + Museum (another non-music
+presenter, 18 candidates) returned "PASS (trust gate); awaiting authenticated ops promote",
+verified "present", while Linktree returned "held" on "Insufficient corroboration (have 1;
+need 2)" with verified "no" — the corroboration floor refusing in live output on a
+link-aggregator page. It too sat PENDING ~10 minutes behind the scheduled cron and ran on
+its own. And after round 11 the re-bind 33831805118 at head
+298f9ed, conclusion success — 2 sources, 2 fetches, 1 candidate, `passed: 1`, 0 errors,
+$0.1112, 11.9s. The capture seam ran LIGHTLY this tick and that is said plainly: one
+candidate, from Fusebox Festival (another non-venue presenter), gate "PASS (trust gate);
+awaiting authenticated ops promote", verified "present". Its second source shows a skip
+path earlier bindings had not: The Saxon Pub returned a fresh 200 whose BODY FINGERPRINT
+matched the stored one ("body fingerprint unchanged (70370221d319...) — extraction
+skipped"), so the skip-unchanged branch fired on a content hash rather than a server HTTP
+304, with the model call correctly not spent. THIRTEEN bound runs, $2.76 in total. A TENTH run (33824676458) was dispatched under the same grant for
+round 8, SUCCEEDED, and never became the binding: the r8b fix changed worker/segment.py
+again before its evidence was recorded. Its spend was real and is on its own run page
+rather than retyped here, and it is excluded from the $2.28 — recorded so a paid-for run
+that never bound does not have to be inferred from a gap in the run list. BOTH SCOPE
+LIMITS APPLY TO THIS BINDING, and the first is stated carefully because it moved at run
+eight and moved back: this tick reached NO event-proximity page (both rows are `refresh`
+queue), so `worker/listing_update.adjudicate_page` did not run. Run 33823432627 reaching
+that queue is a fact about THAT tick's rotation, not a standing property, and is not
+carried forward as one. The second limit is unchanged throughout: whether any page's
+blocks CARRIED an identity is not visible in the run's own output and is therefore not
+claimed.
+Out of scope (Must-not): Tonight beauty, cadence, catalog-wide backfill crawl, a
+model-guessed `ticket_link` as identity, `worker/ai_extract.py`, and any URL not stated by
+the page itself.
+
+**Appendix — construction_gate Stage 3 citations (Operating Law rule 9: minimum the gate will accept):**
+[S3:contract-scope-violation] [S3:build-before-plan] [S3:governance-ambiguity] [S3:founder-path-unprobed] [S3:founder-verbatim-corrected] [S3:status-narration-not-progress] Scope is the founder's five Must-dos and the Must-not list; this contract was written to STATE.md before the first product edit. Must-do 4's STOP condition is honored the other way round from #57: the fixture WAS re-probed on this branch and it showed the block object itself (`raw_text`) already reaches `create_candidate` untouched, so `worker/ai_extract.py` is NOT required and is NOT opened. The founder's words are taken at their word — "existing identity.py" means the #217 module's own `ListingIdentity`/`read_identity`, not a new shape.
+[S3:weak-key-accepted-at-custody] [S3:missing-cardinality-check] [S3:destructive-normalization] [S3:swallowed-corrupt-data] [S3:semantic-claim-not-rederived] The central risk is adopting a URL that is not the listing's, and every rung refuses rather than guesses: no page url, no `ticket_link`, no minted hash, no relative-to-absolute resolution, and an AMBIGUOUS container (two or more distinct hrefs with nothing marking which is the listing's) yields NO identity rather than the first one found. Cardinality is asked directly by must-do 3's "two blocks two hrefs" test, and the no-href page pins that a hole stays a hole.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:untested-gate-branch] [S3:rule-stronger-than-mechanism] [S3:release-path-weaker-than-generation] No gate, threshold, workflow, reviewer binding, credential or `tools/` gate file is edited. This ticket LOOSENS nothing: it produces an input the #217 ladder already knew how to refuse, and every #214/#217 refusal is untouched. `worker/segment.py` and `worker/candidate_store.py` are outside `HARNESS_MANIFEST` and outside `tools/classify_extraction_surface._SURFACE_FILES` (checked, not assumed), so no certification hash moves.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:env-dependent-hermetic-test] [S3:volatile-safety-store] [S3:partial-write-whole-row] `IdentifiedBlock` never reaches the driver: `create_candidate` inserts `str(raw_text)`, so the `raw_text` column receives a plain `str` exactly as today (psycopg2 is not installed in this sandbox, so its subclass adaptation could not be verified — the coercion removes the question rather than asserting an answer). No migration, no new column, no new store.
+[S3:deferred-trust-work] [S3:records-sharing-one-trigger] [S3:stale-redclass-count] [S3:missing-record-read-as-state] R-103 is not closed by this PR and is not silently left either: its class-B half is re-measured with the committed scan and it stays open, because a producer that no page in the corpus feeds is still no producer THERE.
+[S3:malformed-ledger-row] [S3:stale-redclass-count] [S3:retyped-evidence] The Kaizen row for this PR's evaluator round is appended at the ledger's own APPEND POINT (the bottom), not at the top — the first attempt put it at the top and `kaizen_trends` immediately read the two OLDER occurrences as recurrences AFTER my structural fix, which is the malformed-row class in its most misleading form: a well-formed row in the wrong position makes the tool lie. It carries the full 9-part schema, its class tokens are the INDEXED ones (`deferred-trust-work`, `weak-key-accepted-at-custody`) rather than a freshly minted near-duplicate that would split the trend, and `docs/memory/RED_CLASSES.md` is REINFORCED in the same commit so the class the panel caught is retrievable by Stage 3 next time. Two candidate tokens were deliberately NOT written for the two self-caught defects: they are new shapes, not instances of an indexed class, and inflating a trend with near-misses makes the counts lie in the other direction. Every number here is the tools' own output (`kaizen_trends: CLEAN`, `reviewer_scorecard: #218 rounds-recorded=1 distinct-classes=2 round1-recall=100%`), pasted rather than retyped.
+[S3:fabricated-qualitative-copy] [S3:copy-outruns-registry] [S3:false-price-claim] [S3:deliverable-visual-qa] [S3:compounded-ground-contrast] Nothing user-facing changes: no copy, no price, no view contents, no layout. A crawled row's title and start_time are written only on the identity rung that #217 already gated.
+[S3:green-on-stale-base] [S3:pushed-on-red] [S3:retyped-evidence] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:stale-base-widens-range] Base is origin/master tip 3804a97 (the branch is cut from it at drift 0); no renumber script runs and `reconciled_through_commit` is untouched. Evidence is pasted from the tools' own output, never retyped.
+[S3:hygiene-narrows-coverage] The class this build CREATED, answered against this build: the only tightening left in the diff is round 8's "a declaration must have an enclosing item", and its blast radius is stated rather than assumed — it removes NO publisher, because a card with no `itemscope` never declared anything to begin with (an `itemprop` outside an item is a property of nothing, per the microdata spec), so nothing that was previously readable stops being readable. The one tightening that DID remove a class of publishers — requiring a typed card to be an Event, which cut official presenters' own pages — is reverted in this commit at the founder's ruling. Segmentation, block production and source selection are untouched by every rule in this PR: a refused identity never costs a listing, and no site is excluded as a source. Coverage Law checked in the direction it actually governs — which sources may carry an identity — not merely in the direction of what a value must be.
+[S3:grant-not-content-bound] Must-do 5's grant is one dry 2-source smoke, and it is spent as exactly that and no more: run 33794455238 at `max_sources=2`, `source_class=B`, `follow_pages_per_run=2`, `listing_update=dry`. THIRTEEN runs BOUND, each after a panel round or a founder ruling that edited a runtime-closure file: 33794455238 (5749c24), 33796653453 (3f02d95, after round 1), 33799033633 (312d3ec, after round 2), 33815025433 (400429e, after round 3), 33817652536 (8478681, after round 4), 33819399578 (23418a9, after round 5), 33821965150 (dfe22e7, after round 6), 33823432627 (5aa70b0, after round 7) 33825005901 (0592b9e, after round 8) 33825792917 (6f0b45d, after the founder's 2026-09-04 presenter ruling) 33828054270 (483b119, after round 9) 33829760499 (41c6e2b, after round 10) and 33831805118 (298f9ed, after round 11; run 33824676458 was dispatched for the same round against 5de06c7, succeeded, and was superseded by the r8b fix before it could bind — paid for, never binding, recorded in the evidence file rather than left as a gap). The founder re-armed the standing dry re-bind explicitly on 2026-09-03 — "one after each evaluator round that touches runtime. Stop asking each time" — so later rounds dispatch one without a fresh ask, and the same sentence bounds it: no armed run, no live-mutation wave, and no merge until the founder's own merge line with all seats APPROVE and the binding green on that head. An earlier dispatch (33793257593, head 01a3d15) was cancelled while still QUEUED — no job started, nothing spent — because the adversarial re-read found two defects in the very code it would have bound, and binding a one-run grant to a head about to be superseded would have consumed it for nothing; that cancellation is recorded in the evidence file rather than left to be inferred from a gap in the run list, the same reading PR #217 applied to its own cancelled dispatch. The standing dry re-bind covers later rounds of THIS PR only and authorizes no armed run and no merge.
+[S3:caller-suppliable-custody-inputs] [S3:fail-open-on-custody-misconfig] [S3:final-gate-trusts-generator] [S3:self-weakenable-review-model] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:workflow-tool-version-skew] No custody input becomes caller-suppliable: the identity a candidate carries is read off the BLOCK THE SEGMENTER CUT, not off anything a caller hands in — and the caller's own payload still wins when it states one, so no producer is demoted. Nothing here reads a credential, a model id, a workflow tool version or an env var, and no reviewer binding, threshold or gate file is touched; the segmenter is pure stdlib and its one new import (`worker/identity.py`) is pure too. The misconfiguration direction is closed by construction rather than by a check: an unreadable, ambiguous or absent address yields NO identity, which is the same state the tree was in before this ticket.
+[S3:nonfinite-decimal-accepted] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:stale-live-incident-state] [S3:stalled-state-needs-active-diagnosis] No numeric or Decimal value is parsed, compared or written anywhere in this change — the capture compares opaque strings and urls only — and no query, cursor or page boundary moves. The sandbox's five red certification tests and its missing deps were DIAGNOSED rather than waited on or reported as this diff's failures: `git fetch --unshallow` (the same diagnosis Contract #56 and #57 recorded) and installing `worker/requirements.txt` at its exact pins made all of them green, and the one remaining red — the arming smoke binding — is this change's own and is named up front, not discovered later.
+[S3:featurability-dimension-missed] [S3:parallel-record-id-collision] The consumer dimension was asked rather than assumed: an adopted `source_href` can license a `title`/`start_time` write that reaches the card and the detail page, which is exactly why the conventional rungs are bounded by the page-wide uniqueness pass and why their residual is R-104 rather than a footnote. R-104 is the next free id on a branch cut from origin/master tip 3804a97 at drift 0; no renumber script runs.
+
 ## Session Contract #57 (2026-09-03, founder — "identity stack (adopt, then composite, then refuse)", branch claude/identity-stack-happenings-66apvi) — OPEN
 
 STATUS: OPEN

@@ -4,6 +4,67 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-03 — And now a crawled page can give us that id itself
+
+Yesterday's entry ends on an honest limit: the machinery for a listing's own id
+was built, and nothing on the venue-calendar path could produce one. The reason
+was small and fixable. When we split a calendar page into one chunk per show, we
+kept the words and threw away the markup — so the link a venue puts on each
+show's own title, and the id a page states in machine-readable form, were both
+discarded before anything downstream could see them.
+
+Each chunk now remembers the address its own markup gave it, and hands it along
+to the saved listing. Nothing about the text changes: the part that reads a show
+out of a page receives exactly the characters it received before, so nothing
+about extraction moved.
+
+What we will and will not treat as an id is the whole of the care here, and one
+of those lines was drawn for us, several times over. Only a show whose page
+EXPLICITLY LABELS its own address is taken at its word. Everything else is not.
+
+We first also read the everyday card by convention: a title that links somewhere,
+plus a "Tickets" button, and we took the title's link as the show's. Our
+independent reviewers stopped that, and they were right. A venue's title link
+points at the ARTIST as often as at the show, and an artist comes back next month
+— so a later check would have seen the same address on a different night, decided
+it was the same show, and rewritten a published listing with the wrong night's
+details. We had written that risk down and shipped it anyway; writing a risk down
+is not the same as fixing it, and that is the second time that lesson has cost us
+a round. Three more rounds followed, each finding another shape of the same
+mistake: a link that only makes sense on the page it was found on, an address
+form nobody had thought to exclude, a whole card that happens to be a link. Each
+was deleted rather than argued with. What remains is one narrow rule, narrow on
+purpose — a page must say "this is this show's address" before we believe it.
+
+A fourth round found the same mistake wearing different clothes on the
+machine-readable side. A page can print a show's id as a bare word — "event-1",
+"details" — which means one thing on that page and something else entirely on
+the next page of the same site. We had been keeping those, and two identical
+bare words from two different pages would have looked like one show. An id has
+to NAME something on its own now: a full web address, or one of the permanent
+names a calendar system issues, but never a word that only has meaning where it
+was printed. That is a different demand from the one we make of an address — an
+address has to be something you can actually open, while an id only has to be
+unmistakable — so the two are now asked different questions instead of sharing
+one. Getting that distinction wrong in the OTHER direction was caught by our own
+tests mid-fix: the first attempt demanded that an id be openable too, which
+would have thrown away the permanent names published by exactly those calendars
+whose shows have no individual pages — the case this whole feature was built
+for.
+
+The rest of the care stands. Where two shows on one page point at the SAME
+address, that address describes something they share and not either of them, so
+it is dropped from both. A page's own web address is never a show's, because
+every show on it would then look like the same show. And the AI's guess at a
+ticket link is still not an id — that has not changed and will not.
+
+Where this leaves things, measured rather than assumed: the same scan over the
+same 24 saved pages finds zero ids of any kind — no labelled addresses, and no
+links inside listing cards at all — so those calendars behave today exactly as
+they did yesterday, and narrowing what we accept cost no capture we were actually
+getting. What is different is that a venue that publishes its own ids now gets
+the benefit with no further work from us.
+
 ## 2026-09-03 — A listing can now carry the id its own source gave it
 
 Until now, deciding "is this listing on the page the row we published?" had two
