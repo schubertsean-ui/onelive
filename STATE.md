@@ -48,9 +48,14 @@ the artist's, the venue's and the vendor's pages, which is r1's deleted conventi
 walking back in wearing microdata. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
-`8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF (any
-absolute IRI, so `urn:venue:the-deer` is kept, but never a page-relative `event-1`,
-because an `@id` resolves against a document base this path does not have), and
+`8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and
+round 7 made that a MEANING test rather than a shape test: the scheme must be in
+`SELF_NAMING_SCHEMES` (`http`, `https`, `urn`) with a non-empty remainder, so
+`urn:venue:the-deer` is kept while BOTH the page-relative `event-1` and the
+compact-IRI-shaped `event:8817` are refused — the first because an `@id` resolves against
+a document base this path does not have, the second because a compact IRI resolves
+against the document's `@context`, which this path never reads and `urlsplit` cannot
+distinguish from a real scheme — and
 `identity_address` for every url-valued carrier (segment's `href`, segment's
 `<meta content>`, the JSON-LD `url`), which adds the requirement that the value name a
 page INDEPENDENTLY — absolute, protocol-relative, or root-relative — under an ALLOW-LIST

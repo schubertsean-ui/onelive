@@ -357,9 +357,16 @@ def test_the_jsonld_carrier_answers_to_the_same_checks_as_the_html_one():
     # a `url` has to be fetchable, so they do not share a scheme rule. A
     # calendar whose events have no separate pages states exactly this.
     assert jsonld_identity({"@id": "urn:uuid:abc"}).uid == "urn:uuid:abc"
+    # ROUND 7: a COMPACT IRI is not self-naming. `event:8817` means whatever
+    # the document's `@context` says `event` is, and this path never sees the
+    # context — `urlsplit` reports a scheme for it exactly as for a real IRI,
+    # so "has a scheme" readmits the property round 6 closed.
+    assert jsonld_identity({"@id": "event:8817"}).uid is None
+    assert jsonld_identity({"@id": "schema:Event"}).uid is None
     # An unusable @id does not suppress a usable identifier beside it: they are
-    # two fields, and the source stated both.
+    # two fields, and the source stated both. True of a compact one too.
     assert jsonld_identity({"@id": "details", "identifier": "8818"}).uid == "8818"
+    assert jsonld_identity({"@id": "event:1", "identifier": "8818"}).uid == "8818"
     # Several DIFFERENT values is a contradiction; the same value twice is not.
     assert jsonld_identity({"url": ["https://a/1", "https://b/2"]}) == NO_IDENTITY
     assert jsonld_identity({"identifier": ["x", "y"]}) == NO_IDENTITY
@@ -468,6 +475,41 @@ def test_only_a_web_scheme_can_be_a_listings_address():
     assert identity_token("8818") == "8818"
     assert identity_token("abc123@venue.example") == "abc123@venue.example"
     assert identity_iri("8818") is None
+
+
+def test_an_at_id_must_name_itself_not_merely_carry_a_colon():
+    """ROUND 7 — the door asks whether a value NAMES ITSELF, and "has a scheme"
+    is not that question.
+
+    In JSON-LD a `prefix:suffix` token is a COMPACT IRI whenever the active
+    `@context` defines `prefix` as a term, so `event:8817` denotes whatever
+    that context maps `event` to. Nothing on this path reads `@context`, and
+    `urlsplit` reports a scheme for a compact IRI exactly as it does for an
+    absolute one — so an accept-anything-with-a-colon rule silently readmits
+    the round-6 property: a value whose meaning is decided somewhere this code
+    cannot see. The scheme is checked against an allow-list instead, the same
+    shape round 5 gave `identity_address`, because "which schemes mean the same
+    thing in every context?" is a closed question and "which do not?" is not.
+    """
+    # Self-naming in every context: the web schemes, and URNs — the form a
+    # calendar with no per-event pages publishes, which round 6 exists to keep.
+    for kept in ("https://v.example/id/1", "http://v.example/id/1",
+                 "urn:uuid:abc", "urn:venue:the-deer-2026-09-15",
+                 "//v.example/id/1", "/id/1"):
+        assert identity_iri(kept) == kept, kept
+    # Compact-IRI shaped: refused, whatever the prefix looks like.
+    for refused in ("event:8817", "schema:Event", "ev:1", "x:y"):
+        assert identity_iri(refused) is None, refused
+    # A scheme with nothing after it names nothing at all.
+    for empty in ("http:", "https:", "urn:"):
+        assert identity_iri(empty) is None, empty
+    # The scheme check is case-insensitive, like every other scheme rule here,
+    # but the VALUE is never folded — a uid is compared verbatim.
+    assert identity_iri("URN:uuid:abc") == "URN:uuid:abc"
+    # And the three doors still disagree in the ways they are meant to: a URN
+    # names but is not fetchable; an opaque id is neither; a web url is both.
+    assert identity_address("urn:uuid:abc") is None
+    assert identity_iri("8818") is None and identity_token("8818") == "8818"
 
 
 def test_a_nested_item_stays_closed_through_same_tag_nesting():

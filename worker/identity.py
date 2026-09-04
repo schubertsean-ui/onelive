@@ -138,10 +138,11 @@ class ListingIdentity:
 
     * `uid` — the source's own id: an ICS `UID`, a JSON-LD `identifier`, or a
       JSON-LD `@id` that NAMES ITSELF (an `@id` is an IRI against the document
-      base, so a page-relative one is refused while a URN is kept — see
-      `jsonld_identity`). Compared verbatim (case-SENSITIVE): a UID is an
-      opaque token and folding its case would merge two ids a source
-      deliberately distinguished.
+      base AND may be a compact IRI against the document's `@context`, so a
+      page-relative one and a compact-IRI-shaped one are both refused while a
+      URN is kept — see `jsonld_identity`). Compared verbatim
+      (case-SENSITIVE): a UID is an opaque token and folding its case would
+      merge two ids a source deliberately distinguished.
     * `listing_url` — the listing's own address, as the source published it
       (an ICS `URL`, a schema.org `Event.url`, a claimant's row url).
     * `source_href` — the listing's anchor on the page it was read from, as
@@ -295,6 +296,18 @@ NON_ADDRESS_SCHEMES: Tuple[str, ...] = (
 #: `identity_address`, where a denylist let `ftp://` and `webcal://` through.
 WEB_SCHEMES: Tuple[str, ...] = ("http", "https")
 
+#: The schemes an `@id` can NAME ITSELF with. Also an allow-list, and for a
+#: sharper reason than `identity_address`'s: in JSON-LD a `prefix:suffix` token
+#: is a COMPACT IRI whenever the active `@context` defines `prefix` as a term,
+#: and it then means whatever that context says — `event:8817` under one
+#: context and the same string under another are two different resources.
+#: `urlsplit` cannot tell a compact IRI from an absolute one (both report a
+#: scheme), and nothing on this path reads `@context`, so "does it have a
+#: scheme?" is the wrong question: these are the schemes that mean the same
+#: thing no matter what context surrounds them. Everything else is treated as
+#: possibly-compact and REFUSED — fail closed, per the round-7 finding.
+SELF_NAMING_SCHEMES: Tuple[str, ...] = WEB_SCHEMES + ("urn",)
+
 
 def identity_token(value: Any) -> Optional[str]:
     """An OPAQUE id a source stated, or None. For `uid` only.
@@ -339,16 +352,33 @@ def identity_iri(value: Any) -> Optional[str]:
 
     But it does not belong in `identity_address` either, and the difference is
     the point: a `url` must be FETCHABLE, so its scheme is restricted to the
-    web; an `@id` only has to NAME something, so any absolute IRI qualifies —
-    including `urn:venue:the-deer-2026-09-15`, which a calendar whose events
-    have no separate pages uses precisely because it is stable and belongs to
-    nobody's page. Refusing that would have thrown away the case
-    `tests/test_identity_stack.py` was built for, which is how this rule was
-    caught being too strict before it shipped.
+    web; an `@id` only has to NAME something, so `urn:venue:the-deer-2026-09-15`
+    qualifies — a calendar whose events have no separate pages uses exactly that
+    because it is stable and belongs to nobody's page. Refusing it would have
+    thrown away the case `tests/test_identity_stack.py` was built for, which is
+    how this rule was caught being too strict before it shipped.
 
-    Accepted: any absolute IRI (a scheme), the protocol-relative form (a
-    host), and a root-relative path. Refused: anything page-relative, plus
-    everything `identity_token` already refuses.
+    "Names itself" is a stronger demand than "has a scheme", and round 7 is why
+    the two were not the same question. In JSON-LD a `prefix:suffix` token is a
+    COMPACT IRI whenever the active `@context` defines `prefix`, so `event:8817`
+    means whatever that context says it means — and this path never sees the
+    context. `urlsplit` reports a scheme for it exactly as it does for a real
+    IRI, so an accept-anything-with-a-colon rule silently readmits the very
+    property round 6 closed: a value whose meaning is decided elsewhere. The
+    scheme is therefore checked against `SELF_NAMING_SCHEMES`, and anything
+    outside it is treated as possibly-compact and refused.
+
+    The residual, named rather than implied: a context MAY define `urn` (or
+    `http`) as a prefix term, which would make even an allow-listed value
+    compact. That is a source deliberately publishing an id that means one
+    thing and reads as another — the same "a source we cannot believe" class as
+    a source publishing one constant id for every show, which no per-value rule
+    can detect either. It is not what this door claims to close.
+
+    Accepted: an allow-listed scheme WITH a non-empty remainder (`http:` names
+    nothing), the protocol-relative form (a host), and a root-relative path.
+    Refused: page-relative values, compact-IRI-shaped values, plus everything
+    `identity_token` already refuses.
     """
     raw = identity_token(value)
     if raw is None:
@@ -357,7 +387,12 @@ def identity_iri(value: Any) -> Optional[str]:
         parts = urllib.parse.urlsplit(raw)
     except ValueError:
         return None
-    if parts.scheme or parts.netloc:
+    if parts.scheme:
+        if parts.scheme.lower() not in SELF_NAMING_SCHEMES:
+            return None
+        # A scheme alone names nothing: `http:` and `urn:` are not ids.
+        return raw if (parts.netloc or parts.path) else None
+    if parts.netloc:
         return raw
     if raw.startswith("/"):
         return raw
@@ -485,10 +520,12 @@ def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     # Three carriers, three kinds, three doors — and the round-6 finding was
     # that `@id` and `identifier` had been sharing one:
     #   url        must be FETCHABLE   -> identity_address (web schemes only)
-    #   @id        must NAME ITSELF    -> identity_iri (any absolute IRI, or
-    #                                     root-relative; never page-relative,
-    #                                     because an @id resolves against the
-    #                                     document base and this path has none)
+    #   @id        must NAME ITSELF    -> identity_iri (a self-naming scheme,
+    #                                     protocol- or root-relative; never
+    #                                     page-relative and never compact-IRI
+    #                                     shaped, because an @id resolves
+    #                                     against a document base AND an
+    #                                     @context this path never sees)
     #   identifier is OPAQUE           -> identity_token (`8818` is a fine id)
     uid = identity_iri(_ld_single(obj.get("@id")))
     if uid is None:
