@@ -111,3 +111,18 @@ def test_state_block_roundtrip():
     rewritten = sr.write_state_block(written, snap2)
     assert rewritten.count(sr.BEGIN) == 1
     assert sr.read_state_block(rewritten) == snap2
+
+
+def test_a_snapshot_carrying_ordinary_prose_does_not_crash_the_heal():
+    r"""An em-dash in the narrative must not blow up the session bookend.
+
+    `json.dumps` writes non-ASCII as `\uXXXX`, and `re.sub` reads backslash
+    sequences in a REPLACEMENT STRING as escapes — so a single em-dash anywhere
+    in the snapshot raised `re.error: bad escape \u` and took the whole `--heal`
+    ritual with it. Every session's STATE narrative has one.
+    """
+    text = "# STATE\n\n" + sr.BEGIN + "\n```json\n{}\n```\n" + sr.END + "\n"
+    snap = {"note": "closed — merged, evaluator APPROVE", "ref": r"C:\path\to"}
+    rewritten = sr.write_state_block(text, snap)
+    assert sr.read_state_block(rewritten) == snap
+    assert rewritten.count(sr.BEGIN) == 1

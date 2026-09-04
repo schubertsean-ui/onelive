@@ -148,7 +148,12 @@ def write_state_block(text, snapshot):
              "\n```\n" + END)
     pattern = re.escape(BEGIN) + r".*?" + re.escape(END)
     if re.search(pattern, text, re.DOTALL):
-        return re.sub(pattern, block, text, flags=re.DOTALL)
+        # A FUNCTION, not a template string: re.sub reads backslash sequences in
+        # a replacement string as escapes, and json.dumps writes `\uXXXX` for
+        # every non-ASCII character. A single em-dash anywhere in the snapshot
+        # therefore crashed the heal with `bad escape \u` — the session bookend
+        # CLAUDE.md prime directive 2 requires, failing on ordinary prose.
+        return re.sub(pattern, lambda _match: block, text, flags=re.DOTALL)
     # Insert after the first heading line.
     lines = text.splitlines()
     insert_at = 1 if lines and lines[0].startswith("#") else 0
