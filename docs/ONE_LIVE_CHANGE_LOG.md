@@ -36,6 +36,22 @@ form nobody had thought to exclude, a whole card that happens to be a link. Each
 was deleted rather than argued with. What remains is one narrow rule, narrow on
 purpose — a page must say "this is this show's address" before we believe it.
 
+A fourth round found the same mistake wearing different clothes on the
+machine-readable side. A page can print a show's id as a bare word — "event-1",
+"details" — which means one thing on that page and something else entirely on
+the next page of the same site. We had been keeping those, and two identical
+bare words from two different pages would have looked like one show. An id has
+to NAME something on its own now: a full web address, or one of the permanent
+names a calendar system issues, but never a word that only has meaning where it
+was printed. That is a different demand from the one we make of an address — an
+address has to be something you can actually open, while an id only has to be
+unmistakable — so the two are now asked different questions instead of sharing
+one. Getting that distinction wrong in the OTHER direction was caught by our own
+tests mid-fix: the first attempt demanded that an id be openable too, which
+would have thrown away the permanent names published by exactly those calendars
+whose shows have no individual pages — the case this whole feature was built
+for.
+
 The rest of the care stands. Where two shows on one page point at the SAME
 address, that address describes something they share and not either of them, so
 it is dropped from both. A page's own web address is never a show's, because
