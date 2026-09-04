@@ -14,7 +14,9 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #63 (2026-09-04, founder — "Do512 dump + map + coverage table", branch claude/do512-dump-map-coverage-ue3vqf) — OPEN
 
-STATUS: OPEN — building.
+STATUS: OPEN — delivered and pushed; PR #224 opened as DRAFT
+(https://github.com/schubertsean-ui/onelive/pull/224), subscribed for CI/review
+events. NOT merged: the founder's word is required ("Do not merge until I say so").
 WHAT: Walk the pack door `do512-today` as ONE desk instance across its whole
 public dated list; commit `sources/kind_maps/do512.json` (their category -> our
 kind | other); print the pages / categories / coverage tables from the existing
