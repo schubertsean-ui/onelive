@@ -560,53 +560,62 @@ def test_a_card_that_declares_itself_an_item_is_still_read():
 
 
 
-def test_a_card_whose_item_is_somebody_else_declares_nothing():
-    """Requiring an item is necessary and NOT sufficient — the item can be
-    somebody else's.
+def test_a_presenter_s_own_page_may_declare_its_own_listings():
+    """FOUNDER RULING 2026-09-04 — an official presenter is a TRUSTED DOOR.
 
-    `<article itemscope itemtype="https://schema.org/Person">` is exactly how
-    an artist is marked up, and a roster page with tour dates segments that
-    way: strategy 2 finds no Event itemtype, so strategy 3 captures the
-    `<article>` — which IS an item, so round 8's gate passes it. But its `url`
-    is the ARTIST's page, and adopting it puts us back where round 1 started:
-    the next occurrence by that artist answers SAME and licenses a write onto
-    the wrong published row.
+    Verbatim: "Official presenters are trusted doors: musician, chef, visual
+    artist, professor, author, speaker, personality, company — any named person
+    or group. A public list of upcoming work on their site is enough (Home,
+    About, Tour, 'upcoming', plain text). Do not require a calendar UI or
+    /events. Do not exclude those sites as sources. … Identity on the
+    presenter's own page may use that page's Event.url / UID / per-item
+    declaration."
 
-    A card that says WHAT it is must say Event. A card that declares
-    `itemscope` and no type is the listing itself — pinned below, because this
-    rule must refuse impostors without refusing untyped microdata.
+    This REVERSED a stricter rule this file carried for about an hour, which
+    required a typed card to be an Event and so refused
+    `<article itemscope itemtype=".../Person">` outright. That narrowed the
+    catalogue, which Coverage Law forbids, so the item's TYPE is not checked.
+
+    What the ruling still refuses is narrower: "using a Person/presenter
+    homepage url on ANOTHER entity's card as listing_url for that card." Both
+    halves are pinned here.
     """
-    roster = (
-        "<html><body>"
+    presenter = (
+        "<html><body><h1>Castle Creek — upcoming</h1>"
         '<article class="event" itemscope itemtype="https://schema.org/Person">'
-        '<h2><a itemprop="url" href="/artists/castle-creek">Castle Creek</a></h2>'
-        "<p>Fri Aug 1, 8pm — Wren Hall</p></article>"
+        '<h2><a itemprop="url" href="/upcoming/8817">Wren Hall</a></h2>'
+        "<p>Fri Aug 1, 8pm</p></article>"
         '<article class="event" itemscope itemtype="https://schema.org/Person">'
-        '<h2><a itemprop="url" href="/artists/river-delta">River Delta</a></h2>'
-        "<p>Sat Aug 2, 9pm — Wren Hall</p></article>"
-        "</body></html>"
-    )
-    blocks = segment_events(roster, content_type="text/html")
-    assert len(blocks) == 2
-    for block in blocks:
-        assert carried_identity(block) == NO_IDENTITY, str(block)
-
-    # THE OTHER DIRECTION, because round 6 shipped an over-correction and only
-    # an existing test caught it: an item that declares no type is the card
-    # itself, so its declared url IS the listing's and is still adopted.
-    untyped = (
-        "<html><body>"
-        '<article class="event" itemscope><h2>Castle Creek</h2>'
-        "<p>Fri Aug 1, 8pm — Wren Hall</p>"
-        '<a itemprop="url" href="/events/1">details</a></article>'
-        '<article class="event" itemscope><h2>River Delta</h2>'
-        "<p>Sat Aug 2, 9pm — Wren Hall</p>"
-        '<a itemprop="url" href="/events/2">details</a></article>'
+        '<h2><a itemprop="url" href="/upcoming/8818">Tin Roof</a></h2>'
+        "<p>Sat Aug 2, 9pm</p></article>"
         "</body></html>"
     )
     kept = [carried_identity(b).source_href
-            for b in segment_events(untyped, content_type="text/html")]
-    assert kept == ["/events/1", "/events/2"]
+            for b in segment_events(presenter, content_type="text/html")]
+    assert kept == ["/upcoming/8817", "/upcoming/8818"]
+
+    # THE HALF STILL REFUSED: one address standing in for more than one
+    # listing. That is the shape "a presenter homepage url on another entity's
+    # card" takes on a page — it describes what the cards SHARE, so it
+    # identifies neither, and it is dropped from both rather than adopted.
+    shared = presenter.replace("/upcoming/8818", "/upcoming/8817")
+    assert [carried_identity(b).source_href
+            for b in segment_events(shared, content_type="text/html")] == [None, None]
+
+    # And an UNDECLARED artist link on a venue's card is still nothing at all —
+    # round 1's rule, untouched by this ruling: there is no declaration to read.
+    venue = (
+        "<html><body>"
+        '<article class="event" itemscope itemtype="https://schema.org/MusicEvent">'
+        '<h2><a href="/artists/castle-creek">Castle Creek</a></h2>'
+        "<p>Fri Aug 1, 8pm — Wren Hall</p></article>"
+        '<article class="event" itemscope itemtype="https://schema.org/MusicEvent">'
+        '<h2><a href="/artists/river-delta">River Delta</a></h2>'
+        "<p>Sat Aug 2, 9pm — Wren Hall</p></article>"
+        "</body></html>"
+    )
+    for block in segment_events(venue, content_type="text/html"):
+        assert carried_identity(block) == NO_IDENTITY, str(block)
 
 
 def test_a_nested_item_stays_closed_through_same_tag_nesting():

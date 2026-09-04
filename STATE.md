@@ -50,13 +50,23 @@ find cards structurally (`<article>`, a cardish class, `<li>`) and carry no micr
 all, so "no nested scope" is trivially true inside them and every `itemprop="url"` looked
 like a declaration — including one a half-finished template put on the ARTIST link. An
 `itemprop` means something only against its nearest enclosing item; with no item it is a
-property of nothing. Requiring an item is necessary and NOT sufficient, though, and that
-was SELF-CAUGHT while writing round 8's ledger row: the item can be somebody else's.
-`<article itemscope itemtype=".../Person">` is how an artist is marked up and a roster
-page with tour dates segments that way, so a card that says WHAT it is must say Event,
-while a card declaring `itemscope` and no type is the listing itself and is still read.
-All of these are r1's deleted convention walking back in wearing microdata — its fourth
-and fifth spellings. EVERY carrier goes through a validator, and
+property of nothing. That is r1's deleted convention walking back in wearing
+microdata, its FOURTH spelling. A fifth restriction was added on top and then REVERSED BY
+THE FOUNDER (2026-09-04): I had required a typed card to be an Event, which refused
+`<article itemscope itemtype=".../Person">` — exactly how an OFFICIAL PRESENTER's own
+page is marked up. Founder ruling, verbatim: "Official presenters are trusted doors:
+musician, chef, visual artist, professor, author, speaker, personality, company — any
+named person or group. A public list of upcoming work on their site is enough … Do not
+require a calendar UI or /events. Do not exclude those sites as sources. … Identity on
+the presenter's own page may use that page's Event.url / UID / per-item declaration."
+Coverage Law outranks this file on SCOPE, and an identity rule becomes a scope rule the
+moment it decides which sources can carry an identity. The item's TYPE is therefore not
+checked. The refusal the ruling DOES keep — a presenter homepage url standing in as
+another entity's listing_url on that entity's card — was already served by two mechanisms
+that never changed: an undeclared link is never read at all, and an address two cards on
+one page both declare is dropped from both. New red class `hygiene-narrows-coverage`: a
+tightening states which PUBLISHERS it removes, checked against Coverage Law, before it
+ships. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and
@@ -134,25 +144,30 @@ round 6 (36 candidates, `passed: 1`, $0.2711; Emo's Austin — a venue no earlie
 reached — extracted and the AUDITED gate returned "PASS (trust gate); awaiting
 authenticated ops promote" beside The Contemporary Austin's live HTTP 304, and the tick
 printed TWELVE same-page-date refusals, the fail-closed date resolver refusing at volume
-on real markup rather than guessing a day), and after round 7 the re-bind 33823432627 at
-head 5aa70b0, conclusion success — 2 sources, 2 fetches, 7 candidates, `passed: 2`, 0
-errors, `listings_updated: 0`, the dry writer disabled in the loop's own output, $0.0405.
-Eight executed runs, $2.15 in total, each after a panel round that edited a
-runtime-closure file. ONE OF THE TWO SCOPE LIMITS CHANGED AT RUN EIGHT and it is stated
-plainly rather than left to be noticed: for the FIRST time in eight bindings the tick
-plan reported `1 event-proximity page(s)` and Cap City Comedy Club was fetched on the
-EVENT queue (6 candidates, gate PASS, verified "present"), so the event-proximity path is
-now bound as executing on this head. What is still NOT claimed is that
-`worker/listing_update.adjudicate_page` itself ran — that needs published rows for the
-same `source_id` AND `source_url`, and the run's output says nothing either way, so it is
-left unclaimed rather than inferred (`listings_updated: 0` is consistent with both
-readings and with the dry writer, so it is not evidence for either). The other limit is
-unchanged: whether any page's blocks CARRIED an identity is not visible in the run's own
-output and is therefore not claimed. Also live on this tick, and recorded because it is a
-fail-LOUD path firing on real data: Come and Take It Live returned zero events from
-53,598 characters of page text and the runtime printed
-`AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED`, recording a flagged empty candidate for
-ops rather than silently dropping the source.
+on real markup rather than guessing a day), the re-bind 33823432627 at head 5aa70b0 after
+round 7 (7 candidates, `passed: 2`, $0.0405 — the tick that FIRST reached the
+event-proximity queue in eight bindings, Cap City Comedy Club on the EVENT queue, and the
+tick that printed `AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED` for Come and Take It
+Live: zero events from 53,598 characters, a flagged empty candidate recorded for ops
+rather than the source silently dropped), and after round 8 the re-bind 33825005901 at
+head 0592b9e, conclusion success — 2 sources, 2 fetches, 26 candidates, `passed: 2`, 0
+errors, `listings_updated: 0`, the dry writer disabled in the loop's own output, $0.1310.
+That rotation reached TWO venues no earlier binding had (Antone's Nightclub 24 candidates,
+George Washington Carver Museum 2), both gate "PASS (trust gate); awaiting authenticated
+ops promote", both verified "present", with SEVEN same-page-date refusals across the two —
+the fail-closed date resolver now seen refusing on a third and fourth source. NINE bound
+runs, $2.28 in total. A TENTH run (33824676458) was dispatched under the same grant for
+round 8, SUCCEEDED, and never became the binding: the r8b fix changed worker/segment.py
+again before its evidence was recorded. Its spend was real and is on its own run page
+rather than retyped here, and it is excluded from the $2.28 — recorded so a paid-for run
+that never bound does not have to be inferred from a gap in the run list. BOTH SCOPE
+LIMITS APPLY TO THIS BINDING, and the first is stated carefully because it moved at run
+eight and moved back: this tick reached NO event-proximity page (both rows are `refresh`
+queue), so `worker/listing_update.adjudicate_page` did not run. Run 33823432627 reaching
+that queue is a fact about THAT tick's rotation, not a standing property, and is not
+carried forward as one. The second limit is unchanged throughout: whether any page's
+blocks CARRIED an identity is not visible in the run's own output and is therefore not
+claimed.
 Out of scope (Must-not): Tonight beauty, cadence, catalog-wide backfill crawl, a
 model-guessed `ticket_link` as identity, `worker/ai_extract.py`, and any URL not stated by
 the page itself.
@@ -166,7 +181,8 @@ the page itself.
 [S3:malformed-ledger-row] [S3:stale-redclass-count] [S3:retyped-evidence] The Kaizen row for this PR's evaluator round is appended at the ledger's own APPEND POINT (the bottom), not at the top — the first attempt put it at the top and `kaizen_trends` immediately read the two OLDER occurrences as recurrences AFTER my structural fix, which is the malformed-row class in its most misleading form: a well-formed row in the wrong position makes the tool lie. It carries the full 9-part schema, its class tokens are the INDEXED ones (`deferred-trust-work`, `weak-key-accepted-at-custody`) rather than a freshly minted near-duplicate that would split the trend, and `docs/memory/RED_CLASSES.md` is REINFORCED in the same commit so the class the panel caught is retrievable by Stage 3 next time. Two candidate tokens were deliberately NOT written for the two self-caught defects: they are new shapes, not instances of an indexed class, and inflating a trend with near-misses makes the counts lie in the other direction. Every number here is the tools' own output (`kaizen_trends: CLEAN`, `reviewer_scorecard: #218 rounds-recorded=1 distinct-classes=2 round1-recall=100%`), pasted rather than retyped.
 [S3:fabricated-qualitative-copy] [S3:copy-outruns-registry] [S3:false-price-claim] [S3:deliverable-visual-qa] [S3:compounded-ground-contrast] Nothing user-facing changes: no copy, no price, no view contents, no layout. A crawled row's title and start_time are written only on the identity rung that #217 already gated.
 [S3:green-on-stale-base] [S3:pushed-on-red] [S3:retyped-evidence] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:stale-base-widens-range] Base is origin/master tip 3804a97 (the branch is cut from it at drift 0); no renumber script runs and `reconciled_through_commit` is untouched. Evidence is pasted from the tools' own output, never retyped.
-[S3:grant-not-content-bound] Must-do 5's grant is one dry 2-source smoke, and it is spent as exactly that and no more: run 33794455238 at `max_sources=2`, `source_class=B`, `follow_pages_per_run=2`, `listing_update=dry`. EIGHT runs executed, each after a panel round that edited a runtime-closure file: 33794455238 (5749c24), 33796653453 (3f02d95, after round 1), 33799033633 (312d3ec, after round 2), 33815025433 (400429e, after round 3), 33817652536 (8478681, after round 4), 33819399578 (23418a9, after round 5), 33821965150 (dfe22e7, after round 6) and 33823432627 (5aa70b0, after round 7). The founder re-armed the standing dry re-bind explicitly on 2026-09-03 — "one after each evaluator round that touches runtime. Stop asking each time" — so later rounds dispatch one without a fresh ask, and the same sentence bounds it: no armed run, no live-mutation wave, and no merge until the founder's own merge line with all seats APPROVE and the binding green on that head. An earlier dispatch (33793257593, head 01a3d15) was cancelled while still QUEUED — no job started, nothing spent — because the adversarial re-read found two defects in the very code it would have bound, and binding a one-run grant to a head about to be superseded would have consumed it for nothing; that cancellation is recorded in the evidence file rather than left to be inferred from a gap in the run list, the same reading PR #217 applied to its own cancelled dispatch. The standing dry re-bind covers later rounds of THIS PR only and authorizes no armed run and no merge.
+[S3:hygiene-narrows-coverage] The class this build CREATED, answered against this build: the only tightening left in the diff is round 8's "a declaration must have an enclosing item", and its blast radius is stated rather than assumed — it removes NO publisher, because a card with no `itemscope` never declared anything to begin with (an `itemprop` outside an item is a property of nothing, per the microdata spec), so nothing that was previously readable stops being readable. The one tightening that DID remove a class of publishers — requiring a typed card to be an Event, which cut official presenters' own pages — is reverted in this commit at the founder's ruling. Segmentation, block production and source selection are untouched by every rule in this PR: a refused identity never costs a listing, and no site is excluded as a source. Coverage Law checked in the direction it actually governs — which sources may carry an identity — not merely in the direction of what a value must be.
+[S3:grant-not-content-bound] Must-do 5's grant is one dry 2-source smoke, and it is spent as exactly that and no more: run 33794455238 at `max_sources=2`, `source_class=B`, `follow_pages_per_run=2`, `listing_update=dry`. NINE runs BOUND, each after a panel round that edited a runtime-closure file: 33794455238 (5749c24), 33796653453 (3f02d95, after round 1), 33799033633 (312d3ec, after round 2), 33815025433 (400429e, after round 3), 33817652536 (8478681, after round 4), 33819399578 (23418a9, after round 5), 33821965150 (dfe22e7, after round 6), 33823432627 (5aa70b0, after round 7) and 33825005901 (0592b9e, after round 8; run 33824676458 was dispatched for the same round against 5de06c7, succeeded, and was superseded by the r8b fix before it could bind — paid for, never binding, recorded in the evidence file rather than left as a gap). The founder re-armed the standing dry re-bind explicitly on 2026-09-03 — "one after each evaluator round that touches runtime. Stop asking each time" — so later rounds dispatch one without a fresh ask, and the same sentence bounds it: no armed run, no live-mutation wave, and no merge until the founder's own merge line with all seats APPROVE and the binding green on that head. An earlier dispatch (33793257593, head 01a3d15) was cancelled while still QUEUED — no job started, nothing spent — because the adversarial re-read found two defects in the very code it would have bound, and binding a one-run grant to a head about to be superseded would have consumed it for nothing; that cancellation is recorded in the evidence file rather than left to be inferred from a gap in the run list, the same reading PR #217 applied to its own cancelled dispatch. The standing dry re-bind covers later rounds of THIS PR only and authorizes no armed run and no merge.
 [S3:caller-suppliable-custody-inputs] [S3:fail-open-on-custody-misconfig] [S3:final-gate-trusts-generator] [S3:self-weakenable-review-model] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:workflow-tool-version-skew] No custody input becomes caller-suppliable: the identity a candidate carries is read off the BLOCK THE SEGMENTER CUT, not off anything a caller hands in — and the caller's own payload still wins when it states one, so no producer is demoted. Nothing here reads a credential, a model id, a workflow tool version or an env var, and no reviewer binding, threshold or gate file is touched; the segmenter is pure stdlib and its one new import (`worker/identity.py`) is pure too. The misconfiguration direction is closed by construction rather than by a check: an unreadable, ambiguous or absent address yields NO identity, which is the same state the tree was in before this ticket.
 [S3:nonfinite-decimal-accepted] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:stale-live-incident-state] [S3:stalled-state-needs-active-diagnosis] No numeric or Decimal value is parsed, compared or written anywhere in this change — the capture compares opaque strings and urls only — and no query, cursor or page boundary moves. The sandbox's five red certification tests and its missing deps were DIAGNOSED rather than waited on or reported as this diff's failures: `git fetch --unshallow` (the same diagnosis Contract #56 and #57 recorded) and installing `worker/requirements.txt` at its exact pins made all of them green, and the one remaining red — the arming smoke binding — is this change's own and is named up front, not discovered later.
 [S3:featurability-dimension-missed] [S3:parallel-record-id-collision] The consumer dimension was asked rather than assumed: an adopted `source_href` can license a `title`/`start_time` write that reaches the card and the detail page, which is exactly why the conventional rungs are bounded by the page-wide uniqueness pass and why their residual is R-104 rather than a footnote. R-104 is the next free id on a branch cut from origin/master tip 3804a97 at drift 0; no renumber script runs.
