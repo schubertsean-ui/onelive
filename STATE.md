@@ -14,7 +14,9 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #62 (2026-09-04, founder — "Chronicle EventSearch dump + map + coverage table", branch claude/chronicle-eventsearch-integration-jq1o1c) — OPEN
 
-STATUS: OPEN.
+STATUS: OPEN — delivered and pushed; PR #223 opened as DRAFT
+(https://github.com/schubertsean-ui/onelive/pull/223), subscribed for CI/review
+events. NOT merged: the founder's word is required ("Do not merge until I say so").
 WHAT: Read the founder-named Austin Chronicle EventSearch door as ONE local_desk
 instance across its whole public list — a paginating walker over the desk's own
 next-page links (`worker/locale/desk_walk.py`), a committed desk-category -> our-kind
