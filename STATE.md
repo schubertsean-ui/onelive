@@ -14,7 +14,9 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #61 (2026-09-04, founder — "hunt + read public desks (locale pack)", branch claude/locale-pack-public-desks-0q65xu) — OPEN
 
-STATUS: OPEN
+STATUS: OPEN — delivered and pushed; PR #222 opened as DRAFT
+(https://github.com/schubertsean-ui/onelive/pull/222), subscribed for CI/review
+events. NOT merged: the founder's word is required ("Do not merge until I say so").
 WHAT: A locale pack as DATA (`sources/locale_packs/capcog.json` — locale id, query
 grammar, typed door list incl. the founder-named Chronicle EventSearch), `hunt(locale)`
 returning typed doors (local_desk/marketplace/civic/official_list/wall/junk) with brands
