@@ -1,0 +1,692 @@
+{
+  "map_id": "do512",
+  "note": "Do512's category labels -> OUR kinds. Their labels never become our schema: every our_kind here is validated at load time against the locale pack's query_grammar.kinds, and a category this table does not cover lands on 'other' (never on a kind guessed from the title). Rows are GRADED, and there is exactly ONE 'desk_id_cited' row: the 'live-music' path segment the committed pack door 'do512-live-music-today' carries in its own URL. Every other row is 'language_rule' — a claim about OUR vocabulary, never a claim that Do512 prints that word. NO ROW IS 'desk_observed': egress to do512.com is denied from the build sandbox (curl CONNECT 403, 2026-09-04), so nobody has read a live page of this desk, and this table says so rather than implying a reading. The first authorized live run (tools/desk_coverage.py --door do512-today --real) PRINTS every category the desk states that this table does not cover; that printout is how the table is completed — from the desk's own words, never from memory. A tag that is not a category (a price word like 'Free', a date word like 'today') is deliberately absent: it is not one of our kinds, so it lands on 'other'.",
+  "kinds_from": "us-tx-capcog",
+  "default_kind": "other",
+  "applies_to_doors": [
+    "do512-today",
+    "do512-live-music-today",
+    "do512-family"
+  ],
+  "category_signals": [
+    {
+      "how": "href_path",
+      "prefix": "/events/",
+      "note": "this desk routes its category lists by PATH, not by a query parameter (the committed pack doors do512-today '/events/today' and do512-live-music-today '/events/live-music/today' are the citation); the segment after /events/ in a card's own link is the desk stating its section. A purely numeric segment is a date or an id, never a category"
+    },
+    {
+      "how": "label",
+      "note": "a card's declared category text (rel=category/tag, itemprop genre/eventType/keywords, or an element the page named after its own taxonomy)"
+    }
+  ],
+  "id_rows": [
+    {
+      "desk_category": "live-music",
+      "our_kind": "music",
+      "evidence": "desk_id_cited",
+      "note": "the path segment in the committed pack door 'do512-live-music-today' (https://do512.com/events/live-music/today, sources/locale_packs/us-tx-capcog.json); that door is graded found_unverified, so this row inherits that standing and is re-checked on the first authorized live read"
+    },
+    {
+      "desk_category": "music",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "concerts",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "art",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "arts",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "visual-arts",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "galleries",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "theater",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "theatre",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "comedy",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "film",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "films",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "movies",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "literary",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "books",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "poetry",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "market",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "markets",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "farmers-market",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "family",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "kids",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "food",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "food-drink",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "drink",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "dining",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "sports",
+      "our_kind": "sport",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "civic",
+      "our_kind": "civic",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "government",
+      "our_kind": "civic",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "outdoors",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "nature",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "parks",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "classes",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    },
+    {
+      "desk_category": "workshops",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "the same vocabulary rule in the shape a path-routed desk publishes it — a lowercase URL slug; a statement about OUR words, not a claim that this desk routes on this one. An exact match only: /events/music-fest-2026 stays unmapped and is PRINTED for a live run to complete"
+    }
+  ],
+  "label_rows": [
+    {
+      "desk_category": "Music",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Live Music",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Concert",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Concerts",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Gigs",
+      "our_kind": "music",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Art",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Arts",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Visual Art",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Visual Arts",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Gallery",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Galleries",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Exhibition",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Exhibitions",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Exhibits",
+      "our_kind": "art",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Theater",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Theatre",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Plays",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Stage",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Musicals",
+      "our_kind": "theater",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Comedy",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Standup",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Stand-Up Comedy",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Improv",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Comedy Shows",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Live Comedy",
+      "our_kind": "comedy",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Film",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Films",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Movies",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Cinema",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Screening",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Screenings",
+      "our_kind": "film",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Literary",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Literature",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Books",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Readings",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Poetry",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Author Events",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Book Signing",
+      "our_kind": "literary",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Market",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Markets",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Farmers Market",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Farmers Markets",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Flea Market",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Craft Fair",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Craft Fairs",
+      "our_kind": "market",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Family",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Kids",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Kids & Family",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Children",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "All Ages",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Family Friendly",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Kid Friendly",
+      "our_kind": "family",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Food",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Food & Drink",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Drink",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Dining",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Culinary",
+      "our_kind": "food",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Sport",
+      "our_kind": "sport",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Sports",
+      "our_kind": "sport",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Athletics",
+      "our_kind": "sport",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Civic",
+      "our_kind": "civic",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Government",
+      "our_kind": "civic",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "City Council",
+      "our_kind": "civic",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Public Meetings",
+      "our_kind": "civic",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Outdoors",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Outdoor",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Nature",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Hiking",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Parks",
+      "our_kind": "outdoors",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Class",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Classes",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Workshop",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Workshops",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Lessons",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Seminar",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Seminars",
+      "our_kind": "class",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Other",
+      "our_kind": "other",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    },
+    {
+      "desk_category": "Miscellaneous",
+      "our_kind": "other",
+      "evidence": "language_rule",
+      "note": "an English category word that names one of our kinds; a rule about OUR vocabulary applied to whatever a desk prints, not a claim that this desk prints it"
+    }
+  ]
+}

@@ -242,3 +242,114 @@ def test_available_maps_lists_the_committed_ones():
 def test_normalize_label_is_empty_for_nothing():
     assert km.normalize_label(None) == ""
     assert km.normalize_label("   ") == ""
+
+
+# --- href_path: the same category statement, in the shape a path-routed desk
+#     publishes it ---------------------------------------------------------
+
+def path_doc(**over):
+    """A mapping keyed on PATH segments rather than on a query parameter."""
+    doc = base_doc(
+        map_id="do512", applies_to_doors=["do512-today"],
+        category_signals=[{"how": "href_path", "prefix": "/events/"}],
+        id_rows=[{"desk_category": "live-music", "our_kind": "music",
+                  "evidence": "desk_id_cited"}],
+        label_rows=[],
+    )
+    doc.update(over)
+    return doc
+
+
+def test_a_path_signal_must_name_the_prefix_its_categories_hang_off(tmp_path):
+    directory = write_map(
+        tmp_path, path_doc(category_signals=[{"how": "href_path"}]), name="do512")
+    with pytest.raises(km.KindMapError) as exc:
+        km.load_kind_map("do512", maps_dir=directory)
+    assert "path prefix" in str(exc.value)
+
+
+def test_id_rows_are_satisfied_by_a_path_signal(tmp_path):
+    # Before href_path existed this raised: id_rows required an href_param, so a
+    # desk that routes by path could commit no cited row at all.
+    directory = write_map(tmp_path, path_doc(), name="do512")
+    loaded = km.load_kind_map("do512", maps_dir=directory)
+    assert loaded.kind_for_id("live-music") == "music"
+
+
+def test_id_rows_with_no_href_signal_at_all_are_still_refused(tmp_path):
+    directory = write_map(
+        tmp_path, path_doc(category_signals=[{"how": "label"}]), name="do512")
+    with pytest.raises(km.KindMapError) as exc:
+        km.load_kind_map("do512", maps_dir=directory)
+    assert "could never match" in str(exc.value)
+
+
+def test_a_path_category_is_read_from_the_desks_own_link(tmp_path):
+    loaded = km.load_kind_map("do512", maps_dir=write_map(tmp_path, path_doc(),
+                                                          name="do512"))
+    assert loaded.resolve(
+        hrefs=["https://d.example/events/live-music/today"]) == ("music", "live-music")
+
+
+def test_a_path_segment_is_read_only_at_the_root_the_map_named():
+    # Matching the prefix anywhere would make /tickets/events/art a category.
+    assert km.segment_after("https://d.example/events/art/", "/events/") == "art"
+    assert km.segment_after("https://d.example/tickets/events/art", "/events/") is None
+
+
+def test_a_purely_numeric_segment_is_a_date_or_an_id_never_a_category():
+    assert km.segment_after("https://d.example/events/2026/9/12/show", "/events/") is None
+
+
+def test_a_path_with_nothing_after_the_prefix_states_no_category():
+    assert km.segment_after("https://d.example/events/", "/events/") is None
+    assert km.segment_after("https://d.example/events", "/events/") is None
+    assert km.segment_after(None, "/events/") is None
+    assert km.segment_after("https://d.example/events/art", "") is None
+
+
+def test_a_path_category_the_table_misses_is_reported_not_guessed(tmp_path):
+    loaded = km.load_kind_map("do512", maps_dir=write_map(tmp_path, path_doc(),
+                                                          name="do512"))
+    assert loaded.resolve(hrefs=["https://d.example/events/nightlife/"]) == (None, None)
+    assert loaded.unmapped_from(
+        hrefs=["https://d.example/events/nightlife/"]) == ("nightlife",)
+
+
+def test_a_desks_own_id_outranks_a_label_that_normalises_the_same_way(tmp_path):
+    # `resolve` reads ids before labels, so "live-music" is decided by the CITED
+    # id even though the label row "Live Music" normalises to the same words.
+    doc = path_doc(category_signals=[{"how": "href_path", "prefix": "/events/"},
+                                     {"how": "label"}],
+                   label_rows=[{"desk_category": "Live Music", "our_kind": "music",
+                                "evidence": "language_rule"}])
+    loaded = km.load_kind_map("do512", maps_dir=write_map(tmp_path, doc, name="do512"))
+    kind, matched = loaded.resolve(labels=["Live Music"],
+                                   hrefs=["https://d.example/events/live-music/today"])
+    assert (kind, matched) == ("music", "live-music")
+    assert loaded.id_rows[matched].evidence == "desk_id_cited"
+
+
+# --- one vocabulary across every committed desk -------------------------------
+
+def test_a_language_rule_word_means_the_same_kind_on_every_committed_desk():
+    """`language_rule` is a claim about OUR vocabulary, so it cannot be desk-local.
+
+    Each desk gets its own mapping FILE, which means the same English word is
+    written down once per desk — and the moment "Comedy" is `comedy` on one desk
+    and `theater` on another, the catalog holds two taxonomies wearing one set of
+    names, with nothing to show which row came from which. Cited section ids are
+    deliberately exempt: `2151678` is one desk's own identifier and means nothing
+    on another.
+    """
+    seen = {}
+    for map_id in km.available_maps():
+        loaded = km.load_kind_map(map_id)
+        for row in loaded.rows:
+            if row.evidence != "language_rule":
+                continue
+            word = km.normalize_label(row.desk_category)
+            first_map, first_kind = seen.setdefault(word, (map_id, row.our_kind))
+            assert first_kind == row.our_kind, (
+                f"{word!r} maps to {first_kind!r} in {first_map} but to "
+                f"{row.our_kind!r} in {map_id} — one word, two kinds")

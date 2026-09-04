@@ -4,6 +4,44 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-04 — A second desk, and the difference between the end of a list and a button
+
+Do512 is the second listings desk we read end to end, and it is a different
+animal from the first. The Chronicle files its categories in the web address as
+a numbered section; Do512 files them as words in the path — `/events/live-music/`.
+Our mapping could only read the first shape, which meant a table written for
+Do512 would have matched nothing at all and quietly filed every listing as
+uncategorised. It reads both shapes now, with two refusals attached: it only
+looks where the desk's own category root is, and it never mistakes a year for a
+category, because `/events/2026/9/12/some-show` is how a site addresses a single
+listing rather than a section.
+
+The more important thing this desk taught us has nothing to do with categories.
+Lists like this one often continue behind a "Load More" button rather than a
+link to page two. To a program that follows links, a page with a button and the
+last page of a list look exactly the same: no link to follow. That is the
+dangerous kind of same. We would have stopped, reported a tidy number, and had
+nothing anywhere to say the number was a fraction of the desk. So a list that
+ends at a control we cannot press is now recorded as a FLOOR — everything read
+so far, plus a plain statement that the desk goes on — and only a list that
+genuinely runs out of links is called finished. We still do not press the button
+or guess the address behind it: inventing another site's web addresses is how
+you end up recording their 404 as their calendar.
+
+The mapping table itself is 111 rows and says what kind of claim each row is.
+Exactly one row is evidence from Do512 itself — the `live-music` path they
+publish, which our own door list already cites. Every other row is a rule about
+OUR vocabulary ("Movies" means film), and none of them claims to have been read
+off their site, because nobody here has read their site. Our network refused the
+connection before Do512 was ever asked — a 403 from our own proxy, not from
+them — so every count in this session's report comes from committed test pages
+and every table says so. The single command that produces the real numbers is
+written down and needs a run from somewhere the connection is allowed.
+
+Worth being plain about what this does not do: nothing here changes what a
+friend sees. Reading a desk and printing a table does not put a single event on
+the site. That step is separate, it is named, and it has not been taken.
+
 ## 2026-09-03 — And now a crawled page can give us that id itself
 
 Yesterday's entry ends on an honest limit: the machinery for a listing's own id

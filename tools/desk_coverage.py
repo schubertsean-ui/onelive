@@ -213,8 +213,12 @@ def category_table(one: DeskWalk, kind_map: Optional[KindMap]) -> str:
     for (label, kind), count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0][0])):
         evidence = "—"
         if kind_map is not None:
-            row = (kind_map.label_rows.get(normalize_label(label))
-                   or kind_map.id_rows.get(label))
+            # Ids BEFORE labels, the same order `KindMap.resolve` decides in.
+            # The other way round misreports the grade whenever a desk's section
+            # id also reads as one of our label words ("live-music"): the row was
+            # decided by a cited id, and the table would print `language_rule`.
+            row = (kind_map.id_rows.get(label)
+                   or kind_map.label_rows.get(normalize_label(label)))
             evidence = row.evidence if row else "—"
         lines.append(f"| {_cell(label)} | `{kind}` | {count} | {evidence} |")
     unmapped_rows = sum(1 for r in one.rows if r.kind_source != "desk_category")
@@ -355,6 +359,10 @@ def main(argv=None) -> int:
           f"{one.skipped_untitled} block(s) with no title). "
           f"{one.dated} carry a date the page stated; {one.count - one.dated} have "
           f"an honest hole on the clock.")
+    if one.notes:
+        print()
+        for note in one.notes:
+            print(f"- {note}")
     print()
     print("## 2. Categories — their label, our kind")
     print()
