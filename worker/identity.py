@@ -432,6 +432,17 @@ def identity_address(value: Any) -> Optional[str]:
     coming back. (`identity_token` keeps a denylist because a uid is opaque —
     there is no set of schemes an id must be drawn from.)
 
+    A bare SITE ROOT is refused too, and that rule is the founder's own, from
+    the 2026-09-04 presenter ruling: "Refuse only: using a Person/presenter
+    homepage url on another entity's card as listing_url for that card." A
+    homepage is where a venue's card points when it links the ARTIST rather
+    than the show, and it fails this door's existing test for the same reason
+    the page's own url does — it belongs to every listing on that site and
+    therefore identifies none of them. `https://castlecreek.band/`, its
+    slashless form, the protocol-relative form and a root-relative `/` are all
+    the same statement. A root carrying a QUERY is not a bare root
+    (`https://v.example/?event=8817` names one thing) and is kept.
+
     Anything else is refused. Under-matching costs a refusal; over-matching
     costs a wrong public listing.
     """
@@ -446,6 +457,11 @@ def identity_address(value: Any) -> Optional[str]:
         # unaffected — a refusal here is a hole, never a match.)
         return None
     if parts.scheme and parts.scheme.lower() not in WEB_SCHEMES:
+        return None
+    # A bare SITE ROOT names the site, not a listing on it — the founder's
+    # "presenter homepage url" refusal, and the same reasoning this file
+    # already applies to a page's own url. A query makes it specific again.
+    if parts.path in ("", "/") and not parts.query:
         return None
     if parts.netloc:
         return raw

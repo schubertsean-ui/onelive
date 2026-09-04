@@ -756,6 +756,52 @@ def test_a_declaring_element_that_opens_its_own_item_states_no_url():
         "/events/8817", "/events/8818"]
 
 
+
+def test_a_bare_site_root_is_never_a_listings_identity():
+    """THE FOUNDER'S OWN REFUSAL, which had no mechanism until now.
+
+    The 2026-09-04 presenter ruling kept exactly one refusal: "using a
+    Person/presenter homepage url on another entity's card as listing_url for
+    that card." When that ruling landed I recorded — in this PR's description
+    and in the commit — that the case was "already served by two mechanisms
+    that never changed." That was WRONG, and this test is the correction.
+
+    A venue card declaring `<a itemprop="url" href="https://castlecreek.band/">`
+    IS a declaration, so round 1's undeclared-link rule never sees it; and each
+    card names a DIFFERENT artist, so `_drop_shared_identities` never sees it
+    either. It was accepted, and the artist's homepage became the show's
+    identity — the precise harm the ruling names.
+
+    The rule is the founder's sentence and needs no type check to state it: a
+    bare site ROOT belongs to every listing on that site and therefore
+    identifies none of them, which is the same reasoning this file already
+    applies to a page's own url.
+
+    Blast radius, per `hygiene-narrows-coverage`: zero publishers. No listing
+    lives at a site root, and a root carrying a query still names one thing.
+    """
+    venue = ('<div>'
+             '<div itemscope itemtype="https://schema.org/MusicEvent">'
+             "Fri Aug 1, 8pm Castle Creek"
+             '<a itemprop="url" href="https://castlecreek.band/">Castle Creek</a></div>'
+             '<div itemscope itemtype="https://schema.org/MusicEvent">'
+             "Sat Aug 2, 9pm River Delta"
+             '<a itemprop="url" href="https://riverdelta.band/">River Delta</a></div>'
+             "</div>")
+    for block in segment_events(venue, content_type="text/html"):
+        assert carried_identity(block) == NO_IDENTITY, str(block)
+
+    # Every spelling of "the whole site" is the same statement.
+    for root in ("https://castlecreek.band/", "https://castlecreek.band",
+                 "//castlecreek.band/", "//castlecreek.band", "/"):
+        assert identity_address(root) is None, root
+    # What NAMES a listing is untouched — including a presenter's own show
+    # page, a venue's event page, and a root made specific by a query.
+    for kept in ("https://v.example/events/8817", "/upcoming/8817",
+                 "https://v.example/?event=8817", "/e/1"):
+        assert identity_address(kept) == kept, kept
+
+
 def test_a_nested_item_stays_closed_through_same_tag_nesting():
     """The scope stack balances by element, not by tag name. An inner `<div>`
     inside a nested `performer` item used to pop that item's scope early, so

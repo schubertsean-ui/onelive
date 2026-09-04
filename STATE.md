@@ -82,7 +82,17 @@ pushing the element's own `itemscope` on my round-2 claim that such an element "
 states the card's url" — which the microdata spec contradicts outright, since with
 `itemprop` AND `itemscope` the property's value is the ITEM, not the href. Both fixed and
 both proven to fail without their gate; the second removes no publisher, because markup
-that opens an item on its url property is malformed by the spec's own reading. EVERY carrier goes through a validator, and
+that opens an item on its url property is malformed by the spec's own reading. ROUND 11
+then produced a correction I owed the founder rather than a panel fix: checking the
+premise of the seat's (thrice-repeated, still-struck) type invariant showed that the one
+refusal the presenter ruling KEEPS — "a Person/presenter homepage url on another entity's
+card as listing_url for that card" — had NO mechanism, despite my having written in the PR
+body and the commit that it was "already served by two mechanisms that never changed". It
+was not: a venue card declaring an artist's homepage IS a declaration (round 1's rule never
+sees it) and each card names a different artist (`_drop_shared_identities` never sees it),
+so the homepage was accepted as the show's identity. `identity_address` now refuses a bare
+site ROOT in every spelling — no type check, the founder's own sentence, justified by
+reasoning this file already used for a page's own url. Blast radius zero publishers. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and
