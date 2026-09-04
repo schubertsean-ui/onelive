@@ -14,7 +14,10 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #60 (2026-09-04, founder — "CAPCOG TAM + aggregators + doors + clear-the-door (docs)", branch claude/capcog-tam-aggregators-entities-3bb4sg) — OPEN
 
-STATUS: OPEN
+STATUS: OPEN — docs/TAM_CAPCOG.md + .csv + docs/domain_recipes.md delivered,
+pushed, PR opened as draft (https://github.com/schubertsean-ui/onelive/pull/220),
+subscribed for CI/review events. Awaiting the founder's merge line; not merged,
+per the ticket ("Do not merge") and the addendum ("Do not merge until I say so").
 
 WHAT: Two new docs-only files — `docs/TAM_CAPCOG.md` and `docs/TAM_CAPCOG.csv` — a
 verified-universe TAM (total addressable entities) table spanning every category the
@@ -173,6 +176,20 @@ to.
 [S3:records-sharing-one-trigger] No `docs/RECORD.md` `[R-###]` entry is opened by
 this PR (the holes below are TAM-table rows with a `review_after`, not deferral
 records), so there is no cluster to grep for.
+[S3:compounded-ground-contrast] [S3:featurability-dimension-missed]
+[S3:final-gate-trusts-generator] No color/contrast, public emitter, or
+publish/promote gate exists in this PR to compute ground contrast against, add a
+trust dimension to, or re-derive at. [S3:condensed-thinking-run] This is not a
+founder-invoked debono/po-battery run; no thinking-tool completeness claim is
+made anywhere in either doc. [S3:excluded-surface-widening] No scanner exclusion,
+`.claude/` allowlist, or `SKIP_PARTS` entry is touched — this PR's only non-doc
+edit is this STATE.md contract, a bookkeeping surface already exempt by
+`tools/plan_first_gate.py`'s own `BOOKKEEPING` tuple, not a widened one.
+[S3:build-before-plan] The founder's own "Plan before code" block (Harm if I am
+wrong / Callers and opposite failure modes / Test I will add first / What I will
+not capture/guess) was printed to the founder BEFORE this contract or either
+deliverable file was written, per the ticket's explicit instruction — not a
+contract-only substitute for it.
 
 ## Session Contract #59 (2026-09-04, founder — "profile URL is entity id, not happening id", branch claude/profile-url-entity-id-kazj41) — OPEN
 
