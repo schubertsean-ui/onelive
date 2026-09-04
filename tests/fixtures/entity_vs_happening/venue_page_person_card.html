@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Fixture: a VENUE's calendar (https://wrenhall.example/calendar) carrying a
+     PERSON-typed card. The founder struck the Event-only rule that would have
+     refused such a card — an official presenter of any kind is a trusted door
+     — so the card's declaration is read. What it declares is the band's
+     HOMEPAGE, and that is the refusal the ruling keeps: "using a
+     Person/presenter homepage url on another entity's card as listing_url for
+     that card."
+
+     The second card is an ordinary event card declaring its own dated path, so
+     the same page proves both halves: the door is not donated, and a real
+     per-listing address on the same page still identifies its listing. -->
+<html><body>
+  <h1>Wren Hall — Calendar</h1>
+  <div class="calendar">
+    <article class="event" itemscope itemtype="https://schema.org/Person">
+      <h3>Castle Creek</h3>
+      <p>Fri Aug 1, 8pm — Wren Hall, Austin</p>
+      <a itemprop="url" href="https://castlecreek.band/">castlecreek.band</a>
+    </article>
+    <article class="event" itemscope itemtype="https://schema.org/MusicEvent">
+      <h3>River Delta</h3>
+      <p>Sat Aug 2, 9pm — Wren Hall, Austin</p>
+      <a itemprop="url" href="/events/2026-08-02-river-delta">Event details</a>
+    </article>
+  </div>
+</body></html>

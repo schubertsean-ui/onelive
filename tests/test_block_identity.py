@@ -779,6 +779,14 @@ def test_a_bare_site_root_is_never_a_listings_identity():
 
     Blast radius, per `hygiene-narrows-coverage`: zero publishers. No listing
     lives at a site root, and a root carrying a query still names one thing.
+
+    UPDATED at Session Contract #59: the root is still never an identity — the
+    property this test was written for is asserted below, harder than before,
+    on `comparable()` rather than on the whole object — but it is now RECORDED
+    as the DOOR it is, on `entity_url`, which no comparison reads. The founder's
+    rule for #59 is "store it as entity / door identity", and this test moved
+    from "the value is gone" to "the value can never be compared", which is the
+    property that was actually load-bearing.
     """
     venue = ('<div>'
              '<div itemscope itemtype="https://schema.org/MusicEvent">'
@@ -788,8 +796,13 @@ def test_a_bare_site_root_is_never_a_listings_identity():
              "Sat Aug 2, 9pm River Delta"
              '<a itemprop="url" href="https://riverdelta.band/">River Delta</a></div>'
              "</div>")
+    doors = []
     for block in segment_events(venue, content_type="text/html"):
-        assert carried_identity(block) == NO_IDENTITY, str(block)
+        identity = carried_identity(block)
+        assert identity.comparable() == {}, str(block)
+        assert identity.stated is False, str(block)
+        doors.append(identity.entity_url)
+    assert doors == ["https://castlecreek.band/", "https://riverdelta.band/"]
 
     # Every spelling of "the whole site" is the same statement.
     for root in ("https://castlecreek.band/", "https://castlecreek.band",

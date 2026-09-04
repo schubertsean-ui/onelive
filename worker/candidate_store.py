@@ -7,14 +7,24 @@ import json
 import psycopg2
 
 from worker.db_config import resolve_dsn
-from worker.identity import IDENTITY_KEY, carried_identity, read_identity
+from worker.identity import (
+    IDENTITY_KEY,
+    carried_identity,
+    demote_door_addresses,
+    read_identity,
+)
 
 
 def db():
     return psycopg2.connect(resolve_dsn())
 
 
-def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str, Any]:
+def _with_identity(
+    extracted: Dict[str, Any],
+    raw_text: Any = None,
+    *,
+    source_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """`extracted` plus a canonical `_identity`, or unchanged when neither the
     payload nor the raw block states one.
 
@@ -32,6 +42,51 @@ def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str,
     second source's fields into it could assemble an identity no one stated.
     A payload that states nothing takes the block's whole identity or none.
 
+    THE BLOCK'S IDENTITY IS THEN CHECKED AGAINST THE PAGE IT CAME FROM
+    (`demote_door_addresses`, founder Session Contract #59). A block that
+    declares the very page it was read from has named the DOOR, not the night:
+    a block carries an identity only when `worker/segment.py` found two or more
+    listings on that page, so the page is a LIST by construction and its own
+    address belongs to every listing on it. Left on `listing_url`/`source_href`
+    it would answer SAME for two different nights on the adopt rung and license
+    a write onto the wrong one — the founder's stated harm. It is MOVED to
+    `entity_url` rather than dropped: the door is real, it is simply not a
+    handle on a happening, and `identity_verdict` never reads it.
+
+    ONLY THE BLOCK BRANCH IS DEMOTED, and the reason is specific to the two
+    producers that actually reach this seam. An earlier version of this
+    docstring justified the exemption by naming
+    `worker/importers/structured_feed.py` as a per-event detail feed whose page
+    IS its listing. THAT WAS FALSE — that module never calls `create_candidate`
+    at all (it writes the licensed store), and an adversarial-review seat
+    questioning the exemption is what sent me to check. The true reason is
+    stronger, and it is about what `source_url` MEANS to each caller:
+
+      * `worker/ai_extract.py` passes the crawled PAGE, which may hold many
+        listings — so a payload url equal to it would indeed be a door. It
+        cannot occur: the certified extraction schema states no
+        identity-shaped field, pinned by a blocking test
+        (`tests/test_identity_stack.py::
+        test_the_certified_extraction_schema_states_no_identity_field`,
+        re-asserted at this seam by
+        `tests/test_entity_vs_happening_id.py::
+        test_a_crawled_payload_states_no_identity_to_demote`), and the provider
+        meta merged beside it is `_`-prefixed. Adding `url` to
+        `worker/ai_models.py` turns that test RED and says why, so the branch
+        is fail-closed rather than merely empty.
+      * `api/claims.py` passes `source_url=listing.url or claim.feed_url`, so
+        when a claimant states a url the page and the listing are THE SAME
+        STRING by construction. Demoting there would move class E's ONLY
+        identity — the url the venue typed into their own row — onto
+        `entity_url` and leave the claim path with nothing. That is not a
+        hypothetical cost: it is every claimed listing, and it is pinned by
+        `tests/test_entity_vs_happening_id.py::
+        test_a_claimed_listings_own_url_survives_being_its_own_source_url`.
+
+    So the exemption is not "callers know best" in general. It is that neither
+    caller can present the shape the demotion exists to catch, and that for one
+    of them the demotion would be the defect.
+
     A COPY is returned rather than a mutation of the caller's dict: the caller
     (worker/ai_extract.py's fan-out, api/claims.py's loop) may hold the payload
     across events, and a shared dict that grows an `_identity` from one listing
@@ -45,8 +100,17 @@ def _with_identity(extracted: Dict[str, Any], raw_text: Any = None) -> Dict[str,
     """
     identity = read_identity(extracted)
     if not identity.stated:
-        identity = carried_identity(raw_text)
-    if not identity.stated:
+        # The caller stated no COMPARABLE identity, so the block decides — and
+        # the test is `stated`, not `stated_any`, which is PR #219 r2's second
+        # fix. A payload stating only a DOOR must not out-rank a block that
+        # knows the listing: a door is not an identity, and letting one win
+        # here silently ERASED the block's `source_href` (an adversarial-panel
+        # smuggle path, reproduced before fixing). Precedence is about identity
+        # authority; a door carries none.
+        block = demote_door_addresses(carried_identity(raw_text), source_url)
+        if block.stated_any:
+            identity = block
+    if not identity.stated_any:
         return extracted
     out = dict(extracted)
     out[IDENTITY_KEY] = identity.as_dict()
@@ -80,7 +144,7 @@ def create_candidate(
     machine-read sub-object, so this needs no migration, no new column and no
     change to any workflow that applies one.
     """
-    extracted = _with_identity(extracted, raw_text)
+    extracted = _with_identity(extracted, raw_text, source_url=source_url)
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("""

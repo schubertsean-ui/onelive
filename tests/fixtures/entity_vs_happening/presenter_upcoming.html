@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- Fixture: an OFFICIAL PRESENTER's own site — a chef's public list of
+     upcoming work, which the founder's 2026-09-04 presenter ruling makes a
+     trusted door with no calendar UI required. Served at
+     https://marisol-kitchen.example/upcoming (the tests pass that url as the
+     candidate's source_url, exactly as the crawl does).
+
+     Adversarial about ONE thing: what each card declares as its own url.
+       card 1 declares THE PAGE ITSELF   -> a door, never a happening id
+       card 2 declares THE SITE ROOT     -> a door, never a happening id
+       card 3 declares a DATED PATH      -> the listing's own address, kept
+     Only ONE card declares the page url, deliberately: two would be caught by
+     the page-wide shared-address rule that already exists, and the hole this
+     fixture pins is the one that rule cannot see — the same declaration
+     reappearing on a LATER TICK, on a different night's card. -->
+<html><body>
+  <header><a href="/">Marisol Kitchen</a></header>
+  <h1>Upcoming</h1>
+  <div class="calendar">
+    <article class="event" itemscope itemtype="https://schema.org/FoodEvent">
+      <h3>Autumn Tasting Menu</h3>
+      <p>Sat Sep 12, 7pm — Marisol Kitchen, Austin</p>
+      <a itemprop="url" href="https://marisol-kitchen.example/upcoming">Details</a>
+    </article>
+    <article class="event" itemscope itemtype="https://schema.org/FoodEvent">
+      <h3>Guest Chef Night</h3>
+      <p>Sat Oct 3, 7pm — Marisol Kitchen, Austin</p>
+      <a itemprop="url" href="https://marisol-kitchen.example/">Details</a>
+    </article>
+    <article class="event" itemscope itemtype="https://schema.org/FoodEvent">
+      <h3>Harvest Dinner</h3>
+      <p>Sun Nov 8, 6pm — Marisol Kitchen, Austin</p>
+      <a itemprop="url" href="/upcoming/2026-11-08-harvest-dinner">Details</a>
+    </article>
+  </div>
+</body></html>
