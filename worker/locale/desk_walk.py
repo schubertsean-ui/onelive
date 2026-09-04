@@ -24,13 +24,18 @@ Four rules hold this to what the desk itself published:
     the walk stops there with everything read so far intact.
   * SAME HOST, NO CYCLES, HARD CAP. A next link that leaves the desk's host is
     not that desk's next page; a link back to a page already visited is a
-    carousel, not a list; and a list that never ends is bounded by `max_pages`,
-    which is REPORTED (`stopped_because`) so a cap can never be mistaken for an
-    exhausted desk.
+    carousel, not a list; and a list that never ends is bounded by `max_pages`.
+    Every one of those is REPORTED (`stopped_because`) so it can never be
+    mistaken for an exhausted desk — including the refusal, which stops on
+    `next_link_not_followed`: the page stated a next page, WE declined it, and
+    saying "no next link" there would put our refusal on the desk's account.
   * NOTHING FAILS SILENTLY. Every page visited becomes a `PageVisit` row with
     its status, its row count and its `blocked_reason` — the founder's per-page
     column. A page that yields nothing is a page that yielded nothing, never an
-    absent row in the table.
+    absent row in the table. And a list that continues behind a control we
+    cannot follow (a "Load more" button, an `href="#"` anchor) stops on
+    `next_control_not_a_link`, never on `no_next_link`: the one is a floor, the
+    other claims a whole desk.
 
 Cross-page duplicates are collapsed on the row's OWN identity when it stated one
 (its listing URL), else on title + the date the page stated. Both numbers are
@@ -174,8 +179,9 @@ class DeskWalk:
     def exhausted(self) -> bool:
         """True only when the desk itself ran out of next links.
 
-        Any other stop — a cap, a wall, a cycle — means the list may go on, and
-        no table may call this walk the desk's whole output.
+        Any other stop — a cap, a wall, a cycle, a next link we refused, a
+        continuation control we cannot follow — means the list may go on, and no
+        table may call this walk the desk's whole output.
         """
         return self.stopped_because == "no_next_link"
 
@@ -190,13 +196,22 @@ class _LinkScanner(HTMLParser):
     Two tiers, kept apart so the caller can prefer the declared one:
       `rel_next`  — `rel="next"` on a `<link>` or `<a>` (the machine statement)
       `text_next` — an `<a>` whose own text or aria-label says "next"
+
+    Plus a third list that is NOT a tier, because nothing in it can be
+    followed: `controls`, the continuation controls a page states as script
+    rather than as a link — a `<button>` saying "Load more", an `<a>` with no
+    href or with `href="#"`. They are collected precisely so the walk can say
+    the list goes on. See `continuation_control`.
     """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.rel_next: List[str] = []
         self.text_next: List[str] = []
+        self.controls: List[str] = []
         self._open_anchor: Optional[str] = None
+        self._open_control: Optional[str] = None
+        self._open_control_tag: Optional[str] = None
         self._anchor_text: List[str] = []
 
     @staticmethod
@@ -214,37 +229,99 @@ class _LinkScanner(HTMLParser):
         if tag == "link" and href and self._is_rel_next(a.get("rel", "")):
             self.rel_next.append(href)
             return
-        if tag != "a":
+        aria = _WS_RE.sub(" ", a.get("aria-label", "").strip().lower())
+        says_next = bool(aria) and any(needle in aria for needle in NEXT_ARIA)
+        if tag == "button" or (tag == "a" and not _followable(href)):
+            if tag == "button" and self._open_anchor is not None:
+                # A button inside a link: the LINK is what we could follow, and
+                # its text is still being collected. Leave it alone.
+                return
+            # A control, not a link. Whatever it does, it does in script we do
+            # not run — so it can only ever be REPORTED.
+            what = f"<{tag}>" + (f' aria-label="{aria}"' if aria else "")
+            if says_next:
+                self.controls.append(what)
+                return
+            self._open_control = what
+            self._open_control_tag = tag
+            self._anchor_text = []
             return
-        if not href:
-            self._open_anchor = None
+        if tag != "a":
             return
         if self._is_rel_next(a.get("rel", "")):
             self.rel_next.append(href)
             return
-        aria = _WS_RE.sub(" ", a.get("aria-label", "").strip().lower())
-        if aria and any(needle in aria for needle in NEXT_ARIA):
+        if says_next:
             self.text_next.append(href)
             return
         # Otherwise the anchor's own text decides — collected until </a>.
         self._open_anchor = href
+        self._open_control = None
+        self._open_control_tag = None
         self._anchor_text = []
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
 
     def handle_data(self, data):
-        if self._open_anchor is not None:
+        if self._open_anchor is not None or self._open_control is not None:
             self._anchor_text.append(data)
 
     def handle_endtag(self, tag):
-        if tag.lower() != "a" or self._open_anchor is None:
+        tag = tag.lower()
+        if tag not in ("a", "button"):
             return
         text = _WS_RE.sub(" ", "".join(self._anchor_text)).strip().lower()
-        if text in NEXT_TEXTS:
-            self.text_next.append(self._open_anchor)
-        self._open_anchor = None
-        self._anchor_text = []
+        if self._open_control is not None and self._open_control_tag == tag:
+            if text in NEXT_TEXTS:
+                self.controls.append(f'{self._open_control} "{text}"')
+            self._open_control = None
+            self._open_control_tag = None
+            self._anchor_text = []
+            return
+        if tag == "a" and self._open_anchor is not None:
+            if text in NEXT_TEXTS:
+                self.text_next.append(self._open_anchor)
+            self._open_anchor = None
+            self._anchor_text = []
+
+
+def _followable(href: str) -> bool:
+    """True when this href is something we could actually open.
+
+    An empty href, `href="#"` or `href="javascript:..."` is a hook for script,
+    not an address. The distinction matters because such an anchor labelled
+    "Load more" is a list that CONTINUES — see `continuation_control`.
+    """
+    href = (href or "").strip()
+    return bool(href) and not href.lower().startswith(("#", "javascript:"))
+
+
+def continuation_control(html: str) -> Optional[str]:
+    """The page's own "there is more" control, when it is not a link — else None.
+
+    Modern list pages often continue behind script: a `<button>Load more</button>`,
+    or an `<a href="#">Show more</a>` wired up in JavaScript we do not run. To a
+    link-following walker those pages look IDENTICAL to the last page of a list,
+    and that is the dangerous part: the walk would stop with `no_next_link`,
+    `exhausted` would be True, and a fraction of the desk would be reported as
+    the whole desk with no caveat anywhere.
+
+    We still do not follow it — synthesising whatever URL that script would call
+    is the guess about a stranger's routing this module refuses everywhere else.
+    We REPORT it, which is what makes the stop honest: the walk ends on
+    `next_control_not_a_link`, `exhausted` stays False, and every table prints
+    its "this is a floor" caveat.
+    """
+    if not html:
+        return None
+    scanner = _LinkScanner()
+    try:
+        scanner.feed(html)
+        scanner.close()
+    except Exception:  # noqa: BLE001 — a pathological page reports nothing extra
+        return None
+    return scanner.controls[0] if scanner.controls else None
 
 
 def _normalize(url: str) -> str:
@@ -431,7 +508,25 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
             page.notes.append(note)
         page.next_url = following
         if following is None:
-            result.stopped_because = "no_next_link"
+            # THREE different silences, and only one of them is an exhausted
+            # desk. `no_next_link` is the strongest claim this module makes, so
+            # the two weaker cases get their own reason and keep `exhausted`
+            # false.
+            if note:
+                # The page stated a next page and we did not follow it (it left
+                # the desk's host, or the page could not be scanned). Reporting
+                # that as `no_next_link` would say the DESK ran out of list.
+                result.stopped_because = "next_link_not_followed"
+                result.notes.append(f"page {page.n}: {note}")
+            elif control := continuation_control(fetched.body):
+                result.stopped_because = "next_control_not_a_link"
+                said = (f"page {page.n} states a continuation control we cannot "
+                        f"follow ({control}) — the desk's list goes on behind "
+                        f"script; this walk is a FLOOR, not the whole desk")
+                page.notes.append(said)
+                result.notes.append(said)
+            else:
+                result.stopped_because = "no_next_link"
             break
         url = following
 

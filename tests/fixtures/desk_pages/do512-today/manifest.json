@@ -1,0 +1,9 @@
+{
+  "note": "SYNTHETIC shape fixtures for the Do512 desk walk. These are NOT a saved copy of any live page: egress to do512.com is denied from the build sandbox (curl CONNECT 403 at the proxy, recorded 2026-09-04), so no page of that desk has been read by anyone here, and every title, venue, date and category link below is invented for the test. What is faithful is the SHAPE a path-routed desk has, and each shape is here because the walker must handle it honestly: category stated as a PATH segment (/events/live-music/today) and as a label; listing permalinks whose first segment is a YEAR, which is never a category; an unmapped category the run must PRINT rather than guess; a declared rel=next on page 1 and a text 'Next' anchor on page 2; a card repeated across pages 1 and 2 where the second reading fills a hole (the venue) and overwrites nothing; one card stated twice on page 1 (JSON-LD and HTML, disagreeing on the FORM of the date); a card with prose where the clock should be; a card with neither an address nor a date, which exists anyway; one untitled block; and a page whose continuation is a 'Load More' BUTTON, which is why this walk ends on next_control_not_a_link and never claims an exhausted desk. Counts derived from these files are FIXTURE counts and every table that prints them says so.",
+  "start_url": "https://desk.example/events/today",
+  "pages": {
+    "https://desk.example/events/today": "page-1.html",
+    "https://desk.example/events/today?page=2": "page-2.html",
+    "https://desk.example/events/today?page=3": "page-3.html"
+  }
+}

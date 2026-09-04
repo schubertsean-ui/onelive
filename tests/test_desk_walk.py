@@ -17,7 +17,7 @@ import pytest
 
 from worker.locale import pack as lp
 from worker.locale.desk_walk import (
-    DeskWalkError, PageFetch, next_page_url, walk, walk_table,
+    DeskWalkError, PageFetch, continuation_control, next_page_url, walk, walk_table,
 )
 from worker.locale.kind_map import load_kind_map
 
@@ -373,3 +373,91 @@ def test_the_page_table_carries_a_row_per_page_with_its_reason(desk):
     lines = [ln for ln in table.splitlines() if ln.startswith("| `")]
     assert len(lines) == 2
     assert "429" in lines[1] and "class D on contact" in lines[1]
+
+
+# --- a list that continues behind script --------------------------------------
+#
+# A "Load more" button and the last page of a list look IDENTICAL to a walker
+# that follows links: no next link either way. The difference is everything —
+# one is a floor, the other is the whole desk — so it is REPORTED, and the walk
+# still never synthesises the address that script would have called.
+
+@pytest.mark.parametrize("control", [
+    '<button class="load-more">Load More</button>',
+    '<button aria-label="Next page">&rarr;</button>',
+    '<a href="#" class="more">Show more</a>',
+    '<a href="javascript:void(0)">Load more</a>',
+    '<a data-page="2">More results</a>',
+])
+def test_a_continuation_control_that_is_not_a_link_is_seen(control):
+    assert continuation_control(page(control))
+
+
+@pytest.mark.parametrize("body", [
+    "<p>that is the end of the list</p>",
+    '<a href="/x">Next Wednesday</a>',       # a listing title, not a control
+    '<a href="/p2">Next</a>',                # a real link is not a control
+])
+def test_ordinary_pages_state_no_such_control(body):
+    assert continuation_control(page(body)) is None
+
+
+def test_a_control_is_never_followed_only_reported():
+    # No URL is invented for it — that would be a guess about a stranger's routing.
+    assert next_page_url(page('<button>Load More</button>'), f"{HOST}/p1") == (None, None)
+
+
+def test_a_walk_that_ends_on_a_control_is_not_an_exhausted_desk(desk):
+    one = walk(desk, pages({f"{HOST}/p1": page(
+        CARD.format(n=1) + '<button class="ds-load-more">Load More</button>')}),
+        start_url=f"{HOST}/p1")
+    assert one.stopped_because == "next_control_not_a_link"
+    assert one.exhausted is False
+    assert one.count == 1                      # everything read is kept
+    assert one.pages[0].blocked_reason is None  # the page opened; the LIST goes on
+    assert any("load more" in n.lower() for n in one.notes)
+    assert any("load more" in n.lower() for n in one.pages[0].notes)
+
+
+def test_a_walk_that_runs_out_of_links_is_an_exhausted_desk(desk):
+    one = walk(desk, pages({f"{HOST}/p1": page(CARD.format(n=1))}),
+               start_url=f"{HOST}/p1")
+    assert one.stopped_because == "no_next_link"
+    assert one.exhausted is True
+
+
+def test_a_real_next_link_wins_over_a_control_on_the_same_page(desk):
+    # Pages carry both: a paginator AND a "load more". The link is followed.
+    one = walk(desk, pages({
+        f"{HOST}/p1": page(CARD.format(n=1)
+                           + f'<a rel="next" href="{HOST}/p2">Next</a>'
+                           + '<button>Load More</button>'),
+        f"{HOST}/p2": page(CARD.format(n=2)),
+    }), start_url=f"{HOST}/p1")
+    assert [p.n for p in one.pages] == [1, 2]
+    assert one.stopped_because == "no_next_link" and one.count == 2
+
+
+# --- a next link we refused is OUR stop, not the desk's end -------------------
+
+def test_a_next_link_off_the_host_stops_the_walk_without_claiming_the_end(desk):
+    one = walk(desk, pages({f"{HOST}/p1": page(
+        CARD.format(n=1)
+        + '<a rel="next" href="https://elsewhere.example/p2">Next</a>')}),
+        start_url=f"{HOST}/p1")
+    # The page stated a next page. We declined to follow it off the desk's host.
+    # Calling that `no_next_link` would put our refusal on the desk's account.
+    assert one.stopped_because == "next_link_not_followed"
+    assert one.exhausted is False
+    assert one.count == 1
+    assert any("leaves the desk's host" in n for n in one.notes)
+
+
+def test_a_button_nested_inside_a_real_next_link_is_still_a_link(desk):
+    one = walk(desk, pages({
+        f"{HOST}/p1": page(CARD.format(n=1)
+                           + f'<a href="{HOST}/p2"><button>Next</button></a>'),
+        f"{HOST}/p2": page(CARD.format(n=2)),
+    }), start_url=f"{HOST}/p1")
+    assert [p.n for p in one.pages] == [1, 2]
+    assert one.stopped_because == "no_next_link" and one.exhausted is True

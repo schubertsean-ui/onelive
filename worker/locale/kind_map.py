@@ -39,6 +39,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple
+from urllib.parse import urlsplit
 
 from worker.locale.pack import KIND_OTHER, LocalePackError, load_pack
 
@@ -53,7 +54,14 @@ EVIDENCE_GRADES: Tuple[str, ...] = ("desk_observed", "desk_id_cited", "language_
 
 #: How a desk may STATE a category on one of its cards. A signal says where to
 #: look; it never says what the found text means — that is the row table's job.
-SIGNAL_KINDS: Tuple[str, ...] = ("label", "href_param")
+#:
+#: `href_param` and `href_path` are the same statement in the two shapes desks
+#: actually publish it: a category-filtered URL, addressed either by a query
+#: parameter (`?eventSection=2151678`) or by a path segment
+#: (`/events/live-music/today`). A desk that routes by path can state nothing a
+#: query-parameter signal will ever see, so a map for one would silently read
+#: every card as uncategorised.
+SIGNAL_KINDS: Tuple[str, ...] = ("label", "href_param", "href_path")
 
 _WS_RE = re.compile(r"\s+")
 _PUNCT_RE = re.compile(r"[^a-z0-9]+")
@@ -81,6 +89,40 @@ def normalize_label(value: Optional[str]) -> str:
     return _WS_RE.sub(" ", text).strip()
 
 
+def segment_after(url: Optional[str], prefix: str) -> Optional[str]:
+    """The path segment a desk states directly after `prefix`, or None.
+
+    `segment_after("https://desk.example/events/live-music/today", "/events/")`
+    is `"live-music"` — the desk's own routing, read rather than inferred.
+
+    Two deliberate refusals, both of which would otherwise put noise into a
+    coverage table and, worse, a wrong kind on a row:
+
+      * ANCHORED AT THE ROOT. The prefix must be the START of the path. A
+        category root is where a desk hangs its sections; matching the prefix
+        anywhere would make `/tickets/events/2026` state a category too.
+      * A PURELY NUMERIC SEGMENT IS NEVER A CATEGORY. Desks address individual
+        listings under the same root (`/events/2026/9/4/some-show`), so the
+        segment after the prefix is often a year. It is a date or an id, and
+        reading it as a section name would invent a category the desk never
+        published.
+    """
+    if not url or not prefix:
+        return None
+    try:
+        path = urlsplit(url).path
+    except ValueError:
+        return None
+    prefix_parts = [p for p in prefix.split("/") if p]
+    parts = [p for p in path.split("/") if p]
+    if len(parts) <= len(prefix_parts) or parts[:len(prefix_parts)] != prefix_parts:
+        return None
+    segment = parts[len(prefix_parts)].strip()
+    if not segment or segment.isdigit():
+        return None
+    return segment
+
+
 @dataclass(frozen=True)
 class MapRow:
     """One mapping: what the desk calls it -> what we call it."""
@@ -101,6 +143,7 @@ class Signal:
 
     how: str                    # one of SIGNAL_KINDS
     param: Optional[str] = None  # for href_param: the query parameter's name
+    prefix: Optional[str] = None  # for href_path: the path root categories hang off
 
 
 @dataclass(frozen=True)
@@ -135,21 +178,26 @@ class KindMap:
         return row.our_kind if row else None
 
     def section_ids_in(self, url: Optional[str]) -> Tuple[str, ...]:
-        """Every section id this map's `href_param` signals find in one URL.
+        """Every section id this map's href signals find in one URL.
 
         The desk's own address bar is a category statement when the desk
         publishes category-filtered URLs — reading it is reading what the desk
-        said, not inferring from the title.
+        said, not inferring from the title. Two shapes, because desks publish
+        both: a query parameter (`href_param`) and a path segment
+        (`href_path`).
         """
         if not url:
             return ()
         found = []
         for signal in self.signals:
-            if signal.how != "href_param" or not signal.param:
-                continue
-            for match in re.finditer(
-                    r"[?&]" + re.escape(signal.param) + r"=([^&#\s\"']+)", url):
-                value = match.group(1).strip()
+            if signal.how == "href_param" and signal.param:
+                for match in re.finditer(
+                        r"[?&]" + re.escape(signal.param) + r"=([^&#\s\"']+)", url):
+                    value = match.group(1).strip()
+                    if value and value not in found:
+                        found.append(value)
+            elif signal.how == "href_path" and signal.prefix:
+                value = segment_after(url, signal.prefix)
                 if value and value not in found:
                     found.append(value)
         return tuple(found)
@@ -246,7 +294,14 @@ def _signal_from(raw: Any, *, where: str) -> Signal:
     if how == "href_param" and (not isinstance(param, str) or not param.strip()):
         raise KindMapError(
             f"{where}: an href_param signal must name its param, got {param!r}")
-    return Signal(how=how, param=(param.strip() if isinstance(param, str) else None))
+    prefix = raw.get("prefix")
+    if how == "href_path" and (not isinstance(prefix, str) or not prefix.strip()):
+        raise KindMapError(
+            f"{where}: an href_path signal must name the path prefix its "
+            f"categories hang off, got {prefix!r}")
+    return Signal(how=how,
+                  param=(param.strip() if isinstance(param, str) else None),
+                  prefix=(prefix.strip() if isinstance(prefix, str) else None))
 
 
 def load_kind_map(map_id: str, *, maps_dir: Optional[str] = None,
@@ -331,10 +386,11 @@ def load_kind_map(map_id: str, *, maps_dir: Optional[str] = None,
         if key in id_rows:
             raise KindMapError(f"{where}: duplicate section id row {key!r}")
         id_rows[key] = row
-    if id_rows and not any(s.how == "href_param" for s in signals):
+    if id_rows and not any(s.how in ("href_param", "href_path") for s in signals):
         raise KindMapError(
-            f"{where}: id_rows are keyed by a section id, but no href_param "
-            f"signal says where to find one — those rows could never match")
+            f"{where}: id_rows are keyed by a section id, but no href_param or "
+            f"href_path signal says where to find one — those rows could never "
+            f"match")
 
     return KindMap(
         map_id=map_id,
