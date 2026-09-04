@@ -92,7 +92,16 @@ was not: a venue card declaring an artist's homepage IS a declaration (round 1's
 sees it) and each card names a different artist (`_drop_shared_identities` never sees it),
 so the homepage was accepted as the show's identity. `identity_address` now refuses a bare
 site ROOT in every spelling — no type check, the founder's own sentence, justified by
-reasoning this file already used for a page's own url. Blast radius zero publishers. EVERY carrier goes through a validator, and
+reasoning this file already used for a page's own url. Blast radius zero publishers. ROUND 12 is the
+first round with NO code change: three seats APPROVE (including openai/absence-only, which
+blocked r11), and the one blocking seat NARROWED its finding, explicitly disclaiming the
+struck remedy — "not a request to reinstate an Event-only rule; it is the narrower missing
+validation that the non-Event declaration is actually the listing/presenter-owned item". It
+is not actioned, and the reason is sharper than "the founder struck it": the fact it asks
+for is WHOSE PAGE THIS IS, which `worker/segment.py` structurally cannot know (it receives a
+page's CONTENT, never its url). Every per-page approximation — card type, type homogeneity,
+path shape — is a heuristic, and heuristics in this exact position are what rounds 1-4
+deleted four times. Answered on the PR; the decision is the founder's. EVERY carrier goes through a validator, and
 after round 6 there are THREE because the carriers are three KINDS: `identity_token` for
 an opaque `identifier` or ICS `UID` (refuse empty, fragment-only, non-address schemes —
 `8818` is a fine id), `identity_iri` for a JSON-LD `@id`, which must NAME ITSELF — and
