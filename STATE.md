@@ -12,6 +12,38 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #61 (2026-09-04, founder — "hunt + read public desks (locale pack)", branch claude/locale-pack-public-desks-0q65xu) — OPEN
+
+STATUS: OPEN — delivered and pushed; PR #222 opened as DRAFT
+(https://github.com/schubertsean-ui/onelive/pull/222), subscribed for CI/review
+events. NOT merged: the founder's word is required ("Do not merge until I say so").
+WHAT: A locale pack as DATA (`sources/locale_packs/capcog.json` — locale id, query
+grammar, typed door list incl. the founder-named Chronicle EventSearch), `hunt(locale)`
+returning typed doors (local_desk/marketplace/civic/official_list/wall/junk) with brands
+ONLY in the pack, `read(public_desk)` returning happening rows (title, when-if-on-page,
+place text, via=desk, unknown kind = other), a fixture dry-run table, and the named file
+that still hides these rows downstream.
+HOW: `worker/locale/pack.py` (loader + door types + hunt, no brand literal in code),
+`worker/locale/desk_read.py` (reuses `structured_feed.parse_jsonld`; bypasses
+`normalize_structured`, whose no-stable-id/no-title None IS an identity-gated existence
+test), `tools/locale_desks.py` for the table, fixtures + tests. Egress is 403 in this
+sandbox, so counts come from committed fixtures, labelled as such.
+WHY: Coverage Law — the catalog may hold any happening in any locale; today ingest reads
+venue homepages, not the public desks a person actually consults.
+WHY-IT-MATTERS: a desk read that refuses a row for a missing clock or a missing id is an
+existence answer given by a field test — exactly what ONE-LIVE-TRUST.md forbids, and the
+reason coverage stays thin.
+EXPECTED OUTCOMES: pack + hunt + read + table land green; rows exist with holes; the
+downstream hider is NAMED, not redesigned. No merge until the founder says so.
+
+**construction_gate Stage 3 (founder-capped at 5 lines):**
+[S3:contract-scope-violation] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] [S3:governance-ambiguity] [S3:featurability-dimension-missed] Scope is the founder's six Must-dos; item 6 is answered by NAMING the three downstream files (R-105), never by editing them; sandbox 403 is diagnosed and reported, not waited on.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:final-gate-trusts-generator] [S3:untested-gate-branch] [S3:release-path-weaker-than-generation] [S3:pushed-on-red] [S3:weak-key-accepted-at-custody] No gate, threshold, workflow or reviewer binding is touched; the one gate this PR ADDS (Door.readable) is a door test with 60 tests behind it incl. every refusal branch, and it only ever narrows what may be read; validate ran bare and its result is pasted, not retyped.
+[S3:destructive-normalization] [S3:swallowed-corrupt-data] [S3:partial-write-whole-row] [S3:hygiene-narrows-coverage] [S3:missing-cardinality-check] [S3:pagination-integrity-gap] [S3:db-type-mismatch-invisible-to-hermetic-tests] read() writes nothing anywhere — no DB, no candidate, no promotion; a malformed JSON-LD block or a pathological page keeps the other rows and adds a NOTE; skipped-untitled blocks are COUNTED; a pack that half-parses raises instead of returning a shorter door list; row counts are asserted per fixture.
+[S3:env-dependent-hermetic-test] [S3:retyped-evidence] [S3:scripted-transform-order] [S3:stale-base-widens-range] [S3:stale-redclass-count] [S3:parallel-record-id-collision] [S3:records-sharing-one-trigger] [S3:deferred-trust-work] Tests read committed fixtures only (no network, no DB, no clock); the six red tests at first run were a SHALLOW CLONE and pass after `git fetch --unshallow` (proven by re-run, not asserted); base is origin/master tip 4a251f4 per the gate's own freshness line; R-105 is a fresh id with its own trigger.
+[S3:caller-suppliable-custody-inputs] [S3:self-weakenable-review-model] [S3:green-on-stale-base] [S3:volatile-safety-store] [S3:nonfinite-numeric-accepted] No custody input, reviewer binding or model selection is reachable from this diff; the base is the remote tip 4a251f4 per the gate's own ls-remote line; nothing here stores safety state (read() holds rows in memory and returns them, the pack is a read-only file); and no numeric is parsed at all — a date is either an ISO string the page declared or None, so there is no NaN/Infinity path to accept.
+[S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:workflow-tool-version-skew] Nothing here pins, routes to, or names an AI model; no key is read, minted or required (the two doors marked not-public are marked so precisely BECAUSE we hold nothing for them, and they are never fetched); no CI file, action pin, or runner image is touched.
+
 ## Session Contract #60 (2026-09-04, founder — "CAPCOG TAM + aggregators + doors + clear-the-door (docs)", branch claude/capcog-tam-aggregators-entities-3bb4sg) — OPEN
 
 STATUS: OPEN — docs/TAM_CAPCOG.md + .csv + docs/domain_recipes.md delivered,
