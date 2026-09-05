@@ -14,7 +14,8 @@ from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.source_catalog import cultural_domain_for_source
 from worker.trust_gate3 import (
-    FIELD_START_TIME, GateDecision, evaluate_gate, start_time_instants,
+    FIELD_START_TIME, GateDecision, evaluate_gate, start_time_claims,
+    start_time_instants,
 )
 
 
@@ -153,12 +154,32 @@ def promote_candidate(candidate_id: str) -> str:
                     "from candidate_evidence where candidate_id=%s", (candidate_id,))
                 evidenced = {r[0] for r in cur.fetchall() if r[0]}
                 bound = [c for c in claimed if c["source"] in evidenced]
-                sources = {c["source"] for c in bound}
-                if len(sources) >= 2:
+
+                # A SOURCE THAT CONTRADICTS ITSELF HAS NOT STATED A CLOCK
+                # (evaluator PR #229 r8). Counting distinct SOURCES was still
+                # too loose: `A@8pm, A@9pm, B@8pm` has two sources and no
+                # cross-source disagreement at all — A cannot make up its mind
+                # and B agrees with one of its readings. Admitting that as a
+                # conflict would null a time the sources actually agree on. So
+                # a source's claims are dropped when they disagree with each
+                # other, and the conflict is then decided among sources that
+                # each said ONE thing. Comparison is by INSTANT throughout
+                # (`start_time_claims`): one moment written two ways is one
+                # claim, never two.
+                per_source: dict = {}
+                for c in bound:
+                    per_source.setdefault(c["source"], []).append(str(c["at"]))
+                settled = {
+                    src: times[0] for src, times in per_source.items()
+                    if len(start_time_claims({"start_times": times})) == 1
+                }
+                self_contradicting = sorted(set(per_source) - set(settled))
+                if len(start_time_claims(
+                        {"start_times": list(settled.values())})) >= 2:
                     evidence_signals = dict(evidence_signals)
                     evidence_signals["start_times"] = (
                         list(evidence_signals.get("start_times") or [])
-                        + [str(c["at"]) for c in bound])
+                        + list(settled.values()))
                 else:
                     # Recorded rather than dropped in silence: a producer that
                     # claims a conflict it cannot source is a defect worth
@@ -172,12 +193,15 @@ def promote_candidate(candidate_id: str) -> str:
                             "claims": claimed,
                             "bound_to_evidence": [c["source"] for c in bound],
                             "evidenced_sources": sorted(evidenced),
+                            "self_contradicting_sources": self_contradicting,
+                            "settled_per_source": settled,
                             "ignored_because": (
-                                "every clock claim must name a source with an "
-                                "evidence row on this candidate, and a contested "
-                                "clock needs two DISTINCT such sources; a source "
-                                "cannot contest itself and an unrecorded source "
-                                "cannot contest anyone"),
+                                "a contested clock needs two sources that each "
+                                "stated ONE instant and stated different ones. A "
+                                "claim from a source with no evidence row here is "
+                                "dropped; a source that disagrees with itself has "
+                                "not stated a clock; and one moment written two "
+                                "ways is one claim, not two"),
                         })))
 
             verdict = assert_promotable(

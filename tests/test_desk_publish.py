@@ -1004,3 +1004,34 @@ def test_an_uncontested_row_states_no_clock_claims_at_all():
     one = _union(_walk(CHRONICLE, "Austin Chronicle",
                        [_row("Solo", when="2026-09-12T20:00:00-05:00")]))
     assert "start_times" not in write_for(one.rows[0], REGS, mode="LIVE").extracted
+
+
+def test_one_moment_written_two_ways_is_not_a_contested_clock():
+    """Evaluator, PR #229 r8, and this shape is IN the committed fixtures:
+    one desk writes `...T01:00:00Z` and the other `...T20:00:00-05:00` for the
+    same moment. Compared as strings that is a disagreement; compared as
+    instants it is one clock, and treating it as a conflict would throw away a
+    time both desks agreed on.
+    """
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Same Moment", when="2026-09-13T01:00:00Z", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Same Moment", when="2026-09-12T20:00:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert not w.clock_disputed, "one instant in two forms is one instant"
+    assert w.start_time == "2026-09-13T01:00:00Z", "the first form is kept"
+    assert w.clock_hole is None
+    assert "start_times" not in w.extracted
+
+
+def test_genuinely_different_instants_are_still_contested():
+    """The other side: the instant comparison must not swallow a real conflict."""
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Real Conflict", when="2026-09-13T01:00:00Z", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Real Conflict", when="2026-09-12T21:30:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+    assert write_for(one.rows[0], REGS, mode="LIVE").clock_disputed

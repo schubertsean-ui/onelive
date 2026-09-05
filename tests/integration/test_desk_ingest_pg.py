@@ -676,3 +676,54 @@ def test_a_clock_claim_from_a_source_with_no_evidence_row_is_not_counted(pg, reg
         bound = cur.fetchone()
     assert bound is not None, "the refusal is recorded, never silent"
     assert "Do512" in bound[0] and "Never Wrote Evidence" not in bound[0]
+
+
+def test_a_source_that_contradicts_itself_does_not_make_a_cross_source_conflict(pg, registrations):
+    """Evaluator, PR #229 r8. `A@8pm, A@9pm, B@8pm` has two evidenced sources
+    and no cross-source disagreement: A cannot make up its mind and B agrees
+    with one of its readings. Admitting that as a conflict would null a time
+    the sources actually agree on.
+    """
+    import json as _json
+
+    from worker.promote import promote_candidate
+
+    tag = uuid.uuid4().hex[:8]
+    title = f"Self Contradiction {tag}"
+    eight, nine = "2027-03-03T20:00:00+00:00", "2027-03-03T21:00:00+00:00"
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            insert into event_candidate(
+              source_name, source_class, raw_text, extracted, title, start_time,
+              venue_name, city, status)
+            values ('Do512','local_media','raw', %s::jsonb, %s, %s,
+                    %s, 'Austin', 'needs_review')
+            returning candidate_id
+            """,
+            (_json.dumps({"start_times": [
+                {"source": "Do512", "at": eight},
+                {"source": "Do512", "at": nine},
+                {"source": "Austin Chronicle Events", "at": eight}]}),
+             title, eight, f"Self Room {tag}"))
+        cid = str(cur.fetchone()[0])
+        for name in ("Do512", "Austin Chronicle Events"):
+            cur.execute(
+                "insert into candidate_evidence(candidate_id, source_class, source_name)"
+                " values (%s,'local_media',%s)", (cid, name))
+
+    event_id = promote_candidate(cid)
+
+    with pg.cursor() as cur:
+        cur.execute("select confidence, start_time from event where event_id=%s",
+                    (event_id,))
+        confidence, start_time = cur.fetchone()
+    assert confidence == "confirmed", (
+        "one source disagreeing with ITSELF is not two sources disagreeing")
+    assert start_time is not None, "the agreed 8pm must survive"
+    with pg.cursor() as cur:
+        cur.execute(
+            "select payload->>'self_contradicting_sources' from audit_log "
+            "where entity_id=%s and action='promote_unsourced_clock_claims'", (cid,))
+        row = cur.fetchone()
+    assert row and "Do512" in row[0], "the self-contradiction is on the record"

@@ -86,6 +86,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 
@@ -266,18 +267,46 @@ class CandidateWrite:
         return len(self.vias) < 2
 
 
+def _instant(stated: str):
+    """One stated time as a comparable INSTANT, or None when it will not parse.
+
+    Two desks can state the same moment in different forms —
+    `2026-09-13T01:00:00Z` and `2026-09-12T20:00:00-05:00` are one instant
+    written two ways — so comparing the STRINGS finds a disagreement that does
+    not exist and loses a time both desks agreed on (evaluator PR #229 r8).
+    A naive value is left naive rather than being assigned a timezone we were
+    not given; it can then only equal another naive value, which is the safe
+    direction for a comparison whose false YES costs a real clock.
+    """
+    try:
+        return datetime.fromisoformat(stated)
+    except (TypeError, ValueError):
+        return None
+
+
 def _stated_clocks(row: UnionRow) -> List[str]:
     """The DISTINCT instants this row's desks stated, in first-seen order.
 
     Only `datetime` precision counts. A `date` row states a night; the union
     already keys on that night, and turning it into 00:00 would be an invented
     time on a public listing.
+
+    Distinctness is by INSTANT, not by string: the first form of each moment is
+    the one kept, and a second desk writing that same moment differently adds
+    nothing. An unparseable value keeps its own text as its identity rather
+    than collapsing into the parsed ones — the same rule
+    `worker/trust_gate3.start_time_claims` applies one layer down.
     """
     out: List[str] = []
+    seen = []
     for member in row.members:
-        if member.row.when and member.row.when_precision == "datetime":
-            if member.row.when not in out:
-                out.append(member.row.when)
+        if not (member.row.when and member.row.when_precision == "datetime"):
+            continue
+        moment = _instant(member.row.when)
+        key = moment if moment is not None else f"unparseable:{member.row.when}"
+        if key not in seen:
+            seen.append(key)
+            out.append(member.row.when)
     return out
 
 
