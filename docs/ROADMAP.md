@@ -3,8 +3,7 @@
 Parked ideas only. Nothing here is authorized work. An item leaves this file
 when the founder names it in a ticket.
 
-- [ ] 2026-09-04 — Locale mood playlists: a small number of
-  playlists per city (Austin, NYC, Lexington, …) as a feel-for-
-  what’s-happening starter/changer; same pattern for talks/videos
-  on non-music happenings. Status: parked. View, not catalog.
-  Not this quarter unless founder names it.
+- [ ] 2026-09-04 — Locale mood playlists: small set per city
+  (Austin, NYC, Lexington, …). Named cuts: Daily, Weekender
+  (more later). Music + talks/videos for non-music. Feel-for-
+  what’s-happening starter. View, not catalog. Parked.
