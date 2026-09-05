@@ -24,6 +24,7 @@ from worker.locale.desk_publish import (
     DESK_KEY,
     DeskPublishError,
     DeskRegistration,
+    contradicts,
     drift,
     ingest_key,
     plan,
@@ -639,9 +640,12 @@ def test_a_changed_listing_address_is_drift():
                  _stmt(url="https://d.example/b")) == ["listing_url"]
 
 
-def test_a_second_desk_picking_up_a_published_row_is_drift():
-    """Not a correction, but not nothing either: the row now has corroboration
-    it did not have when it published, and an operator should see that.
+def test_a_second_desk_picking_up_a_published_row_is_drift_but_not_a_contradiction():
+    """Evaluator, PR #229 r6, and my own earlier test documented the bug: this
+    IS drift worth recording (the row has corroboration it did not have), and
+    it is NOT a disagreement. Treating it as one marks an already-correct
+    listing `disputed` — showing a reader STRONGER agreement as a dispute,
+    which is the r2 harm inverted.
     """
     one_desk = _stmt()
     both = _union(
@@ -652,6 +656,8 @@ def test_a_second_desk_picking_up_a_published_row_is_drift():
                  via="Do512", door_id=DO512)]))
     two_desks = write_for(both.rows[0], REGS, mode="LIVE").extracted[DESK_KEY]["statement"]
     assert drift(one_desk, two_desks) == ["vias"]
+    assert contradicts(one_desk, two_desks) == [], (
+        "a second desk agreeing is not the first desk changing its mind")
 
 
 def test_an_unchanged_desk_is_not_drift():
@@ -917,3 +923,57 @@ def test_a_clean_run_records_no_dispute_failures():
         add_evidence=lambda *a: None, promote=lambda cid: "event")
     assert result["dispute_failures"] == []
     assert len(result["promoted"]) == 2
+
+
+# --------------------------------------------------------------------------
+# Corroboration is not contradiction (evaluator, PR #229 r6)
+# --------------------------------------------------------------------------
+
+def test_corroboration_records_the_desk_but_leaves_the_published_row_alone():
+    """The blocking finding as a test: a row published from one desk and later
+    carried by a second with identical details must NOT be marked disputed.
+    """
+    writes = _writes(1)
+    stored = dict(writes[0].extracted[DESK_KEY]["statement"])
+    stored["vias"] = ["Do512"]          # published from one desk...
+    fresh = writes[0].extracted[DESK_KEY]["statement"]
+    fresh["vias"] = ["Do512", "Austin Chronicle"]   # ...now carried by two
+    disputed, created = [], []
+
+    result = ingest_tool.ingest(
+        writes, seen={writes[0].ingest_key: ("c", "promoted", "event-old", stored)},
+        create=lambda **kw: created.append(kw) or "cand-new",
+        add_evidence=lambda *a: None, promote=lambda cid: "never",
+        dispute=lambda eid: disputed.append(eid) or "DISPUTED")
+
+    assert disputed == [], "corroboration must never dispute a correct row"
+    assert len(created) == 1, "the second desk's word is still recorded"
+    assert len(result["changed"]) == 1
+    assert "corroboration, not a contradiction" in result["changed"][0][1]
+    assert result["dispute_failures"] == []
+
+
+def test_a_contradiction_still_disputes():
+    """The other side of the same branch — r2's fix must survive r6's."""
+    writes = _writes(1)
+    stored = dict(writes[0].extracted[DESK_KEY]["statement"])
+    stored["clocks"] = ["2026-09-01T01:00:00-05:00"]
+    disputed = []
+
+    result = ingest_tool.ingest(
+        writes, seen={writes[0].ingest_key: ("c", "promoted", "event-old", stored)},
+        create=lambda **kw: "cand-new", add_evidence=lambda *a: None,
+        promote=lambda cid: "never",
+        dispute=lambda eid: disputed.append(eid) or "DISPUTED")
+    assert disputed == ["event-old"]
+    assert result["changed"][0][0].extracted[DESK_KEY]["supersedes"]["contradicts"] == ["clocks"]
+
+
+def test_every_watched_field_is_classified_as_one_or_the_other():
+    """Cardinality over the split: a field added to the statement without a
+    decision about what its change MEANS would otherwise be silently treated as
+    a contradiction (or silently ignored), and both are wrong by default.
+    """
+    from worker.locale.desk_publish import CONTRADICTING, CORROBORATING, WATCHED
+    assert set(CONTRADICTING) | set(CORROBORATING) == set(WATCHED)
+    assert not (set(CONTRADICTING) & set(CORROBORATING))

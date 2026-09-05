@@ -306,11 +306,27 @@ def ingest_key(row: UnionRow) -> str:
     return f"desk:{member.via}~{member.place}~{member.title_key}"
 
 
+#: Fields whose change means the desk now says something DIFFERENT about this
+#: happening than the row we published. These, and only these, put the
+#: published row's confidence in question.
+CONTRADICTING = ("title", "place", "night", "clocks", "listing_url")
+
+#: Fields whose change is not a contradiction. `vias` grows when a SECOND desk
+#: starts carrying a row the first one already gave us — that is more agreement,
+#: not less, and marking the row `disputed` for it would show a reader stronger
+#: corroboration as a dispute (evaluator PR #229 r6). It shrinks when a desk
+#: stops listing something, which is an ABSENCE — and absence is the one
+#: evidence shape a short page can manufacture, so it is never read as a
+#: contradiction either (the same rule `worker/listing_update.py` calls its
+#: false-absence guard). Either way it is worth RECORDING, which is why it is
+#: still watched.
+CORROBORATING = ("vias",)
+
 #: The fields of a desk's statement a re-run compares. Named as data rather
 #: than compared field-by-field in a function body, so a field added to the
 #: statement without a decision about what its CHANGING means is a visible
 #: omission rather than a silently unwatched value.
-WATCHED = ("title", "place", "night", "clocks", "listing_url", "vias")
+WATCHED = CONTRADICTING + CORROBORATING
 
 
 def _statement(row: UnionRow, clocks: List[str], listing_url: Optional[str]) -> Dict[str, Any]:
@@ -345,6 +361,21 @@ def drift(stored: Optional[Mapping[str, Any]], fresh: Mapping[str, Any]) -> List
     if not stored:
         return []
     return [field for field in WATCHED if stored.get(field) != fresh.get(field)]
+
+
+def contradicts(stored: Optional[Mapping[str, Any]],
+                fresh: Mapping[str, Any]) -> List[str]:
+    """Which of the changed fields actually CONTRADICT the published row.
+
+    A re-run asks two different questions and they must not share an answer:
+    "has anything changed?" (`drift`, which decides whether to record the
+    desk's new word) and "does the desk now disagree with what we published?"
+    (this, which decides whether the published row may still read `confirmed`).
+    A second desk picking up a row the first already gave us changes `vias` and
+    contradicts nothing — disputing on it would show a reader MORE agreement as
+    a dispute.
+    """
+    return [f for f in drift(stored, fresh) if f in CONTRADICTING]
 
 
 def describe_drift(stored: Mapping[str, Any], fresh: Mapping[str, Any],

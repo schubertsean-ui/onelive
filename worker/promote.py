@@ -122,11 +122,47 @@ def promote_candidate(candidate_id: str) -> str:
             #
             # Additive by construction: it can only ADD claims, so its worst
             # case is the gate finding a hole it would otherwise have missed.
+            # BOUND TO REAL EVIDENCE, NOT ACCEPTED ON THE PAYLOAD'S WORD
+            # (evaluator, PR #229 r6). `extracted` is producer-supplied, so an
+            # unchecked list here lets any payload manufacture a conflict —
+            # nulling a real scheduled time into "Date TBA" and stamping
+            # `disputed` on a listing whose sources never disagreed. That is a
+            # user-facing degradation from unverified data, and "safe
+            # direction" does not excuse it: a reader loses a time that was
+            # correct.
+            #
+            # A contested clock MEANS two or more sources said different
+            # things, so it requires two or more of them to exist. The count
+            # comes from `candidate_evidence` — rows written through
+            # `add_evidence`, the same table this function already trusts for
+            # `source_classes` — and one source cannot contest itself no matter
+            # how many instants its payload lists.
             stated = [str(c) for c in (extracted.get("start_times") or []) if c]
             if stated:
-                evidence_signals = dict(evidence_signals)
-                evidence_signals["start_times"] = (
-                    list(evidence_signals.get("start_times") or []) + stated)
+                cur.execute(
+                    "select count(distinct coalesce(source_name, source_class)) "
+                    "from candidate_evidence where candidate_id=%s", (candidate_id,))
+                independent = int(cur.fetchone()[0])
+                if independent >= 2:
+                    evidence_signals = dict(evidence_signals)
+                    evidence_signals["start_times"] = (
+                        list(evidence_signals.get("start_times") or []) + stated)
+                else:
+                    # Recorded rather than dropped in silence: a producer that
+                    # claims a conflict it cannot source is a defect worth
+                    # seeing, and the row still publishes on what IS evidenced.
+                    cur.execute(
+                        """
+                        insert into audit_log(actor_type, action, entity_type, entity_id, payload)
+                        values ('system','promote_unsourced_clock_claims','candidate',%s,%s::jsonb)
+                        """,
+                        (candidate_id, json.dumps({
+                            "claims": stated,
+                            "independent_evidence_sources": independent,
+                            "ignored_because": (
+                                "a contested clock needs two or more sources to "
+                                "contest it; one source cannot contest itself"),
+                        })))
 
             verdict = assert_promotable(
                 source_classes=classes,

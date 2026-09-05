@@ -74,6 +74,7 @@ from worker.locale.desk_publish import (  # noqa: E402
     CandidateWrite,
     DeskPublishError,
     DeskRegistration,
+    contradicts,
     describe_drift,
     drift,
     plan,
@@ -332,8 +333,17 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
             # candidate — evidence, auditable, in the ops queue — the published
             # row is left alone, and the divergence is REPORTED rather than
             # silently absorbed. The residual is R-110, with its trigger.
+            # A CHANGE IS NOT AUTOMATICALLY A DISAGREEMENT (evaluator PR #229
+            # r6). A second desk picking up a row the first already gave us
+            # changes `vias` and contradicts nothing — disputing the published
+            # row for that would show a reader MORE agreement as a dispute,
+            # which is a false trust display in the opposite direction to the
+            # one r2 fixed. So the desk's new word is always RECORDED, and only
+            # a contradicting field puts the published row's label in question.
+            against = contradicts(stored, fresh)
             supersedes = {"candidate_id": cid, "event_id": event_id,
-                          "was": stored, "changed": moved}
+                          "was": stored, "changed": moved,
+                          "contradicts": against}
             w.extracted[DESK_KEY]["supersedes"] = supersedes
         try:
             cid = create(
@@ -379,13 +389,18 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
             # and which the feed renders without hiding the row. Correcting the
             # FIELD is still worker/listing_update.py's (R-110); telling the
             # truth about our confidence in it is ours, now.
-            try:
-                verdict = dispute(supersedes["event_id"])
-            except Exception as exc:  # noqa: BLE001 — a row we could not flag fails the run
-                verdict = (f"COULD NOT DISPUTE published row "
-                           f"{supersedes['event_id']} ({type(exc).__name__}: "
-                           f"{exc}) — it may still read as confirmed")
-                out["dispute_failures"].append((supersedes["event_id"], verdict))
+            if not supersedes["contradicts"]:
+                verdict = (f"published row {supersedes['event_id']} is left "
+                           f"alone: this is corroboration, not a contradiction "
+                           f"— nothing the desks say about it has changed")
+            else:
+                try:
+                    verdict = dispute(supersedes["event_id"])
+                except Exception as exc:  # noqa: BLE001 — a row we could not flag fails the run
+                    verdict = (f"COULD NOT DISPUTE published row "
+                               f"{supersedes['event_id']} ({type(exc).__name__}: "
+                               f"{exc}) — it may still read as confirmed")
+                    out["dispute_failures"].append((supersedes["event_id"], verdict))
             out["changed"].append((
                 w, f"the desk has changed its statement since we published "
                    f"event {supersedes['event_id']} — "

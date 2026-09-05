@@ -568,3 +568,54 @@ def test_a_contested_clock_is_disputed_by_promote_itself_not_by_a_later_write(pg
         "returns `confirmed` re-opens the window a later write cannot close")
     assert start_time is None
     assert status == "scheduled"
+
+
+def test_one_source_cannot_manufacture_a_contested_clock(pg, registrations):
+    """Evaluator, PR #229 r6. `extracted` is producer-supplied, so an unchecked
+    `start_times` list would let any payload null a REAL scheduled time into
+    "Date TBA" and stamp `disputed` on a listing whose sources never disagreed.
+    A contested clock means two or more sources said different things, so it
+    takes two or more of them to exist — one source cannot contest itself.
+    """
+    import json as _json
+
+    from worker.promote import promote_candidate
+
+    tag = uuid.uuid4().hex[:8]
+    title = f"Single Source {tag}"
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            insert into event_candidate(
+              source_name, source_class, raw_text, extracted, title, start_time,
+              venue_name, city, status)
+            values ('Do512','local_media','raw', %s::jsonb, %s,
+                    now() + interval '4 day', %s, 'Austin', 'needs_review')
+            returning candidate_id
+            """,
+            (_json.dumps({"start_times": ["2027-01-01T20:00:00+00:00",
+                                          "2027-01-01T23:00:00+00:00"]}),
+             title, f"Single Room {tag}"))
+        cid = str(cur.fetchone()[0])
+        # ONE evidence row: one source, however many instants it lists.
+        cur.execute(
+            "insert into candidate_evidence(candidate_id, source_class, source_name)"
+            " values (%s,'local_media','Do512')", (cid,))
+
+    event_id = promote_candidate(cid)
+
+    with pg.cursor() as cur:
+        cur.execute("select confidence, start_time from event where event_id=%s",
+                    (event_id,))
+        confidence, start_time = cur.fetchone()
+    assert confidence == "confirmed", (
+        "a lone source's payload must not degrade its own listing to disputed")
+    assert start_time is not None, (
+        "and must not null a real scheduled time into 'Date TBA'")
+
+    # Ignored, but never in silence.
+    with pg.cursor() as cur:
+        cur.execute(
+            "select count(*) from audit_log where entity_id=%s "
+            "and action='promote_unsourced_clock_claims'", (cid,))
+        assert cur.fetchone()[0] == 1, "the unsourced claim must be recorded"
