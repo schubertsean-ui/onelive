@@ -604,19 +604,24 @@ def board_table(one: DeskUnion) -> str:
 
       * another desk UNREADABLE -> `unknown`. A desk we could not open supports
         no claim at all: 403 is not a zero list.
-      * another desk PARTIAL (its list continues past where the walk stopped)
-        -> **at most** N. Rows on its unread pages can still match these, which
-        moves them out of "only" and into "both". An exact-looking count here
-        would overstate one desk's exclusive coverage — the same defect as
-        printing a blocked desk's zero, one degree weaker.
+      * another desk PARTIAL (its list continues past where the walk stopped),
+        this one exhausted -> **at most** N. Rows on its unread pages can still
+        match these, which moves them out of "only" and into "both". An
+        exact-looking count here would overstate one desk's exclusive coverage
+        — the same defect as printing a blocked desk's zero, one degree weaker.
       * this desk partial, every OTHER desk read to the end -> **at least** N.
         Its unread pages can only add rows, and nothing left to read can claim
         them, so the count can only grow.
+      * BOTH partial -> N so far, and neither bound is printed: reading on can
+        take rows out of the bucket and put new ones in.
       * everything exhausted -> the exact number.
 
-    `both` and the unique total are floors under any partial walk, in the other
-    direction: more reading reveals more overlap and more rows, and neither
-    un-merges what is already matched.
+    `both` and the unique total are floors whenever anything is unread — a
+    partial walk or an unreadable desk alike — because more reading reveals
+    more overlap and more rows and never un-merges what is already matched.
+    Every one of those floors PRINTS as "at least N": the word "floor" in a
+    note does not undo a number that looks measured, which is the defect this
+    docstring's own first draft shipped in the unreadable branch.
     """
     readable = [d for d in one.desks if d.readable]
     unreadable = [d for d in one.desks if not d.readable]
@@ -629,6 +634,16 @@ def board_table(one: DeskUnion) -> str:
                     + ", ".join(f"`{u.door_id}` was not readable" for u in unreadable)
                     + " — 403 is not a zero list")
             value = "unknown"
+        elif others_partial and d.floor:
+            # Both directions are open at once: the other desk's unread pages
+            # can take rows OUT of this bucket (they turn into `both`), and this
+            # desk's own unread pages can put new ones IN. Neither bound holds,
+            # so neither is printed.
+            value = f"**{one.only(d.via)} so far**"
+            note = ("neither a ceiling nor a floor: this desk AND "
+                    + ", ".join(f"`{o.door_id}`" for o in others_partial)
+                    + " both stopped short, so reading on can take rows out of "
+                      "this bucket and add others to it")
         elif others_partial:
             value = f"**at most** {one.only(d.via)}"
             note = ("a claim about the OTHER desk: "
@@ -645,9 +660,14 @@ def board_table(one: DeskUnion) -> str:
         lines.append(f"| {_cell(d.via)} only | {value} | {note} |")
     if unreadable:
         lines.append("| both | unknown | one desk was not readable |")
-        lines.append(f"| **unique total** | **{one.total}** | "
-                     f"floor from the readable desk(s) only: "
-                     f"{', '.join('`' + d.door_id + '`' for d in readable) or 'none'} |")
+        # A floor, and PRINTED as one. An exact-looking bold total beside
+        # `unknown` buckets reads as the complete cross-desk count, which is
+        # the same defect as printing a blocked desk's zero — the word "floor"
+        # in the note does not undo a number that looks measured.
+        lines.append(f"| **unique total** | **at least {one.total}** | "
+                     f"a FLOOR from the readable desk(s) only "
+                     f"({', '.join('`' + d.door_id + '`' for d in readable) or 'none'}) "
+                     f"— the unread desk(s) can only add rows or merge into these |")
     else:
         matched = f"matched on `{BASIS_UNION}` (or `{BASIS_PERFORMER}`)"
         if one.any_floor:

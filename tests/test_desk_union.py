@@ -314,7 +314,31 @@ def test_a_blocked_desk_is_unreadable_never_empty():
     # list, because nobody read the other one.
     assert "| Austin Chronicle only | 0 |" not in board
     assert "| Do512 only | 0 |" not in board
+    # Evaluator r2 (openai/attacker-smuggle, PR #226): the buckets said
+    # `unknown` while the TOTAL still printed a bold exact number beside them,
+    # which reads as the complete cross-desk count. The word "floor" in a note
+    # does not undo a number that looks measured.
+    assert "| **unique total** | **at least 1** |" in board
+    assert "| **unique total** | **1** |" not in board
     assert "UNREADABLE" in desk_table(got)
+
+
+def test_a_bucket_states_no_bound_when_every_desk_stopped_short():
+    """Both desks partial: the other's unread pages can take rows OUT of this
+    bucket and this desk's own can put new ones IN, so neither "at most" nor
+    "at least" is true of it."""
+    a = _fake_walk("desk-a", "A", [_row("Alpha", when="2026-09-12T20:00:00-05:00")],
+                   stopped="next_control_not_a_link")
+    b = _fake_walk("desk-b", "B", [_row("Beta", when="2026-09-12T20:00:00-05:00",
+                                        door_id="desk-b", via="B")],
+                   stopped="next_control_not_a_link")
+    board = board_table(union([a, b], timezone=TZ, timezone_id=TZ_ID))
+    assert "| A only | **1 so far** |" in board
+    assert "| B only | **1 so far** |" in board
+    assert "at most" not in board
+    # The two-sided buckets are still floors, and still print as floors.
+    assert "| both | **at least** 0 |" in board
+    assert "| **unique total** | **at least 2** |" in board
 
 
 def test_an_only_bucket_never_looks_exact_while_another_desk_is_partial(one):
