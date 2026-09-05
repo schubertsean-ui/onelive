@@ -116,7 +116,8 @@ def capture(door_ids: List[str], *, locale: str, out_dir: str, max_pages: int,
 # digest — what the captured bytes actually contain
 # --------------------------------------------------------------------------
 
-def digest_page(html: str, *, url: str, pattern: str, samples: int = 12) -> str:
+def digest_page(html: str, *, url: str, pattern: str, samples: int = 12,
+                listing_url_pattern=None) -> str:
     """A structural read-out of one captured page.
 
     This exists because the artifact is not readable from the machine that has
@@ -151,9 +152,17 @@ def digest_page(html: str, *, url: str, pattern: str, samples: int = 12) -> str:
     ld = html.count("schema.org")
     lines.append(f"- 'schema.org' mentions in the raw bytes: {ld}")
 
-    rows, tier = _select_rows(html)
-    lines.append(f"- the CURRENT reader selects {len(rows)} row(s) via the "
+    rows, tier = _select_rows(html, listing_url_pattern)
+    lines.append(f"- THIS ref's reader selects {len(rows)} row(s) via the "
                  f"`{tier}` tier")
+    if rows and tier == "listing_link":
+        lines.append("- first rows it now produces (title :: listing_url):")
+        from worker.locale.desk_read import _row_fields  # noqa: PLC0415
+        for node, href in rows[:samples]:
+            f = _row_fields(node, base_url=url, listing_href=href)
+            lines.append(f"    - {str(f['title'])[:70]!r} :: "
+                         f"`{str(f['listing_url'])[:100]}` :: place="
+                         f"{str(f['place_text'])[:50]!r} :: when={f['when']!r}")
 
     if matching:
         lines.append(f"- first {min(samples, len(matching))} matching links "
@@ -198,6 +207,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     manifest = capture(args.doors, locale=args.locale, out_dir=args.out,
                        max_pages=args.max_pages, timeout=args.timeout,
                        min_interval=args.min_interval)
+    doors_by_id = {d.door_id: d for d in load_pack(args.locale).doors}
     print("\n## What the captured bytes contain\n")
     for door_id, info in manifest["doors"].items():
         print(f"\n## `{door_id}`\n")
@@ -208,7 +218,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         for url, name in info["pages"].items():
             with open(os.path.join(args.out, door_id, name), encoding="utf-8") as fh:
                 print(digest_page(fh.read(), url=url,
-                                  pattern=args.digest_pattern))
+                                  pattern=args.digest_pattern,
+                                  listing_url_pattern=doors_by_id[door_id].listing_url_pattern))
                 print()
     return 0
 

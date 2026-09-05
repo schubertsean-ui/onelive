@@ -277,30 +277,129 @@ def _innermost_dated(root: _Node) -> List[_Node]:
     return out
 
 
-def _select_rows(html: str) -> Tuple[List[_Node], Optional[str]]:
+def _matching_href(node: _Node, rx) -> Optional[str]:
+    """The listing door this anchor points at, if it points at one."""
+    if node.tag != "a":
+        return None
+    href = _ws(node.attrs.get("href") or "")
+    return href if href and rx.search(href) else None
+
+
+def _by_listing_link(root: _Node, rx) -> List[Tuple[_Node, str]]:
+    """Rows anchored on the desk's OWN listing door.
+
+    The founder's rule for this desk, verbatim: "Event identity for Austin
+    Chronicle is not a CSS card." It is the `/event/{slug}-{id}` address the
+    desk gives each listing, so that is what a row is built around here.
+
+    For each distinct listing URL on the page, the row is the OUTERMOST
+    row-shaped ancestor that still contains exactly that one listing — the
+    whole card, with its venue and its date, and never the wrapper above it
+    that holds the next listing too. Containment is counted in DISTINCT URLs,
+    not in anchors, because a card routinely links its image and its title to
+    the same event; counting anchors would refuse to climb out of either one
+    and would return two half-rows for one listing.
+
+    A page where nothing matches yields nothing, and the caller falls through
+    to the tiers below: this tier never turns a readable page into an empty
+    desk.
+    """
+    anchors: List[Tuple[_Node, str]] = []
+    for node in root.descendants():
+        href = _matching_href(node, rx)
+        if href:
+            anchors.append((node, href))
+    if not anchors:
+        return []
+
+    counts: Dict[int, int] = {}
+
+    def distinct_below(node: _Node) -> int:
+        key = id(node)
+        got = counts.get(key)
+        if got is None:
+            seen = {href for d in node.descendants()
+                    if (href := _matching_href(d, rx))}
+            got = len(seen)
+            counts[key] = got
+        return got
+
+    out: List[Tuple[_Node, str]] = []
+    claimed: set = set()
+    for anchor, href in anchors:
+        chosen: _Node = anchor
+        node = anchor.parent
+        while node is not None and node.tag != "#root":
+            if distinct_below(node) != 1:
+                break
+            if node.tag in _ROW_TAGS:
+                chosen = node
+            node = node.parent
+        if id(chosen) in claimed:
+            # The image link and the title link of one card climb to the same
+            # card. One listing, one row.
+            continue
+        claimed.add(id(chosen))
+        out.append((chosen, href))
+    return out
+
+
+def _select_rows(html: str, listing_url_pattern: Optional[str] = None,
+                 ) -> Tuple[List[Tuple[_Node, Optional[str]]], Optional[str]]:
     """The rows one page states, and which tier found them.
 
-    Three tiers of decreasing confidence; the FIRST that yields anything wins,
-    and the tiers are never mixed. Mixing them is how one listing becomes two
-    rows — the card and the `<li>` wrapping it — and a duplicated public row is
-    a worse failure than a missed one (the same under-segment-don't-over-segment
+    Tiers of decreasing confidence; the FIRST that yields anything wins, and
+    the tiers are never mixed. Mixing them is how one listing becomes two rows
+    — the card and the `<li>` wrapping it — and a duplicated public row is a
+    worse failure than a missed one (the same under-segment-don't-over-segment
     discipline as `worker/segment.py`).
+
+    The `listing_link` tier runs FIRST, and only for a door whose pack states
+    where its listings live. It is first because that statement is the DESK's
+    own account of its identity, while every tier below is a guess we make from
+    the outside — and the guess is what failed: on the live list page of the
+    desk this ticket names ([brand elided: a committed gate keeps brands in the
+    pack so a locale module stays data]) the `class` tier matches an outermost
+    wrapper and returns the
+    entire page as ONE row (40 pages read, one row out, its title eleven
+    headlines and its place forty venues; run 33989221309). A door that states
+    nothing reads exactly as it did before.
+
+    Each row is returned with the listing URL it was anchored on, so the row's
+    identity is the address the desk gave it rather than whichever link happens
+    to appear first inside the card.
     """
     builder = _TreeBuilder()
     builder.feed(html)
     builder.close()
     root = builder.root
+
+    if listing_url_pattern:
+        try:
+            rx = re.compile(listing_url_pattern)
+        except re.error as exc:
+            # A door that cannot say where its listings live is a
+            # misconfiguration, and misconfiguration fails LOUDLY here rather
+            # than quietly falling through to the tier that swallows the page.
+            raise DeskReadError(
+                f"listing_url_pattern {listing_url_pattern!r} is not a usable "
+                f"regex ({exc})") from exc
+        linked = _by_listing_link(root, rx)
+        if linked:
+            return linked, "listing_link"
+
     for name, rows in (
         ("microdata", _topmost(root, _is_event_itemscope)),
         ("class", _topmost(root, _is_eventish)),
         ("time", _innermost_dated(root)),
     ):
         if rows:
-            return rows, name
+            return [(node, None) for node in rows], name
     return [], None
 
 
-def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
+def _row_fields(node: _Node, *, base_url: str,
+                listing_href: Optional[str] = None) -> Dict[str, object]:
     """Reduce one row node to its stated fields, plus the category signals it
     declared (`category_labels`, `hrefs`) for a committed mapping to read.
 
@@ -313,6 +412,7 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
     name_parts: List[str] = []
     heading_parts: List[str] = []
     anchor_parts: List[str] = []
+    listing_anchor_parts: List[str] = []
     place_parts: List[str] = []
     category_parts: List[str] = []
     category_labels: List[str] = []
@@ -342,7 +442,8 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
         return False
 
     def walk(n: _Node, *, in_time: bool, in_name: bool, in_heading: bool,
-             in_anchor: bool, in_place: bool, in_category: bool) -> None:
+             in_anchor: bool, in_place: bool, in_category: bool,
+             in_listing_anchor: bool = False) -> None:
         nonlocal time_iso, itemprop_date, href
         for child in n.children:
             if isinstance(child, str):
@@ -355,6 +456,13 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                     place_parts.append(child)
                 if in_category:
                     category_parts.append(child)
+                if in_listing_anchor:
+                    # The text of the link to THIS listing's own door. A card
+                    # prints other links too — its venue, its section, the
+                    # masthead — and concatenating them made a title like
+                    # "Gestures of Care [+ the masthead's own link text]"
+                    # (brand elided: brands live in the pack, never in code).
+                    listing_anchor_parts.append(child)
                 if in_name:
                     name_parts.append(child)
                 elif in_heading:
@@ -395,6 +503,9 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                 in_name=in_name or itemprop == "name",
                 in_heading=in_heading or child.tag in ("h1", "h2", "h3", "h4", "h5", "h6"),
                 in_anchor=in_anchor or child.tag == "a",
+                in_listing_anchor=in_listing_anchor or (
+                    bool(listing_href) and child.tag == "a"
+                    and _ws(child.attrs.get("href") or "") == listing_href),
                 in_place=(
                     in_place
                     or itemprop in ("location", "address")
@@ -423,7 +534,9 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
             if own_href not in hrefs:
                 hrefs.append(own_href)
     walk(node, in_time=node.tag == "time", in_name=False, in_heading=False,
-         in_anchor=node.tag == "a", in_place=False, in_category=False)
+         in_anchor=node.tag == "a", in_place=False, in_category=False,
+         in_listing_anchor=bool(listing_href) and node.tag == "a"
+         and _ws(node.attrs.get("href") or "") == listing_href)
 
     when_text = _ws(" ".join(time_text_parts)) or None
     when = time_iso or itemprop_date
@@ -432,12 +545,18 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
     # then its link text, then whatever text is left once the time text is
     # removed. Every branch returns text the page printed.
     title = (_ws(" ".join(name_parts)) or _ws(" ".join(heading_parts))
+             or _ws(" ".join(listing_anchor_parts))
              or _ws(" ".join(anchor_parts)))
     if not title:
         leftover = _ws(" ".join(text_parts))
         if when_text and when_text in leftover:
             leftover = _ws(leftover.replace(when_text, " ", 1))
         title = _ws(leftover.lstrip("-\u2013\u2014\u2022\u00b7 ").strip())
+    if listing_href:
+        # The row was selected BECAUSE it holds this listing's own door, so
+        # that door is its identity — not whichever link the card happens to
+        # print first (a venue link, a "buy tickets" link, a share link).
+        href = listing_href
     return {
         "title": title or None,
         "when": when,
@@ -631,14 +750,17 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
 
     # 2. The page's own HTML listing rows.
     try:
-        html_rows, tier = _select_rows(html)
+        html_rows, tier = _select_rows(html, door.listing_url_pattern)
+    except DeskReadError:
+        raise
     except Exception as exc:  # noqa: BLE001 — a pathological page must not lose the JSON-LD rows
         html_rows, tier = [], None
         result.notes.append(f"HTML parse raised ({exc}); JSON-LD rows still read")
     if tier:
         result.notes.append(f"HTML rows selected by the {tier} tier")
-    for row_node in html_rows:
-        fields = _row_fields(row_node, base_url=source_url)
+    for row_node, listing_href in html_rows:
+        fields = _row_fields(row_node, base_url=source_url,
+                             listing_href=listing_href)
         _add(fields["title"], fields["when"], fields["when_text"],
              fields["place_text"], fields["listing_url"],
              labels=tuple(fields.get("category_labels") or ()),

@@ -64,6 +64,8 @@
       "via": "Austin Chronicle",
       "door_type": "local_desk",
       "url": "https://calendar.austinchronicle.com/austin/EventSearch?sortType=date&v=g",
+      "listing_url_pattern": "^(?:https?://calendar\\.austinchronicle\\.com)?/event/[^/?#]+-\\d+(?:[/?#]|$)",
+      "listing_url_pattern_note": "The founder's own statement of this desk's identity (2026-09-05): 'List door: https://calendar.austinchronicle.com/austin/EventSearch?sortType=date&v=g / Event door: https://calendar.austinchronicle.com/event/{slug}-{id}'. Confirmed against the bytes the desk served a runner on 2026-09-05 (run 33989889096): page 2 carried 258 anchors, 91 of them this shape, e.g. /event/boeing-boeing-14285657 and /event/back-to-the-ranch-the-lbj-bbq-returns-14329073. The host is required when the href is absolute so a link off this desk cannot become one of its rows, and the trailing -{id} is required so the section index /events and a bare /event/ do not match.",
       "public": true,
       "intake": "html",
       "kind_scope": ["any"],
