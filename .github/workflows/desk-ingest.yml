@@ -219,6 +219,11 @@ jobs:
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
           ORCHESTRATOR_PING_URL: ${{ secrets.DESK_INGEST_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # Reaches the shell as ENVIRONMENT like every other value here. It is
+          # not caller-influenceable, so this is discipline rather than a
+          # vulnerability — and discipline is the point: no expression renders
+          # into a run block in this file, so no future edit has a precedent.
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           # Re-guarded at the point of use: the value that runs must be the
@@ -243,7 +248,7 @@ jobs:
           else
             args+=(--dry-run)
           fi
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "${EVENT_NAME:-}" = "schedule" ]; then
             # The alarm is the scheduled loop's, not the dispatcher's: a manual
             # run that pings success would tell healthchecks the SCHEDULE is
             # alive when it may not have run at all.
@@ -270,7 +275,15 @@ jobs:
         # surface here.
         if: failure()
         run: |
-          echo "::error::desk-ingest FAILED. A desk was unreadable (exit 3), a published row was left mislabelled (exit 1), or the run refused before writing (exit 2). The report is in this run's summary and in the desk-ingest-report artifact. An unread desk means its listings are UNKNOWN, not absent: nothing was deleted."
+          if [ -f desk-ingest-report.md ] && grep -q "UNREADABLE" desk-ingest-report.md; then
+            # The desks' own door_ids, which are OUR catalog identifiers, never
+            # anything a desk sent us — so nothing fetched can reach this
+            # annotation. Everything else in the report stays in the summary.
+            desks="$(grep -o '`[a-z0-9-]\+` opened no page' desk-ingest-report.md | tr -d '`' | sed 's/ opened no page//' | paste -sd, -)"
+            echo "::error::desk-ingest FAILED — unread desk(s): ${desks:-see the report}. Their listings are UNKNOWN, not absent. Everything the readable desks printed was still written and nothing was deleted. Full report: this run's summary and the desk-ingest-report artifact."
+          else
+            echo "::error::desk-ingest FAILED before it could report. Either it refused to start (exit 2 — bad door, bad locale, missing DSN), left a published row mislabelled (exit 1), or a setup step failed. Read the step log above; nothing was deleted."
+          fi
 
       - name: Upload the report
         if: always()
