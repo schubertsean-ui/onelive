@@ -14,7 +14,7 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #66 (2026-09-05, founder — "fill Tonight from public desks that already parse", branch claude/tonight-event-catalog-gxmnx7) — OPEN
 
-STATUS: OPEN — built, pushed, PR #229 (draft). Panel r1: 3 APPROVE / 1 REQUEST-CHANGES; the blocking finding is FIXED (a re-run now compares the desk's STATEMENT, not only the key) with R-110 opened for the residual it leaves.
+STATUS: OPEN — built, pushed, PR #229 (draft). Panel r1 and r2 both 3 APPROVE / 1 REQUEST-CHANGES from the same seat on the same class, one layer deeper each time; both FIXED. r1: a re-run now compares the desk's STATEMENT, not only the key. r2: a superseded row is marked DISPUTED so it stops reading `confirmed` while its own desk contradicts it. R-110 narrowed to the field correction, which belongs to `worker/listing_update.py`.
 WHAT: the Chronicle + Do512 walk WRITES: union rows -> `event_candidate` +
 `candidate_evidence` -> `promote_candidate` -> `event`, so `/tonight` and
 `/events` carry the desks' listings. Single-desk rows publish and are labelled

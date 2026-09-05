@@ -149,7 +149,8 @@ def _run(writes, *, pg):
     with pg.cursor() as cur:
         seen = tool.existing_keys(cur)
     result = tool.ingest(writes, seen=seen, create=create_candidate,
-                         add_evidence=add_evidence, promote=promote_candidate)
+                         add_evidence=add_evidence, promote=promote_candidate,
+                         dispute=tool.dispute_superseded)
     return tool, result
 
 
@@ -382,3 +383,76 @@ def test_a_desk_that_corrects_a_time_is_recorded_and_the_row_is_not_duplicated(p
     assert len(third["skipped"]) == 1, third
     assert not third["changed"], (
         "the same correction must not re-alarm on every subsequent run")
+
+
+def test_a_superseded_row_reads_disputed_on_the_real_feed_query(pg, registrations):
+    """Evaluator, PR #229 r2, against a real database: once the desk that
+    sourced a listing contradicts it, the published row must stop reading
+    `confirmed`. It stays on the feed — `disputed` is shown, never hidden — but
+    a reader is no longer told the older detail is settled.
+    """
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=5)
+    title, place = f"Disputed Show {tag}", f"Disputed Room {tag}"
+
+    rows = [_happening(title, when=when, place=place, via="Do512", door_id=DO512_DOOR)]
+    _t, first = _run(plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations), pg=pg)
+    assert len(first["promoted"]) == 1
+
+    with pg.cursor() as cur:
+        cur.execute("select confidence from event where title=%s", (title,))
+        assert cur.fetchone()[0] == "confirmed"
+
+    corrected = [_happening(title, when=when + timedelta(minutes=90), place=place,
+                            via="Do512", door_id=DO512_DOOR)]
+    _t, second = _run(
+        plan(_live_union(_walk(DO512_DOOR, "Do512", corrected)), registrations), pg=pg)
+    assert len(second["changed"]) == 1, second
+    assert "DISPUTED" in second["changed"][0][1]
+
+    with pg.cursor() as cur:
+        cur.execute("select confidence, status from event where title=%s", (title,))
+        confidence, status = cur.fetchone()
+    assert confidence == "disputed", "the superseded row must not read confirmed"
+    assert status == "scheduled", "disputed is shown as disputed, never withdrawn"
+
+    # STILL ON THE FEED. /tonight's own query returns it — the invariant is
+    # "shown as disputed", and a flag that quietly removed the row would be a
+    # worse defect than the one it fixes.
+    assert [r for r in _tonight_rows(pg) if r[0] == title], (
+        "a disputed row is shown as disputed, never dropped")
+
+
+def test_a_claim_locked_row_is_not_disputed_by_a_desk(pg, registrations):
+    """A venue's or artist's own claim overrides a third-party desk (CLAUDE.md
+    agent org). A newspaper disagreeing with the principal's own listing is not
+    evidence against the principal, so its confidence is left alone — and the
+    run says so rather than silently doing nothing.
+    """
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=6)
+    title, place = f"Claimed Show {tag}", f"Claimed Room {tag}"
+
+    rows = [_happening(title, when=when, place=place, via="Do512", door_id=DO512_DOOR)]
+    _t, first = _run(plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations), pg=pg)
+    assert len(first["promoted"]) == 1
+
+    with pg.cursor() as cur:
+        cur.execute("update event set override_lock=true where title=%s", (title,))
+
+    corrected = [_happening(title, when=when + timedelta(minutes=45), place=place,
+                            via="Do512", door_id=DO512_DOOR)]
+    _t, second = _run(
+        plan(_live_union(_walk(DO512_DOOR, "Do512", corrected)), registrations), pg=pg)
+
+    assert len(second["changed"]) == 1, second
+    assert "claim-locked" in second["changed"][0][1]
+    with pg.cursor() as cur:
+        cur.execute("select confidence from event where title=%s", (title,))
+        assert cur.fetchone()[0] == "confirmed", (
+            "a claim overrides a desk — the desk's disagreement must not "
+            "downgrade the principal's own listing")

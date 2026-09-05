@@ -533,9 +533,17 @@ def test_the_ingest_cli_publishes_only_through_the_gate():
     assert imported & {"worker.promote.promote_candidate"}, (
         "the tool must publish through promote_candidate, the seam that "
         "re-runs the whole gate")
+    # NARROWED, deliberately, at PR #229 r2. `mark_event_disputed` is now
+    # imported and that is not a hole in this guard: it can move a published
+    # row to exactly ONE state — `disputed`, the shown-never-hidden state the
+    # 4-state model reserves for "our evidence no longer agrees with itself" —
+    # and it is what stops a row from reading `confirmed` after its own desk
+    # contradicts it. `set_event_confidence` stays forbidden because it takes
+    # the state as an ARGUMENT, so a walker holding it could raise a row to
+    # `confirmed`; that direction is the publish step's alone. The rest of the
+    # list is unchanged: nothing here may re-decide the gate.
     forbidden = {
         "worker.promote.set_event_confidence",
-        "worker.promote.mark_event_disputed",
         "worker.promote.assert_promotable",
         "worker.gating.multi_confirm_gate",
         "worker.trust_gate3.evaluate_gate",
@@ -543,8 +551,11 @@ def test_the_ingest_cli_publishes_only_through_the_gate():
     }
     assert not (imported & forbidden), (
         f"the ingest CLI reached past promote_candidate: {sorted(imported & forbidden)}. "
-        f"Deciding confidence, or re-deciding the gate, is the publish step's "
-        f"job — not a walker's.")
+        f"Re-deciding the gate, or setting an ARBITRARY confidence, is the "
+        f"publish step's job — not a walker's.")
+    assert "worker.promote.set_event_confidence" not in imported, (
+        "a walker that can set any confidence can promote a row to confirmed "
+        "without the gate; only the one-way `mark_event_disputed` is allowed")
     assert "insert into event" not in source.lower(), (
         "the ingest CLI must never write the canonical event table itself")
 
@@ -698,3 +709,42 @@ def test_an_unchanged_row_still_skips_and_writes_nothing():
         add_evidence=lambda *a: None, promote=lambda cid: "e")
     assert len(result["skipped"]) == 1
     assert created == []
+
+
+def test_a_superseded_row_is_disputed_not_left_reading_confirmed():
+    """Evaluator, PR #229 r2. r1 recorded the desk's correction and left the
+    published row reading `confirmed` — so a reader still saw the older detail
+    presented as settled. `disputed` is the state for this, and the feed shows
+    it rather than hiding the row.
+    """
+    writes = _writes(1)
+    stale = dict(writes[0].extracted[DESK_KEY]["statement"])
+    stale["clocks"] = ["2026-09-01T01:00:00-05:00"]
+    disputed = []
+
+    result = ingest_tool.ingest(
+        writes, seen={writes[0].ingest_key: ("cand-old", "promoted", "event-old", stale)},
+        create=lambda **kw: "cand-new", add_evidence=lambda *a: None,
+        promote=lambda cid: "never", dispute=lambda eid: disputed.append(eid) or "DISPUTED")
+    assert disputed == ["event-old"], "the superseded row must be flagged"
+    assert "DISPUTED" in result["changed"][0][1]
+
+
+def test_a_dispute_that_fails_is_reported_never_silent():
+    """A row we could not flag may still be reading `confirmed`, which is the
+    exact harm — so the run says so instead of printing a clean `changed`.
+    """
+    writes = _writes(1)
+    stale = dict(writes[0].extracted[DESK_KEY]["statement"])
+    stale["clocks"] = ["2026-09-01T01:00:00-05:00"]
+
+    def boom(event_id):
+        raise RuntimeError("connection lost")
+
+    result = ingest_tool.ingest(
+        writes, seen={writes[0].ingest_key: ("c", "promoted", "event-old", stale)},
+        create=lambda **kw: "cand-new", add_evidence=lambda *a: None,
+        promote=lambda cid: "never", dispute=boom)
+    assert "COULD NOT DISPUTE" in result["changed"][0][1]
+    assert "may still read as confirmed" in result["changed"][0][1]
+    assert sum(len(v) for v in result.values()) == len(writes)

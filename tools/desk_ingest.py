@@ -38,8 +38,11 @@ Two guards worth knowing before you run it:
     STATEMENT (`extracted._desk.statement`). A row is skipped only when the
     desk still says the same thing about it; when the desk has changed its
     word, the new statement is recorded as a candidate, the published row is
-    left for the reviewed update seam, and the divergence is REPORTED under
-    `changed`. Nothing goes stale silently (R-110).
+    marked DISPUTED so it stops reading `confirmed` while its own desk
+    contradicts it (shown as disputed, never hidden), and the divergence is
+    REPORTED under `changed`. Correcting the FIELD is still the reviewed update
+    seam's job (R-110); nothing goes stale silently, and nothing goes stale
+    while still looking settled.
 
 Exit codes: 0 ran, 2 refused (bad door, bad locale, fixture write, no DSN).
 """
@@ -225,8 +228,56 @@ def existing_keys(cur) -> Dict[str, Tuple[str, str, Optional[str], Optional[dict
     return {r[0]: (r[1], r[2], r[3], r[4]) for r in cur.fetchall() if r[0]}
 
 
+def dispute_superseded(event_id: Optional[str]) -> str:
+    """The published row now reads DISPUTED, and says why it does not.
+
+    Evaluator, PR #229 r2 (openai/absence-only): recording a desk's correction
+    while the published row keeps reading `confirmed` still shows a reader an
+    older detail "as if it were still confirmed". That is the gap r1 left, and
+    the 4-state model already holds its answer — `disputed` is the state for
+    "our evidence about this row no longer agrees with itself", and CLAUDE.md's
+    invariant is that a disputed event is SHOWN as disputed, never deleted and
+    never softened. So the row stays on the feed, carrying every fact the desk
+    stated, with our confidence in those facts told honestly.
+
+    This is a confidence transition, NOT a correction: no field the desk stated
+    is rewritten here. Rewriting one is `worker/listing_update.py`'s job and
+    still is (R-110) — this closes the "reads as confirmed" half, which is the
+    half a reader can see.
+
+    A CLAIM-LOCKED row is left alone, and that is the founder's own precedence
+    rule rather than caution: an artist or venue claim overrides (CLAUDE.md
+    agent org / resolve_entities), so a third-party desk disagreeing with the
+    principal's own listing is not evidence against the principal. It is
+    reported instead.
+    """
+    if not event_id:
+        return "no published row to dispute (the earlier candidate never promoted)"
+    from worker.candidate_store import db  # noqa: PLC0415
+    from worker.promote import mark_event_disputed  # noqa: PLC0415
+
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select override_lock, confidence from event where event_id=%s",
+                (event_id,))
+            row = cur.fetchone()
+    if row is None:
+        return f"published row {event_id} is gone; nothing to dispute"
+    locked, confidence = row
+    if locked:
+        return (f"published row {event_id} is claim-locked — a venue or artist "
+                f"owns it, and a claim overrides a desk, so its confidence is "
+                f"left alone")
+    if confidence == "disputed":
+        return f"published row {event_id} already reads disputed"
+    mark_event_disputed(event_id, actor_type="system")
+    return (f"published row {event_id} now reads DISPUTED — shown as disputed, "
+            f"never hidden")
+
+
 def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
-           create, add_evidence, promote) -> Dict[str, list]:
+           create, add_evidence, promote, dispute=dispute_superseded) -> Dict[str, list]:
     """Write every planned row that is not already in the store.
 
     The three DB seams are INJECTED so this function — the one that decides
@@ -297,16 +348,28 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                    f"the evidence"))
             continue
         if supersedes is not None:
-            # Recorded, not published. Promoting would put a SECOND listing for
-            # this happening on the feed beside the one that is already there —
-            # strictly worse for a reader than the stale field this row exists
-            # to report.
+            # Recorded, not re-published. Promoting would put a SECOND listing
+            # for this happening on the feed beside the one already there —
+            # strictly worse for a reader than one stale field.
+            #
+            # But the published row does not go on reading `confirmed` while
+            # its own desk disagrees with it: it is marked DISPUTED, which is
+            # the state the 4-state model has for exactly this evidence shape
+            # and which the feed renders without hiding the row. Correcting the
+            # FIELD is still worker/listing_update.py's (R-110); telling the
+            # truth about our confidence in it is ours, now.
+            try:
+                verdict = dispute(supersedes["event_id"])
+            except Exception as exc:  # noqa: BLE001 — a row we could not flag is reported, never silent
+                verdict = (f"COULD NOT DISPUTE published row "
+                           f"{supersedes['event_id']} ({type(exc).__name__}: "
+                           f"{exc}) — it may still read as confirmed")
             out["changed"].append((
                 w, f"the desk has changed its statement since we published "
                    f"event {supersedes['event_id']} — "
                    f"{describe_drift(supersedes['was'], w.extracted[DESK_KEY]['statement'], supersedes['changed'])}"
-                   f" — recorded as candidate {cid}, NOT published (the "
-                   f"published row is left for worker/listing_update.py; R-110)"))
+                   f" — recorded as candidate {cid}, not re-published; "
+                   f"{verdict}"))
             continue
         try:
             event_id = promote(cid)
@@ -346,7 +409,7 @@ def outcome_table(result: Mapping[str, list]) -> str:
     meaning = {
         "promoted": "written and published — visible on `/events`, and on `/tonight` when the clock falls in the window",
         "held": "written as a candidate, not published — the gate or the duplicate guard said so (reason below)",
-        "changed": "the desk has CHANGED its statement about a happening we already published — recorded as a new candidate, the published row untouched (reason below)",
+        "changed": "the desk has CHANGED its statement about a happening we already published — recorded as a new candidate and the published row marked disputed, so it is still shown but no longer reads as settled (reason below)",
         "skipped": "this happening was already in the store, and the desk still says the same thing about it — a re-run, not a loss",
         "failed": "not written — the reason is printed, never swallowed",
     }
