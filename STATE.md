@@ -12,6 +12,47 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #67 (2026-09-05, founder — "Austin Chronicle ingest: event identity is not a CSS card", branch claude/austin-chronicle-ingest-601695) — OPEN
+
+STATUS: OPEN — dry run 33989221309 read the live Chronicle desk and proved the
+loss the founder's Must-do 2 named as the condition for touching the reader.
+
+WHAT: the Chronicle desk's LIVE list page becomes one row per listing, keyed on
+that listing's own `/event/{slug}-{id}` door, instead of the single blob row
+the live walk actually produced (40 pages read -> 1 row, keyed
+`url:https://www.austinchronicle.com`, its title 11 headlines concatenated and
+its place 40+ venues concatenated). Do512 is recorded as 403/UNREADABLE on
+ubuntu-latest and is NOT worked around. Nothing is written to the catalog until
+a dry run prints real listings.
+HOW: the founder's Must-do 2 authorises reader work only if "the live walk
+proves the current reader drops /event/{id} links" — run 33989221309 is that
+proof, so: (a) `.github/workflows/desk-capture.yml`, a fetch worker holding NO
+secrets and running on any ref, which saves the desks' raw page bodies as an
+artifact and runs `tools/desk_ingest.py --real --dry-run` on BRANCH code (the
+existing desk-ingest.yml is master-only because it carries the DB secrets, so
+it cannot test a branch's reader); (b) a `listing_url_pattern` a door declares
+in `sources/locale_packs/us-tx-capcog.json`; (c) a link-anchored tier in
+`worker/locale/desk_read.py::_select_rows` that fires ONLY for a door that
+declares that pattern, so every other desk reads exactly as it does today; (d)
+the captured page committed as a REAL fixture beside the synthetic ones, which
+say of themselves they are "NOT a saved copy of any live page" — the reason
+this defect was green in CI.
+WHY: the walk reads 40 live pages and produces one unusable row. That row would
+publish to `/tonight` as a single "Date TBA" listing titled with eleven
+headlines and placed at forty venues. The catalog gains nothing and the live
+site gains a defect.
+WHY-IT-MATTERS: the reason the reader must key on the desk's own event door is
+that identity has to come from what the desk STATES, not from a class name we
+recognised. A CSS-shaped reader is green against invented markup and silently
+collapses a real page — which is exactly what happened here, and what a
+`/event/{id}`-anchored reader cannot do.
+EXPECTED OUTCOMES: the capture job prints a per-desk fetch table and uploads the
+live bytes; the fixed reader turns that captured page into N rows whose keys are
+distinct `/event/...` URLs (never the news home) with per-row titles and places;
+existing desk tests stay green and Do512's 403 still reports UNREADABLE; the
+write dispatch happens only after the dry run prints real listings, and the PR
+merges only on the founder's word.
+
 ## Session Contract #66 (2026-09-05, founder — "fill Tonight from public desks that already parse", branch claude/tonight-event-catalog-gxmnx7) — OPEN
 
 STATUS: OPEN — built, pushed, PR #229 (draft). Panel r1-r9, all FIXED, each round one layer further out on ONE class: a hole reaching a reader as the wrong hole. r1 a re-run compares the desk's STATEMENT, not only the key; r2 a superseded row is marked DISPUTED; r3 the three shapes of a NULL clock are separated before they collapse into one display; r4 a failed dispute fails the RUN; r5 the contested clock is labelled by the PUBLISHER inside the insert's own transaction (and the armed-cron closure is left untouched — CI caught that, not local validate); r6 corroboration is no longer treated as contradiction, and the producer-supplied clock claims are bound to real evidence; r7 that binding is PER CLAIM — each contested instant names the desk that stated it and is kept only if that source has an evidence row; r8 the claims must actually CONFLICT (a source disagreeing with itself has not stated a clock) and every time is compared as an INSTANT, so one moment written two ways is one claim. R-110 and R-111 carry the two residuals, both with objective triggers. r9: dispute BEFORE recording (a failed dispute now records nothing, so the printed 'just re-run it' recovery works — it was dead); one desk stating two clocks is HELD, not published as a settled TBA; and the publisher refuses when every clock claim is unusable and the row has no clock of its own.

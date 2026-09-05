@@ -1,0 +1,120 @@
+name: desk-capture
+
+# The smallest fetch worker this repo can host, so a reader is never again
+# written against markup nobody has seen.
+#
+# Why it exists (founder ticket 2026-09-05, Must-do 2 and Must-do 5): the build
+# sandbox's egress proxy 403s every desk (`curl: (56) CONNECT tunnel failed,
+# response 403`), so the only machine here that can read a desk is a runner.
+# `desk-ingest.yml` runs on a runner but is MASTER-ONLY — it carries the
+# database secrets, and a workflow_dispatch runs the dispatched ref's code, so
+# it must never pair branch code with production credentials. That guard is
+# correct and stays; the consequence is that a branch's reader can never be
+# exercised against a live desk. This workflow is that missing half: it holds
+# NO secret and touches NO database, so it is safe on any ref.
+#
+# It does two things, both read-only:
+#   1. capture — walks the desks with the SAME fetcher and walker the ingest
+#      uses and uploads every body received, so a fix is built against the
+#      desk's own bytes.
+#   2. dry-walk — runs `tools/desk_ingest.py --real --dry-run`, which prints the
+#      write plan and cannot write (the DB seam refuses without a DSN, and no
+#      DSN exists in this job).
+#
+# A blocked desk is reported, never routed around: Coverage Law forbids
+# bypassing login, paywall or bot protection, so a 403 is recorded as that
+# desk's answer and nothing here retries it with a disguise.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "capture (save the bytes) or dry-walk (print the write plan) or both"
+        type: choice
+        default: both
+        options:
+          - capture
+          - dry-walk
+          - both
+      doors:
+        description: "Space-separated door_ids"
+        type: string
+        default: "austin-chronicle-eventsearch do512-today"
+      max_pages:
+        description: "Page ceiling per desk — small on purpose for capture"
+        type: string
+        default: "2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desk-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+
+      - name: Capture the bytes the desks serve
+        if: ${{ inputs.mode == 'capture' || inputs.mode == 'both' }}
+        env:
+          # Inputs reach the script as ENVIRONMENT, never interpolated into the
+          # shell: `${{ inputs.doors }}` spliced into a command line would run
+          # whatever a dispatcher typed.
+          IN_DOORS: ${{ inputs.doors }}
+          IN_MAX_PAGES: ${{ inputs.max_pages }}
+        run: |
+          set -euo pipefail
+          : "${IN_DOORS:?dispatch input 'doors' is empty}"
+          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
+          args=(--out captured_pages --max-pages "$IN_MAX_PAGES")
+          for door in $IN_DOORS; do
+            args+=(--door "$door")
+          done
+          python3 tools/desk_capture.py "${args[@]}" | tee capture-report.md
+
+      - name: Walk the desks dry on THIS ref's reader
+        if: ${{ inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
+        env:
+          IN_DOORS: ${{ inputs.doors }}
+        run: |
+          set -euo pipefail
+          : "${IN_DOORS:?dispatch input 'doors' is empty}"
+          args=(--real --dry-run --city Austin --hours 168 --max-pages 40)
+          for door in $IN_DOORS; do
+            args+=(--door "$door")
+          done
+          python3 tools/desk_ingest.py "${args[@]}" | tee dry-walk-report.md
+
+      - name: Put the reports in the run summary
+        if: always()
+        run: |
+          for f in capture-report.md dry-walk-report.md; do
+            if [ -f "$f" ]; then
+              echo "## $f" >> "$GITHUB_STEP_SUMMARY"
+              cat "$f" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload the captured pages and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desk-capture
+          path: |
+            captured_pages/
+            capture-report.md
+            dry-walk-report.md
+          if-no-files-found: warn
