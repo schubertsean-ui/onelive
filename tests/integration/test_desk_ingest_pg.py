@@ -101,6 +101,32 @@ def registrations(pg):
             for via, (name, base_url) in rows.items()}
 
 
+def _clock_correction_base(min_hours_ahead: int) -> datetime:
+    """A future instant at a fixed LOCAL hour, at least `min_hours_ahead` away.
+
+    The three tests below correct a clock by 45-90 minutes and assert the re-run
+    finds the SAME happening. The ingest key carries the local NIGHT
+    (`desk_union.local_night`), so a base instant landing in the last 90 minutes
+    of a local day sends the correction across midnight: the key changes, the
+    row publishes as a second listing, and the assertion fails on the clock the
+    suite happened to run at rather than on any defect.
+
+    Measured before this helper existed, over all 1440 UTC minutes of a day:
+    `+4h then +90m` failed 90, `+5h then +90m` failed 90, `+6h then +45m` failed
+    45 — 225 minutes a day, about one run in six. CI hit the third window at
+    22:17:58Z on 2026-09-05 (PR #234).
+
+    19:00 local leaves five hours of margin, and the local hour is fixed rather
+    than derived, so the margin cannot shrink with the wall clock.
+    """
+    earliest = datetime.now(timezone.utc) + timedelta(hours=min_hours_ahead)
+    local = earliest.astimezone(TZ)
+    evening = local.replace(hour=19, minute=0, second=0, microsecond=0)
+    if evening < local:
+        evening += timedelta(days=1)
+    return evening.astimezone(timezone.utc)
+
+
 def _happening(title, *, when, place, via, door_id, listing_url=None):
     from worker.locale.desk_read import Happening
 
@@ -340,7 +366,7 @@ def test_a_desk_that_corrects_a_time_is_recorded_and_the_row_is_not_duplicated(p
     from worker.locale.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
-    first = datetime.now(timezone.utc) + timedelta(hours=4)
+    first = _clock_correction_base(4)
     place = f"Correction Room {tag}"
     title = f"Retimed Show {tag}"
 
@@ -394,7 +420,7 @@ def test_a_superseded_row_reads_disputed_on_the_real_feed_query(pg, registration
     from worker.locale.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
-    when = datetime.now(timezone.utc) + timedelta(hours=5)
+    when = _clock_correction_base(5)
     title, place = f"Disputed Show {tag}", f"Disputed Room {tag}"
 
     rows = [_happening(title, when=when, place=place, via="Do512", door_id=DO512_DOOR)]
@@ -434,7 +460,7 @@ def test_a_claim_locked_row_is_not_disputed_by_a_desk(pg, registrations):
     from worker.locale.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
-    when = datetime.now(timezone.utc) + timedelta(hours=6)
+    when = _clock_correction_base(6)
     title, place = f"Claimed Show {tag}", f"Claimed Room {tag}"
 
     rows = [_happening(title, when=when, place=place, via="Do512", door_id=DO512_DOOR)]

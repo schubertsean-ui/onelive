@@ -247,7 +247,46 @@ docstring cannot re-bury the validate output. Warnings are back to 2.
 
 Five tests pin this round; both dry-ingest tables are unchanged.
 
-## 9. Gates
+## 9. A red `db-integration` that was NOT this PR's, fixed anyway
+
+`db-integration` failed once, on head `f20effb`, in
+`test_a_claim_locked_row_is_not_disputed_by_a_desk`. This PR's diff touches none
+of the files that test exercises (`worker/locale/desk_publish.py`,
+`worker/promote.py`, `worker/candidate_store.py`,
+`tests/integration/test_desk_ingest_pg.py`), and the same test passed on the two
+earlier heads of this same PR. The difference between those runs was the CLOCK.
+
+Proven without a database, because the failing assertion turns entirely on the
+union key, which is pure:
+
+```
+at the CI instant (2026-09-05 22:17:58Z):
+   first    : 2026-09-05~claimed room~claimed show
+   corrected: 2026-09-06~claimed room~claimed show
+   SAME KEY : False   <- the test asserts 'changed', which needs True
+```
+
+The test bases its instant on `now + 6h` and then corrects the clock by 45
+minutes. The ingest key carries the LOCAL NIGHT, so when the base lands in the
+last 45 minutes of a local day the correction crosses midnight, the key changes,
+and the row publishes as a second listing instead of registering as a change.
+Sweeping all 1440 UTC minutes of a day, three tests carry this shape:
+
+```
++4h then +90m: fails at 90 of 1440 UTC minutes
++5h then +90m: fails at 90 of 1440 UTC minutes
++6h then +45m: fails at 45 of 1440 UTC minutes  (22:15Z..22:59Z — CI ran at 22:17:58Z)
+```
+
+225 minutes a day, about one run in six. "Flake" is not a root cause and a
+failing test is never skipped, so the three now take their base from
+`_clock_correction_base()`, which anchors to 19:00 LOCAL — five hours of margin,
+a fixed hour rather than a derived one, and always at least the requested hours
+ahead. Re-swept every 5 minutes across a full year of start days, crossing both
+DST transitions: **0 night-crossings, 0 bases too close to now.** No assertion
+is weakened; only the instant the tests start from is made deterministic.
+
+## 10. Gates
 
 ```
 $ bash tools/validate
