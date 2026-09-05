@@ -12,6 +12,7 @@ constructed here; the three DB seams are injected as plain functions.
 """
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import os
 
@@ -22,6 +23,7 @@ from worker.locale import pack as lp
 from worker.locale.desk_read import Happening
 from worker.locale.desk_publish import (
     DESK_KEY,
+    list_page_index,
     DeskPublishError,
     DeskRegistration,
     contradicts,
@@ -1083,3 +1085,231 @@ def test_one_desk_stating_two_times_is_held_not_published_as_a_settled_tba():
         promote=lambda cid: promoted.append(cid) or "event")
     assert promoted == [], "it must not reach the feed as a confirmed TBA"
     assert len(result["held"]) == 1
+
+
+# --------------------------------------------------------------------------
+# A row whose identity is the desk's own front door is not a happening
+# --------------------------------------------------------------------------
+#
+# These pin the defect the 2026-09-05 master dry run printed from a GitHub
+# runner (run 33986288662): the Chronicle walk read 40 pages and produced ONE
+# row, keyed `url:https://www.austinchronicle.com`, whose title was ten event
+# names glued together and whose place was forty venues glued together, with no
+# date — and the plan said `1 publish`. Arming a schedule against that would
+# have written a happening nobody is holding, under a real paper's masthead,
+# every six hours. The test is on the row's IDENTITY, never on how its text
+# looks, because a "does this title look wrong?" heuristic is the generic card
+# parser this ticket's Must-not list excludes.
+
+def _front_door_write(listing_url):
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Promoted Events Back To The Ranch Austin Steel Guitar Fest "
+             "Barbie Dream Heist Day of Dance",
+             place="Butterfly Bar at the Vortex 2307 Manor Rd. East Saengerrunde "
+                   "Hall 1607 San Jacinto TexARTS 1110 S RR 620",
+             listing_url=listing_url)]))
+    return write_for(one.rows[0], REGS, mode="LIVE")
+
+
+def test_the_papers_bare_front_door_is_held_not_published():
+    write = _front_door_write("https://www.austinchronicle.com")
+    assert write.hold_reason, "the site root published as a happening"
+    assert "front door" in write.hold_reason
+    assert "https://www.austinchronicle.com" in write.hold_reason
+
+
+def test_a_front_door_row_is_still_written_as_a_candidate():
+    """HELD is not DROPPED. The row stays auditable in the store and the ops
+    queue — the walk's own evidence that a desk gave us no per-listing address —
+    and only the PUBLIC step is withheld."""
+    write = _front_door_write("https://www.austinchronicle.com")
+    assert write.ingest_key and write.evidence
+    assert write.source_name == "Austin Chronicle Events"
+
+
+def test_the_door_the_walk_started_at_is_held():
+    """The Chronicle's calendar lives on its own subdomain, so the door the
+    walk enters by is neither the bare origin nor the catalog's base_url — a
+    row keyed at it would have slipped both other tests."""
+    door = "https://calendar.austinchronicle.com/austin/EventSearch?sortType=date&v=g"
+    regs = dict(REGS)
+    regs["Austin Chronicle"] = dataclasses.replace(regs["Austin Chronicle"],
+                                                   door_url=door)
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Everything On This Page",
+             listing_url="https://calendar.austinchronicle.com/austin/EventSearch")]))
+    write = write_for(one.rows[0], regs, mode="LIVE")
+    assert write.hold_reason and "door this walk started at" in write.hold_reason
+
+
+def test_the_real_door_url_is_carried_from_the_pack_not_typed_here(doors, catalog):
+    """The door_url must come from the locale pack the walk actually uses, or
+    the check above compares against a string nobody walks."""
+    reg = registration_for(doors[CHRONICLE], catalog)
+    assert reg.door_url == doors[CHRONICLE].url
+    assert reg.door_url.startswith("https://")
+
+
+def test_the_events_index_itself_is_held():
+    """The catalog row's own base_url is the LIST, not anything on it."""
+    write = _front_door_write("https://www.austinchronicle.com/events/")
+    assert write.hold_reason and "events index" in write.hold_reason
+
+
+def test_the_index_matches_whatever_trailing_slash_or_query_it_wears():
+    for url in ("https://www.austinchronicle.com/events",
+                "https://www.austinchronicle.com/events/?page=2",
+                "https://austinchronicle.com/events/"):
+        assert _front_door_write(url).hold_reason, url
+
+
+def test_a_real_listing_under_the_same_host_still_publishes():
+    """The guard must not cost us a single real row — that would be the
+    Coverage Law failure (do not drop rows) answering the fabrication one."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00",
+             listing_url="https://www.austinchronicle.com/events/12345/")]))
+    write = write_for(one.rows[0], REGS, mode="LIVE")
+    assert write.hold_reason is None
+    assert write.start_time
+
+
+def test_a_front_door_row_is_not_counted_as_publishable():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Everything On This Page", listing_url="https://www.austinchronicle.com"),
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00",
+             listing_url="https://www.austinchronicle.com/events/12345/")]))
+    digest = plan_digest(plan(one, REGS))
+    assert digest["rows"] == 2
+    assert digest["held"] == 1
+    assert digest["publishable"] == 1
+
+
+def test_the_front_door_hold_outranks_a_clock_hold():
+    """A clock hole is a hole in a real listing. This is not a listing, so the
+    reason a person reads has to say THAT, not "no time stated"."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Everything On This Page", when="2026-09-14",
+             listing_url="https://www.austinchronicle.com")]))
+    write = write_for(one.rows[0], REGS, mode="LIVE")
+    assert "front door" in (write.hold_reason or "")
+    assert "R-111" not in (write.hold_reason or "")
+
+
+# The evaluator's blocking finding on PR #232 (absence-only lens): the three
+# identities above are special cases, and a composite keyed at some OTHER page
+# of the same pagination still published. These pin the general invariant — a
+# row's identity is never any URL the walk itself read as a list.
+
+def _paginated_walk(rows, *, pages=("https://desk.example/list?p=1",
+                                    "https://desk.example/list?p=2",
+                                    "https://desk.example/list?p=3")):
+    visits = [PageVisit(n=i, url=u, status=200, rows_seen=len(rows),
+                        new_rows=len(rows),
+                        next_url=(pages[i] if i < len(pages) else None))
+              for i, u in enumerate(pages, start=1)]
+    return DeskWalk(door_id=CHRONICLE, door_type="local_desk",
+                    via="Austin Chronicle", start_url=pages[0], pages=visits,
+                    rows=list(rows), stopped_because="no_next_link")
+
+
+def test_a_row_keyed_at_a_middle_page_of_the_pagination_is_held():
+    """Page 2 is neither the origin, nor the catalog index, nor the door."""
+    one = _union(_paginated_walk([
+        _row("Everything On Page Two",
+             listing_url="https://desk.example/list?p=2")]))
+    write = plan(one, REGS)[0]
+    assert write.hold_reason, "a list page published as a happening"
+    assert "READ AS A LIST" in write.hold_reason
+
+
+def test_the_query_string_cannot_dodge_the_list_page_hold():
+    """`?p=2` and `?p=2&v=g` are the same document; identity is host+path."""
+    one = _union(_paginated_walk([
+        _row("Everything On Page Two",
+             listing_url="https://desk.example/list?p=2&v=g")]))
+    assert plan(one, REGS)[0].hold_reason
+
+
+def test_a_next_link_the_walk_followed_counts_as_a_list_page():
+    one = _union(_paginated_walk([
+        _row("Everything On Page Three",
+             listing_url="https://desk.example/list?p=3")]))
+    assert plan(one, REGS)[0].hold_reason
+
+
+def test_a_real_listing_on_a_paginated_desk_still_publishes():
+    """The invariant must not cost a single real row (Coverage Law)."""
+    one = _union(_paginated_walk([
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00",
+             listing_url="https://desk.example/event/12345")]))
+    write = plan(one, REGS)[0]
+    assert write.hold_reason is None
+    assert write.start_time
+
+
+def test_the_product_path_supplies_the_list_pages_not_just_a_careful_caller():
+    """`plan()` is the only path `tools/desk_ingest.py` writes through. If it
+    stopped passing the index, `write_for`'s default would silently reopen the
+    hole — so the coupling is pinned, not trusted."""
+    one = _union(_paginated_walk([
+        _row("Everything On Page Two",
+             listing_url="https://desk.example/list?p=2")]))
+    assert plan(one, REGS)[0].hold_reason
+    # ...and the index really is derived from the walk, not from the row.
+    index = list_page_index(one)
+    assert ("desk.example", "/list") in index
+
+
+def test_a_desk_that_read_nothing_contributes_no_list_pages_and_no_rows():
+    one = _union(_walk(DO512, "Do512", [], blocked="403", stopped="wall"))
+    assert plan(one, REGS) == []
+
+
+def test_a_row_with_no_listing_url_is_judged_on_its_other_facts():
+    """No URL is not a front door — the desk simply printed no address, which
+    the union already keys desk-locally. Holding those would be a silent
+    coverage cut."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00")]))
+    assert write_for(one.rows[0], REGS, mode="LIVE").hold_reason is None
+
+
+# --------------------------------------------------------------------------
+# An unreadable desk is a FAILED run
+# --------------------------------------------------------------------------
+#
+# Founder ticket 2026-09-05: "UNREADABLE desk = failed check + ops-visible
+# report, never '0 events' and never delete existing rows." Both master dry
+# runs (33986288662, 33988204239) recorded `do512-today` at 0 pages read and
+# exited GREEN, which is the state these pin shut.
+
+class _Unread:
+    def __init__(self, door_id):
+        self.door_id = door_id
+
+
+def test_an_unread_desk_exits_nonzero():
+    assert ingest_tool._unreadable_exit([_Unread(DO512)]) == 3
+
+
+def test_a_clean_run_still_exits_zero():
+    assert ingest_tool._unreadable_exit([]) == 0
+
+
+def test_the_failure_names_the_desk_and_says_nothing_was_deleted(capsys):
+    ingest_tool._unreadable_exit([_Unread(DO512), _Unread(CHRONICLE)])
+    err = capsys.readouterr().err
+    assert DO512 in err and CHRONICLE in err
+    assert "UNKNOWN, not absent" in err
+    assert "nothing was deleted" in err
+
+
+def test_both_exits_route_through_one_answer():
+    """The dry run and the write must not be able to disagree about whether an
+    unread desk is a failure — that is how one of them grows a green path."""
+    source = open(os.path.join(ROOT, "tools", "desk_ingest.py"), encoding="utf-8").read()
+    assert source.count("return _unreadable_exit(unreadable)") == 2
+    body = source.split("def main(")[1].split("\ndef ")[0]
+    assert "    return 0\n" not in body, (
+        "main() grew a bare `return 0` that bypasses the unreadable check")

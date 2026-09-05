@@ -55,7 +55,16 @@ Two guards worth knowing before you run it:
 
 Exit codes: 0 ran clean, 1 ran but left a published row mislabelled (a dispute
 write failed — see section 5), 2 refused before writing anything (bad door, bad
-locale, a fixture union, no DSN).
+locale, a fixture union, no DSN), 3 a desk was UNREADABLE.
+
+Why 3 is a FAILURE and not a warning (founder ticket 2026-09-05: "UNREADABLE
+desk = failed check + ops-visible report, never '0 events' and never delete
+existing rows"). On a schedule nobody watches, the difference between "Do512
+had nothing on" and "Do512 refused us" is invisible unless the run goes RED.
+Green-with-a-note is how a desk quietly falls out of the catalog for a month.
+So an unread desk fails the check, the report says which desk and why, the
+rows it DID read are still written (a desk we could not open says nothing
+about the desks we could), and nothing is deleted — this tool has no delete.
 """
 from __future__ import annotations
 
@@ -69,6 +78,9 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
+from worker.locale.desk_fetch import (  # noqa: E402
+    USER_AGENT as DESK_USER_AGENT, DeskFetchError,
+)
 from worker.locale.desk_publish import (  # noqa: E402
     DESK_KEY,
     CandidateWrite,
@@ -160,8 +172,9 @@ def counts_table(before: Mapping[str, int], after: Mapping[str, int],
 # --------------------------------------------------------------------------
 
 def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
-               max_pages: int, timeout: int, min_interval: float
-               ) -> Tuple[List[DeskWalk], Dict[str, DeskRegistration], object, str]:
+               max_pages: int, timeout: int, min_interval: float,
+               cache_path: Optional[str] = None
+               ) -> Tuple[List[DeskWalk], Dict[str, DeskRegistration], object, str, object]:
     """Walk each named door and resolve every one of them to a catalog row.
 
     Registration happens BEFORE any write is planned, so a door that cannot be
@@ -190,7 +203,8 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
 
     walks: List[DeskWalk] = []
     registrations: Dict[str, DeskRegistration] = {}
-    fetch_live = live_fetcher(timeout_s=timeout, min_interval_s=min_interval) if real else None
+    fetch_live = (live_fetcher(timeout_s=timeout, min_interval_s=min_interval,
+                              cache_path=cache_path) if real else None)
 
     for door_id in door_ids:
         door = doors.get(door_id)
@@ -209,7 +223,7 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
             fetch, start_url, _ = fixture_fetcher(door.door_id)
         walks.append(walk(door, fetch, max_pages=max_pages, start_url=start_url,
                           kind_map=kind_map))
-    return walks, registrations, tz, pack.timezone
+    return walks, registrations, tz, pack.timezone, fetch_live
 
 
 # --------------------------------------------------------------------------
@@ -514,6 +528,15 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=int, default=20)
     ap.add_argument("--min-interval", type=float, default=2.0,
                     help="politeness delay between live page fetches, seconds")
+    ap.add_argument("--deadman", action="store_true",
+                    help="wrap the run in healthchecks.io start/success/fail pings "
+                         "(worker/sentinel.py). Required for the scheduled run: a "
+                         "loop nobody watches needs an alarm that fires when it "
+                         "stops running at all, which a red check cannot do")
+    ap.add_argument("--fetch-cache", default="",
+                    help="path to the conditional-GET cache (ETag/Last-Modified "
+                         "plus the body each one refers to) so a scheduled run "
+                         "re-reads only what changed; empty disables it")
     args = ap.parse_args(argv)
 
     door_ids = args.doors or list(DEFAULT_DOORS)
@@ -529,12 +552,23 @@ def main(argv=None) -> int:
         return 2
 
     try:
-        walks, registrations, tz, tz_id = walk_doors(
+        walks, registrations, tz, tz_id, fetcher = walk_doors(
             args.locale, door_ids, real=args.real, max_pages=args.max_pages,
-            timeout=args.timeout, min_interval=args.min_interval)
+            timeout=args.timeout, min_interval=args.min_interval,
+            cache_path=args.fetch_cache or None)
     except (LocalePackError, DeskWalkError, DeskPublishError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+    if fetcher is not None:
+        # Saved BEFORE the plan is printed and long before any write: the cache
+        # records what we already read, and a run that fails later must not
+        # make the next run re-download pages this one already paid for.
+        try:
+            fetcher.save()
+        except DeskFetchError as exc:
+            print(f"WARNING: the fetch cache was not saved ({exc}); the next "
+                  f"run re-reads every page.", file=sys.stderr)
 
     mode = "LIVE" if args.real else "FIXTURE"
     one = union(walks, timezone=tz, timezone_id=tz_id, mode=mode)
@@ -556,11 +590,18 @@ def main(argv=None) -> int:
     unreadable = [d for d in one.desks if not d.readable]
     if unreadable:
         print()
-        print("**UNREADABLE**: " + "; ".join(
+        print("**UNREADABLE — THIS RUN FAILS**: " + "; ".join(
             f"`{d.door_id}` opened no page ({', '.join(d.blocked_reasons) or d.stopped_because})"
             for d in unreadable)
             + " — an unread desk has an UNKNOWN list, never an empty one. Nothing "
-              "is written for it and nothing is deleted because of it.")
+              "is written for it and nothing is deleted because of it. The run "
+              "exits non-zero so the scheduled check goes RED: on a schedule "
+              "nobody watches, a desk that refuses us and a desk with nothing "
+              "on look identical unless one of them is red.")
+    if fetcher is not None:
+        print()
+        print(f"Fetch: {fetcher.summary()}. Identity `{DESK_USER_AGENT}`; "
+              f"robots.txt read per host before the first page.")
     print()
     print("## 2. The write plan")
     print()
@@ -587,7 +628,7 @@ def main(argv=None) -> int:
         print("This was a dry run" + ("" if args.real else " over COMMITTED FIXTURES")
               + ". Re-run with `--real --write` on a machine that can reach the "
                 "desks and holds `ONELIVE_DB_DSN`.")
-        return 0
+        return _unreadable_exit(unreadable)
 
     # --- the write ---------------------------------------------------------
     try:
@@ -652,9 +693,55 @@ def main(argv=None) -> int:
               f"reachable (it is idempotent, and it will re-detect these), or "
               f"set their confidence to `disputed` in the ops console.")
         print("This run is a FAILURE despite the counts above.", file=sys.stderr)
+        # A mislabelled PUBLIC row outranks an unread desk: one is wrong on the
+        # site right now, the other is a gap. Both are printed above; the exit
+        # code can only carry one, so it carries the live harm.
         return 1
+    return _unreadable_exit(unreadable)
+
+
+def _unreadable_exit(unreadable: Sequence[object]) -> int:
+    """3 when a desk was unread, else 0. The rows we DID read are already written.
+
+    Split out so both exits — the dry run's and the write's — answer the same
+    question the same way, instead of one of them growing a green path.
+    """
+    if not unreadable:
+        return 0
+    names = ", ".join(f"{d.door_id}" for d in unreadable)  # type: ignore[attr-defined]
+    print(f"FAILED: {len(unreadable)} desk(s) could not be read ({names}). "
+          f"Their listings are UNKNOWN, not absent. Everything the readable "
+          f"desks printed was still written; nothing was deleted.",
+          file=sys.stderr)
+    return 3
+
+
+def cli(argv: Optional[Sequence[str]] = None) -> int:
+    """`main`, optionally wrapped in the dead-man pings.
+
+    The wrap lives HERE and not inside main() so the ping brackets every exit
+    path main has, including the non-zero ones. A desk that could not be read
+    (exit 3) is a FAILED run and pings `fail`: healthchecks then shows the
+    scheduled loop as failing, which is the state it is in. Only a clean run
+    pings success, and a run that never starts pings nothing at all — which is
+    exactly what the dead-man alarm exists to notice.
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--deadman" not in argv:
+        return main(argv)
+    from worker.sentinel import deadman, init_sentry  # noqa: PLC0415
+    # Charter (CLAUDE.md, Sentinel): a scheduled loop ships with BOTH signals.
+    # The dead-man says "it stopped running"; Sentry says "it ran and broke".
+    # Neither answers the other's question, so --deadman turns on both.
+    init_sentry("desk-ingest")
+    with deadman():
+        code = main(argv)
+        if code != 0:
+            # Inside the context manager, so the `fail` ping is sent, and the
+            # code is preserved for the workflow step that has to go red.
+            raise SystemExit(code)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())

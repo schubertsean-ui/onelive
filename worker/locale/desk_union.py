@@ -317,6 +317,13 @@ class DeskState:
     exhausted: bool
     stopped_because: str
     blocked_reasons: Tuple[str, ...] = ()
+    #: Every URL this walk used AS A LIST: the door it started at, each page it
+    #: paginated through, and each `next` link it followed. Carried so the
+    #: publisher can refuse a row whose identity is one of them — a reader that
+    #: collapses a list page into a single row would otherwise publish the page
+    #: itself as a happening (evaluator PR #232, absence-only lens). It is the
+    #: walk's own record, not a guess: nothing here is inferred from a row.
+    list_page_urls: Tuple[str, ...] = ()
 
     @property
     def readable(self) -> bool:
@@ -456,6 +463,11 @@ def _desk_state(walk: DeskWalk) -> DeskState:
         stopped_because=walk.stopped_because,
         blocked_reasons=tuple(
             f"page {p.n}: {p.blocked_reason}" for p in walk.pages if p.blocked),
+        list_page_urls=tuple(dict.fromkeys(
+            u for u in ([walk.start_url]
+                        + [p.url for p in walk.pages]
+                        + [p.next_url for p in walk.pages])
+            if u)),
     )
 
 

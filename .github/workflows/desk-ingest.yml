@@ -2,31 +2,56 @@ name: desk-ingest
 
 # Walk the local desks LIVE and write what they printed into the catalog.
 #
-# Founder ticket 2026-09-05: "Take the Chronicle + Do512 walker that already
-# exists and write candidates + promote into the catalog... If live fetch 403s
-# / Cloudflare in this sandbox, say UNREADABLE and stop... Then tell me the one
-# command to run on a machine that can fetch (or a GH job with egress) so the
-# write happens for real."
+# ARMED ON A SCHEDULE 2026-09-05 (founder ticket: "desks reach the catalog on a
+# schedule from infrastructure that is allowed to fetch"). Until this commit the
+# only way a desk reached the catalog was a founder pressing a button, which is
+# not a publish path — it is a demo of one.
 #
-# This IS that job. The build sandbox's egress proxy 403s both desks
-# (`curl: (56) CONNECT tunnel failed, response 403`, 2026-09-05), so nobody in
-# that sandbox can read a live page — and a fixture title must never stand in
-# for one. A GitHub runner has open egress, so the fetch happens here.
+# The build sandbox's egress proxy 403s the desks (`curl: (56) CONNECT tunnel
+# failed, response 403`), so no agent can read a live page there and a fixture
+# title must never stand in for one. A GitHub runner has open egress. That is
+# why the fetch happens HERE and why an agent's job is to DISPATCH this
+# workflow, never to fetch a desk itself (CLAUDE.md, "Fetching desks").
 #
-# MANUAL DISPATCH ONLY, and `write` defaults to FALSE. A dispatch with
-# write=false does the whole live walk and prints exactly what it WOULD write,
-# touching no database — that is the run to read before the run that writes.
-# No `schedule:` block: arming a recurring loop needs a dead-man ping and a
-# budget, which is its own ticket and its own founder decision (CLAUDE.md,
-# Sentinel rule).
+# WHAT STOPS A RUN (the budget, all declared below, all fail-closed):
+#   * max_pages per desk        the page ceiling. On `schedule` it is FIXED
+#                               (dispatch inputs do not exist on schedule
+#                               events); on dispatch it is required and the run
+#                               fails loud without it.
+#   * timeout-minutes           wall clock, well inside the 6-hour cadence so a
+#                               long run never queues behind the next one.
+#   * concurrency               one writer at a time. Two concurrent runs would
+#                               each read the store's keys BEFORE the other
+#                               wrote its rows, and both would write the same
+#                               happening — the one race the ingest key cannot
+#                               see.
+# There is NO AI spend on this path at all: the desk walk parses HTML with the
+# committed reader and never calls a model, so the only cost is runner minutes.
 #
-# The credential lives only inside the step that needs it (ingest.yml's
+# UNREADABLE IS RED. `tools/desk_ingest.py` exits 3 when a desk opened no page,
+# and `set -o pipefail` below means `tee` cannot swallow it. That is the whole
+# point of arming a schedule: on a loop nobody watches, "Do512 had nothing on"
+# and "Do512 refused us" look identical unless one of them turns the check red.
+# The rows the READABLE desks printed are still written — an unread desk says
+# nothing about the desks we could read — and nothing is ever deleted, because
+# this path has no delete.
+#
+# The credential lives only inside the steps that need it (ingest.yml's
 # scope+mask pattern, evaluator PR #19): assembled by command substitution,
 # never written to GITHUB_ENV or a step output, and `--mask-command` registers
 # the escaped ::add-mask:: so the assembled DSN stays redacted even on an
 # unforeseen failure path.
 
 on:
+  schedule:
+    # Every 6 hours (founder: "every 6 hours is enough until we measure").
+    # Minute 23 keeps it off the :00 congestion window where GitHub delays or
+    # drops scheduled runs. A missed run is caught by the dead-man alarm
+    # (period 6h + grace), not by anyone reading logs.
+    # EXPECTED_PERIOD_SECONDS below is derived from this line by
+    # tests/test_desk_ingest_workflow_contract.py, so the cadence, the declared
+    # period, and the live check cannot drift apart silently.
+    - cron: "23 */6 * * *"
   workflow_dispatch:
     inputs:
       write:
@@ -54,9 +79,6 @@ permissions:
   contents: read
 
 concurrency:
-  # One writer at a time. Two concurrent runs would each read the store's keys
-  # BEFORE the other wrote its rows, and both would then write the same
-  # happening — the one race the ingest key cannot see.
   group: desk-ingest
   cancel-in-progress: false
 
@@ -65,17 +87,101 @@ jobs:
     # MASTER-ONLY (evaluator finding, PR #174; same guard as db-report.yml): a
     # workflow_dispatch runs the DISPATCHED ref's code, so without this a
     # branch could pair edited scripts with the production DB secrets below.
+    # Schedules only fire from the default branch, so this binds both events.
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      # THE WRITE DECISION, RESOLVED ONCE. A `schedule` event carries no
+      # `inputs` at all, so keying the write off `inputs.write` would have made
+      # every scheduled run a silent dry run — and, worse, skipped the DSN
+      # validation step whose condition read the same empty value. The event
+      # name is not caller-influenceable, so the schedule writes and every
+      # other event obeys its input. Both are non-empty strings, so "empty"
+      # keeps meaning "something went wrong" rather than quietly meaning "no".
+      WRITE_MODE: ${{ github.event_name == 'schedule' && 'true' || inputs.write }}
+      # The FIXED schedule budget vs the REQUIRED dispatch one — ingest.yml's
+      # rule, for the same reason: a bare `||` fallback would silently
+      # substitute a ceiling for an empty dispatch input.
+      IN_MAX_PAGES: ${{ github.event_name == 'schedule' && '40' || inputs.max_pages }}
+      IN_CITY: ${{ inputs.city || 'Austin' }}
+      IN_HOURS: ${{ inputs.hours || '168' }}
+      IN_DOORS: ${{ inputs.doors || 'austin-chronicle-eventsearch do512-today' }}
+      FETCH_CACHE: var/desk-fetch-cache.json
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Validate the budget ceiling (fail closed, never interpolate)
+        run: |
+          set -euo pipefail
+          : "${WRITE_MODE:?write mode rendered empty — failing closed}"
+          : "${IN_MAX_PAGES:?max_pages is required — the page ceiling is the budget — failing closed}"
+          : "${IN_CITY:?dispatch input 'city' is empty}"
+          : "${IN_HOURS:?dispatch input 'hours' is empty}"
+          : "${IN_DOORS:?dispatch input 'doors' is empty}"
+          # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
+          # like grep — a newline-smuggled second line cannot pass), and the
+          # raw value is never echoed into an annotation (log-command injection
+          # surface).
+          if ! [[ "$IN_MAX_PAGES" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::max_pages must be a positive integer (invalid value redacted). The ceiling is required and fails closed; 0 does not mean uncapped."
+            exit 1
+          fi
+          if [ "$WRITE_MODE" != "true" ] && [ "$WRITE_MODE" != "false" ]; then
+            echo "::error::write mode resolved to something other than true/false — failing closed"
+            exit 1
+          fi
+
+      - name: Preconditions for a WRITE run (fail loud, never no-op)
+        if: env.WRITE_MODE == 'true'
+        env:
+          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$ONELIVE_DB_DSN" ] || missing="$missing ONELIVE_DB_DSN"
+          [ -n "$ONELIVE_DB_PASSWORD" ] || missing="$missing ONELIVE_DB_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::desk-ingest refused — missing Actions secret(s):$missing. Minting credentials is founder-crucial (CLAUDE.md)."
+            exit 1
+          fi
+
+      - name: Assert the dead-man alarm matches the armed cadence (fail closed)
+        # SCHEDULE ONLY, and that is the charter's own line: "no SCHEDULED loop
+        # ships without both" (CLAUDE.md, Sentinel). A manual dispatch is
+        # watched by the person who dispatched it — that is the entire
+        # difference an alarm exists to cover — so asserting it on dispatch
+        # would break the working manual path to protect a run somebody is
+        # already looking at.
+        #
+        # tools/assert_deadman_period.py reads the check's LIVE period/grace
+        # through the founder-minted READ-ONLY healthchecks API key and refuses
+        # the run on mismatch, pause, missing key, unreadable API, or a check
+        # the key cannot see. Unwatched is not an option: until the founder
+        # creates the check and adds the two secrets, every SCHEDULED run fails
+        # here, loudly, before it can fetch or write anything. That is the
+        # fail-closed direction — a silent unwatched writer is the other one.
+        if: github.event_name == 'schedule'
+        env:
+          # The desk loop's OWN check — a different cadence from ingestion's,
+          # so it needs its own alarm rather than sharing one that would be
+          # satisfied by the other loop's pings.
+          ORCHESTRATOR_PING_URL: ${{ secrets.DESK_INGEST_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          DEADMAN_CHECK_SLUG: "onelive-desk-ingest"
+          EXPECTED_PERIOD_SECONDS: "21600"
+          MAX_GRACE_SECONDS: "3600"
+        run: |
+          python3 tools/assert_deadman_period.py
+
       - name: Validate DSN + register log mask (before anything installs)
-        if: ${{ inputs.write }}
+        if: env.WRITE_MODE == 'true'
         env:
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
@@ -89,34 +195,51 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt
 
-      - name: Walk the desks and write
+      - name: Restore the conditional-GET cache
+        # POLITENESS, PERSISTED. The fetcher stores each page's ETag /
+        # Last-Modified and the body they refer to; with the cache restored, a
+        # page that has not changed since the last run costs the desk a header
+        # exchange (HTTP 304) instead of a download. A cache miss is simply a
+        # full read — correct, just less polite — so nothing here can fail the
+        # run. The run_id key always writes a fresh entry and the prefix
+        # restore-key picks up the most recent one.
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FETCH_CACHE }}
+          key: desk-fetch-${{ github.run_id }}
+          restore-keys: |
+            desk-fetch-
+
+      - name: Walk the desks
         env:
           # Inputs reach the script as ENVIRONMENT, never interpolated into the
           # shell: `${{ inputs.doors }}` spliced into a command line would run
           # whatever a dispatcher typed.
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
-          IN_WRITE: ${{ inputs.write }}
-          IN_CITY: ${{ inputs.city }}
-          IN_HOURS: ${{ inputs.hours }}
-          IN_DOORS: ${{ inputs.doors }}
-          IN_MAX_PAGES: ${{ inputs.max_pages }}
+          ORCHESTRATOR_PING_URL: ${{ secrets.DESK_INGEST_PING_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # Reaches the shell as ENVIRONMENT like every other value here. It is
+          # not caller-influenceable, so this is discipline rather than a
+          # vulnerability — and discipline is the point: no expression renders
+          # into a run block in this file, so no future edit has a precedent.
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Every dispatch input is guarded before first use. An input that
-          # arrives empty (a misconfigured dispatch, a renamed field) would
-          # otherwise render as an empty string and change what this run walks
-          # or counts without saying so — and this run writes.
-          : "${IN_WRITE:?dispatch input 'write' is empty}"
+          # Re-guarded at the point of use: the value that runs must be the
+          # value that was validated, and an env that renders empty between the
+          # two steps is a misconfiguration, never a default.
+          : "${WRITE_MODE:?write mode rendered empty}"
           : "${IN_CITY:?dispatch input 'city' is empty}"
           : "${IN_HOURS:?dispatch input 'hours' is empty}"
           : "${IN_DOORS:?dispatch input 'doors' is empty}"
-          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
-          args=(--real --city "$IN_CITY" --hours "$IN_HOURS" --max-pages "$IN_MAX_PAGES")
+          : "${IN_MAX_PAGES:?page ceiling rendered empty}"
+          args=(--real --city "$IN_CITY" --hours "$IN_HOURS"
+                --max-pages "$IN_MAX_PAGES" --fetch-cache "$FETCH_CACHE")
           for door in $IN_DOORS; do
             args+=(--door "$door")
           done
-          if [ "$IN_WRITE" = "true" ]; then
+          if [ "$WRITE_MODE" = "true" ]; then
             : "${ONELIVE_DB_DSN_RAW:?ONELIVE_DB_DSN secret missing}"
             : "${ONELIVE_DB_PASSWORD:?ONELIVE_DB_PASSWORD secret missing}"
             ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
@@ -125,6 +248,15 @@ jobs:
           else
             args+=(--dry-run)
           fi
+          if [ "${EVENT_NAME:-}" = "schedule" ]; then
+            # The alarm is the scheduled loop's, not the dispatcher's: a manual
+            # run that pings success would tell healthchecks the SCHEDULE is
+            # alive when it may not have run at all.
+            args+=(--deadman)
+          fi
+          # pipefail is what makes UNREADABLE red: without it `tee` reports
+          # success and exit 3 is lost, which is the exact "green with a note"
+          # this schedule exists to stop.
           python3 tools/desk_ingest.py "${args[@]}" | tee desk-ingest-report.md
 
       - name: Put the report in the run summary
@@ -136,10 +268,32 @@ jobs:
             echo "The run produced no report — read the step log above." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Say what failed, where ops can see it
+        # An annotation on the run itself, so a red check names its cause
+        # without anyone opening the summary. The text is this workflow's own
+        # (never a desk's or an input's), so there is no log-command injection
+        # surface here.
+        if: failure()
+        env:
+          # Declared here, empty, so the value has ONE visible source and an
+          # unset name can never flow silently into a log command
+          # (tools/workflow_env_lint.py, which fails closed on exactly that).
+          UNREAD_DESKS: ""
+        run: |
+          if [ -f desk-ingest-report.md ] && grep -q "UNREADABLE" desk-ingest-report.md; then
+            # The desks' own door_ids, which are OUR catalog identifiers, never
+            # anything a desk sent us — so nothing fetched can reach this
+            # annotation. Everything else in the report stays in the summary.
+            UNREAD_DESKS="$(grep -o '`[a-z0-9-]\+` opened no page' desk-ingest-report.md | tr -d '`' | sed 's/ opened no page//' | paste -sd, -)"
+            echo "::error::desk-ingest FAILED — unread desk(s): ${UNREAD_DESKS:-see the report}. Their listings are UNKNOWN, not absent. Everything the readable desks printed was still written and nothing was deleted. Full report: this run's summary and the desk-ingest-report artifact."
+          else
+            echo "::error::desk-ingest FAILED before it could report. Either it refused to start (exit 2 — bad door, bad locale, missing DSN), left a published row mislabelled (exit 1), or a setup step failed. Read the step log above; nothing was deleted."
+          fi
+
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: desk-ingest-report
+          name: desk-ingest-report-${{ github.run_id }}
           path: desk-ingest-report.md
           if-no-files-found: warn

@@ -132,6 +132,12 @@ class DeskRegistration:
     source_class: str
     base_url: str
     catalog_id: str
+    #: The door the walk actually started at — the desk's list page. Carried so
+    #: `front_door_reason` can recognise it: a happening's own address is never
+    #: the door we walked in through. Defaulted so the many places that build a
+    #: registration by hand (tests, fixtures) keep working, and an empty one
+    #: simply matches nothing rather than matching everything.
+    door_url: str = ""
 
 
 def _host(url: str) -> str:
@@ -198,6 +204,7 @@ def registration_for(door: Door, catalog: Sequence[Mapping[str, Any]]) -> DeskRe
         source_class=source_class,
         base_url=str(row.get("base_url") or ""),
         catalog_id=str(row.get("id") or ""),
+        door_url=str(door.url or ""),
     )
 
 
@@ -428,8 +435,113 @@ def _quote(row: UnionRow, member) -> str:
     return " — ".join(parts)[:500]
 
 
+def _document_key(url: str) -> Optional[Tuple[str, str]]:
+    """(host, path) with the trailing slash dropped — "is this the same page?".
+
+    Query and fragment are deliberately ignored: `/events/` and `/events/?p=2`
+    are the same index page wearing different clothes, and both are the desk's
+    own list rather than anything on it.
+    """
+    parts = urlsplit((url or "").strip())
+    host = _host(url)
+    if not host:
+        return None
+    return host, (parts.path or "").rstrip("/")
+
+
+def front_door_reason(listing_url: Optional[str],
+                      registration: Optional[DeskRegistration],
+                      list_pages: Optional[Mapping[Tuple[str, str], str]] = None
+                      ) -> Optional[str]:
+    """Why this row is a PAGE and not a happening — or None if it is a row.
+
+    A desk's walk can come back with a row whose only identity is the desk's
+    own front door: the paper's home page, or its events index. That happens
+    when a page holds no per-listing structure the reader can key on, and what
+    it produces is not a small error — it is ONE row carrying every title on
+    the page glued together, at every venue on the page glued together, with no
+    date. Published, that row is a happening nobody is holding, under a real
+    paper's masthead, on a public feed. It is the fabrication rule (CLAUDE.md
+    prime directive 1: never fabricate to fill a gap) arriving through the
+    front door rather than through a model.
+
+    So the test is on IDENTITY, not on the text — deliberately, because
+    guessing "does this title look like too many titles?" is the generic card
+    parser the founder's Must-not list excludes, and it would be a heuristic
+    with no true answer. A URL is checkable: a happening never lives at a
+    site's bare origin, and it is never the events index itself. Both cases
+    are HELD, not dropped: the candidate and its evidence are written, so the
+    row is in the store and in the ops queue where a person can see what the
+    walk actually read. Nothing is deleted and nothing publishes.
+
+    FOUR identities are refused, and the fourth is the general one: the bare
+    origin, the catalog row's own `base_url`, the door the walk started at, and
+    ANY URL THE WALK USED AS A LIST — every page it paginated through and every
+    `next` link it followed, carried here on `DeskState.list_page_urls` (the
+    walk's own record; nothing is inferred from a row). The first three are
+    special cases of the fourth that hold even when a caller supplies no walk.
+
+    That fourth one is the invariant the evaluator demanded on PR #232, and it
+    is the one that closes the CLASS rather than the instance: whatever page a
+    collapsing reader glues into a single row, that page is a page WE ASKED FOR
+    as a list, so its URL is in the set and the row cannot publish. A happening
+    on a desk we paginate is never itself one of the pages we paginated.
+    """
+    url = (listing_url or "").strip()
+    if not url:
+        return None
+    key = _document_key(url)
+    if key is None:
+        return None
+    host, path = key
+    if not path:
+        return (f"this row's identity is {url} — a site's front door, not a "
+                f"happening. A page that gave the walk no per-listing address "
+                f"yields ONE row holding every title on it, which would "
+                f"publish a happening nobody is holding. Held as a candidate: "
+                f"the desk needs a reader that keys each listing")
+    if registration is not None:
+        for label, other in (("events index in the catalog", registration.base_url),
+                             ("door this walk started at", registration.door_url)):
+            if not other:
+                continue
+            if _document_key(other) == key:
+                return (f"this row's identity is {url}, which IS the desk's own "
+                        f"{label} ({other}) — the list, not anything on it. Held "
+                        f"as a candidate rather than published as a happening")
+    if list_pages:
+        listed = list_pages.get(key)
+        if listed is not None:
+            return (f"this row's identity is {url}, which is a page THIS WALK "
+                    f"READ AS A LIST ({listed}) — so the row is the page, not "
+                    f"anything on it. A reader that collapses a list into one "
+                    f"row would otherwise publish the page as a happening under "
+                    f"the desk's masthead. Held as a candidate")
+    return None
+
+
+def list_page_index(one: "DeskUnion") -> Dict[Tuple[str, str], str]:
+    """Every URL the walks used as a LIST, keyed the way a row's identity is.
+
+    Built once per plan rather than per row, and from every desk in the walk
+    rather than only the row's own: a happening is never one of the pages we
+    paginated, on any desk, so a wider set is strictly safer here and cannot
+    cost a real listing. A desk that read nothing contributes nothing, which is
+    correct — it also wrote nothing.
+    """
+    out: Dict[Tuple[str, str], str] = {}
+    for state in getattr(one, "desks", ()) or ():
+        for raw in getattr(state, "list_page_urls", ()) or ():
+            key = _document_key(raw)
+            if key is not None:
+                out.setdefault(key, raw)
+    return out
+
+
 def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
-              *, mode: str) -> CandidateWrite:
+              *, mode: str,
+              list_pages: Optional[Mapping[Tuple[str, str], str]] = None
+              ) -> CandidateWrite:
     """One union row as a candidate write.
 
     The candidate's own `source_name`/`source_class` are the FIRST desk that
@@ -502,6 +614,12 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         clock_hole = "no desk stated a date for this row"
 
     listing_url = _listing_url(row)
+    # THIS ONE OUTRANKS EVERY CLOCK REASON ABOVE. A clock hole is a hole in a
+    # real listing; a front-door row is not a listing at all, so "what time?"
+    # is the wrong question to hold it on and the right hold has to say so.
+    front_door = front_door_reason(listing_url, first, list_pages)
+    if front_door:
+        hold_reason = front_door
     desk_note = {
         "key": ingest_key(row),
         "union_key": row.key,
@@ -623,7 +741,13 @@ def plan(one: DeskUnion, registrations: Mapping[str, DeskRegistration]) -> List[
     one — nothing in this module ever turns an unread list into a deletion,
     because nothing in this module deletes.
     """
-    return [write_for(row, registrations, mode=one.mode) for row in one.rows]
+    # The walks' own list pages, built ONCE and passed to every row. `plan` is
+    # the only path `tools/desk_ingest.py` writes through, so supplying it here
+    # is what makes the invariant hold on the product path rather than only
+    # where a caller remembers to ask for it (pinned by test).
+    listed = list_page_index(one)
+    return [write_for(row, registrations, mode=one.mode, list_pages=listed)
+            for row in one.rows]
 
 
 def plan_digest(writes: Sequence[CandidateWrite]) -> Dict[str, Any]:
