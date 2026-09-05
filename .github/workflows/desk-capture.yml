@@ -25,20 +25,16 @@ name: desk-capture
 # bypassing login, paywall or bot protection, so a 403 is recorded as that
 # desk's answer and nothing here retries it with a disguise.
 
-# TEMPORARY, and removed inside this same PR before it is ready to merge: a
-# `workflow_dispatch` workflow is only dispatchable once it lives on the DEFAULT
-# branch (the API answers 404 for a branch-only file, verified this session), so
-# on the branch that INTRODUCES this worker there is no way to run it — and the
-# reader fix it exists to inform cannot be built against real bytes without it.
-# A `pull_request` trigger runs the PR's own code, so it is the one self-serve
-# path. It is path-filtered to this worker's own two files so no unrelated PR
-# ever makes a live third-party request, and it is deleted again once the
-# capture has been taken: live fetching does not belong in PR CI.
+# Dispatch only. A temporary, path-filtered `pull_request` trigger lived here
+# while this branch was written, because a `workflow_dispatch` workflow is only
+# dispatchable once it lives on the DEFAULT branch (the API answers 404 for a
+# branch-only file, verified 2026-09-05) — so the branch that INTRODUCES this
+# worker cannot otherwise run it. It did its job: runs 33989762931 / 33989889096
+# / 33990383951 captured the desks' own bytes and proved the reader on them.
+# It is removed again here, before merge, because live third-party fetching does
+# not belong in PR CI. Once this is on master, `mode` selects capture, dry-walk,
+# or both.
 on:
-  pull_request:
-    paths:
-      - .github/workflows/desk-capture.yml
-      - tools/desk_capture.py
   workflow_dispatch:
     inputs:
       mode:
@@ -81,7 +77,7 @@ jobs:
           pip install -r worker/requirements.txt
 
       - name: Walk the desks dry on THIS ref's reader
-        if: ${{ github.event_name == 'pull_request' || inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
+        if: ${{ inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
         env:
           IN_DOORS: ${{ inputs.doors || 'austin-chronicle-eventsearch do512-today' }}
           # Small on purpose: this proves what the reader DOES with real pages,
@@ -98,7 +94,7 @@ jobs:
           python3 tools/desk_ingest.py "${args[@]}" | tee dry-walk-report.md
 
       - name: Capture the bytes the desks serve
-        if: ${{ github.event_name == 'pull_request' || inputs.mode == 'capture' || inputs.mode == 'both' }}
+        if: ${{ inputs.mode == 'capture' || inputs.mode == 'both' }}
         env:
           # Inputs reach the script as ENVIRONMENT, never interpolated into the
           # shell: `${{ inputs.doors }}` spliced into a command line would run

@@ -14,8 +14,31 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #67 (2026-09-05, founder — "Austin Chronicle ingest: event identity is not a CSS card", branch claude/austin-chronicle-ingest-601695) — OPEN
 
-STATUS: OPEN — dry run 33989221309 read the live Chronicle desk and proved the
-loss the founder's Must-do 2 named as the condition for touching the reader.
+STATUS: OPEN — built, pushed, PR #231 (draft).
+https://github.com/schubertsean-ui/onelive/pull/231
+PROVEN ON THE LIVE DESK, not argued:
+  * dry run 33989221309 (master's reader): 40 pages read -> 1 row, keyed
+    `url:https://www.austinchronicle.com`, title eleven headlines, place forty
+    venues. That is Must-do 2's condition for touching the reader.
+  * capture runs 33989762931 / 33989889096 (the desk's own bytes): page 1 =
+    243,725 bytes, 247 anchors, 93 of them `/event/{slug}-{id}`; page 2 =
+    235,760 bytes, 258 anchors, 91 of them. Each listing sits in an `li`
+    holding exactly one, inside wrappers holding 9 and then 91/93.
+  * run 33990383951 (this branch's reader, same live desk): 49 nodes selected
+    via the `listing_link` tier per page -> 119 happenings over 3 pages, each
+    keyed on its own `/event/...` door with its own title and venue
+    (`Kris Kimura Quartet` at Parker Jazz Club; `DJ Sway` at Fareground;
+    `Seu Jacinto` at Central Market South).
+NOT WRITTEN, and why: the write job `desk-ingest.yml` is master-only and runs
+MASTER's reader, so dispatching `write=true` today would publish the blob row,
+not these 119. The write is one merge away, and merge is the founder's word.
+KNOWN AND NOT FIXED HERE: all 119 rows carry NO date — this desk states none on
+its list page ("119 publish with a true 'Date TBA' because no desk stated a
+date at all"). The dates live behind the event door the founder named; that is
+a separate ticket, named in TODOS.md, not started here.
+`do512-today` remains UNREADABLE: HTTP 403 on first contact from ubuntu-latest,
+recorded as that desk's answer and queued for a claim path, never retried with
+a disguise (Coverage Law forbids bypassing bot protection).
 
 WHAT: the Chronicle desk's LIVE list page becomes one row per listing, keyed on
 that listing's own `/event/{slug}-{id}` door, instead of the single blob row
