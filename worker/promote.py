@@ -97,6 +97,37 @@ def promote_candidate(candidate_id: str) -> str:
             # refused here regardless of how it got to this call. evaluate_gate
             # wraps multi_confirm_gate, so the count-based check is subsumed.
             extracted, evidence_signals = load_candidate_gate_signals(candidate_id, cur=cur)
+
+            # CLAIMS THE PRODUCER OBSERVED BUT COULD NOT RECONCILE (evaluator,
+            # PR #229 r5). `load_candidate_gate_signals` reads the candidate's
+            # own start_time twice — the column and the payload — which are one
+            # value written two ways, so a producer that saw a REAL conflict
+            # (two sources stating two instants for one happening) had nowhere
+            # to put the second and was forced to resolve it before writing.
+            # That silently disarmed `trust_gate3.start_time_claims`, the check
+            # whose entire job is noticing that disagreement: it can only see
+            # what reaches it. `extracted["start_times"]` is that seat — an
+            # optional list of every instant the producer was told, stated as
+            # evidence rather than settled into a value.
+            #
+            # FOLDED IN HERE rather than in `load_candidate_gate_signals`
+            # because that function lives inside the ARMED ingest cron's
+            # runtime closure (tools/arming_runtime.py) and this file does not:
+            # the cron never promotes, which is the "AI never publishes"
+            # invariant in its structural form. Editing the cron's closure
+            # would invalidate the recorded green smoke run and need a founder-
+            # authorized re-run, and the publisher is the right home anyway —
+            # "publish as disputed or do not publish" is an invariant only the
+            # publisher can hold.
+            #
+            # Additive by construction: it can only ADD claims, so its worst
+            # case is the gate finding a hole it would otherwise have missed.
+            stated = [str(c) for c in (extracted.get("start_times") or []) if c]
+            if stated:
+                evidence_signals = dict(evidence_signals)
+                evidence_signals["start_times"] = (
+                    list(evidence_signals.get("start_times") or []) + stated)
+
             verdict = assert_promotable(
                 source_classes=classes,
                 sxsw_mode=sxsw_mode,
