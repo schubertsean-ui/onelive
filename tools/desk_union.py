@@ -48,8 +48,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
 from worker.locale.desk_union import (  # noqa: E402
-    DeskUnionError, board_table, desk_table, held_apart_table, near_miss_table,
-    union, union_table,
+    DeskUnionError, board_table, certainty_note, desk_table, held_apart_table,
+    near_miss_table, union, union_table,
 )
 from worker.locale.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalkError, walk,
@@ -259,9 +259,9 @@ def main(argv=None) -> int:
               "fixtures — invented titles, venues and dates that exist to prove "
               "the walk, the key and the board. It is not a measurement of the "
               "Austin Chronicle, of Do512, or of any live desk.")
-    if one.any_floor:
-        print("- At least one desk's list continues past where its walk stopped "
-              "(see table 1). Every count here is therefore a FLOOR.")
+    # Derived from the board's own facts, never written beside them: a
+    # hand-written certainty sentence drifts from the table it summarises.
+    print("- " + certainty_note(one))
     print()
     print("This tool wrote nothing: no candidate, no promotion, no user-visible row. "
           "Reading two desks does not change the catalog — wiring these rows into "

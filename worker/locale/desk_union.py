@@ -683,6 +683,43 @@ def board_table(one: DeskUnion) -> str:
     return "\n".join(lines)
 
 
+def certainty_note(one: DeskUnion) -> str:
+    """One sentence saying what the board's numbers prove — DERIVED from the
+    same desk facts the buckets are labelled from.
+
+    It exists because prose written ALONGSIDE a table makes its own certainty
+    claim, and that claim drifts the moment the table's rules change. This
+    module's own footer said "every count here is therefore a FLOOR" for two
+    rounds after `board_table` started printing ceilings beside it: the report
+    contradicted its own labels, and a reader was left to reconcile them. A
+    summary of a computation belongs to that computation.
+    """
+    unreadable = [d for d in one.desks if not d.readable]
+    if unreadable:
+        return ("One or more desks did not open ("
+                + ", ".join(f"`{d.door_id}`" for d in unreadable)
+                + "), so no desk's exclusive count can be stated at all and the "
+                  "unique total is only a FLOOR — a desk we could not read has "
+                  "an unknown list, never an empty one.")
+    partial = [d for d in one.desks if d.floor]
+    if not partial:
+        return ("Every desk was read to the end of its own list, so the counts "
+                "above are exact rather than bounds.")
+    if len(partial) > 1:
+        return ("More than one desk stopped short ("
+                + ", ".join(f"`{d.door_id}`" for d in partial)
+                + "), so no exclusive count is even a bound: reading on can take "
+                  "rows out of an `only` bucket and add others to it, which is "
+                  "why those cells say `so far`. `both` and the unique total are "
+                  "FLOORS — more reading merges more and un-merges nothing.")
+    only_one = partial[0]
+    return (f"`{only_one.door_id}` stopped short, so the counts above are bounds "
+            f"and not all in the same direction: every OTHER desk's `only` count "
+            f"is a CEILING (its rows can still turn out to be on the unread "
+            f"pages), `{only_one.door_id}`'s own is a FLOOR, and `both` plus the "
+            f"unique total are FLOORS.")
+
+
 def held_apart_table(one: DeskUnion) -> str:
     """Every row the de-dup rule could not key, and why. These rows are IN the
     union table under a desk-local key — this is the reason list, not a

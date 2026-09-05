@@ -131,6 +131,6 @@ Not on this list, and not a gap to close: `ticketmaster-discovery`, `axs-austin`
 - A 12:30am listing is keyed to its own calendar date, not to the evening before. Rolling late sets back a night is a rule the founder has not set, and it would move rows between nights silently.
 - The performer strip removes a trailing "at <this row's own venue>" and a support-act tail ("w/", "feat."). It runs only after night AND place already match, and every merge it makes is listed above.
 - **FIXTURE run.** Every count above is a count of committed shape fixtures — invented titles, venues and dates that exist to prove the walk, the key and the board. It is not a measurement of the Austin Chronicle, of Do512, or of any live desk.
-- At least one desk's list continues past where its walk stopped (see table 1). Every count here is therefore a FLOOR.
+- `do512-today` stopped short, so the counts above are bounds and not all in the same direction: every OTHER desk's `only` count is a CEILING (its rows can still turn out to be on the unread pages), `do512-today`'s own is a FLOOR, and `both` plus the unique total are FLOORS.
 
 This tool wrote nothing: no candidate, no promotion, no user-visible row. Reading two desks does not change the catalog — wiring these rows into the pipeline is a separate, named step.

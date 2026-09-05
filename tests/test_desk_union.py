@@ -29,8 +29,8 @@ from worker.locale import pack as lp
 from worker.locale.desk_read import Happening
 from worker.locale.desk_union import (
     BASIS_LOCAL, BASIS_PERFORMER, BASIS_UNION, DeskUnionError, board_table,
-    desk_table, held_apart_table, local_night, near_miss_table, near_misses,
-    performer_key, place_key, union, union_table,
+    certainty_note, desk_table, held_apart_table, local_night, near_miss_table,
+    near_misses, performer_key, place_key, union, union_table,
 )
 from worker.locale.desk_walk import DeskWalk, PageVisit, walk
 from worker.locale.kind_map import map_for_door
@@ -375,6 +375,40 @@ def test_a_partial_walk_is_a_floor(one):
 # --------------------------------------------------------------------------
 # The tables a founder actually reads
 # --------------------------------------------------------------------------
+
+def test_the_certainty_sentence_never_contradicts_the_board(one):
+    """Evaluator r3 (openai/absence-only, PR #226): the footer said "every count
+    here is therefore a FLOOR" while the board printed `at most` ceilings beside
+    it. A summary of a computation belongs to that computation — so the sentence
+    is derived, and this test holds it to the table it summarises."""
+    board, note = board_table(one), certainty_note(one)
+    if "at most" in board:
+        assert "CEILING" in note
+        assert "Every count" not in note
+    if "so far" in board:
+        assert "no exclusive count is even a bound" in note
+    if "at least" in board:
+        assert "FLOOR" in note
+
+
+def test_the_certainty_sentence_matches_each_shape_of_walk():
+    def note_for(*walks):
+        return certainty_note(union(list(walks), timezone=TZ, timezone_id=TZ_ID))
+
+    rows = [_row("Alpha", when="2026-09-12T20:00:00-05:00")]
+    other = [_row("Beta", when="2026-09-12T20:00:00-05:00", door_id="desk-b", via="B")]
+    whole_a = _fake_walk("desk-a", "A", rows)
+    whole_b = _fake_walk("desk-b", "B", other)
+    part_a = _fake_walk("desk-a", "A", rows, stopped="next_control_not_a_link")
+    part_b = _fake_walk("desk-b", "B", other, stopped="next_control_not_a_link")
+    shut_b = _fake_walk("desk-b", "B", [], blocked="wall on contact — HTTP 403",
+                        stopped="blocked")
+
+    assert "exact rather than bounds" in note_for(whole_a, whole_b)
+    assert "CEILING" in note_for(whole_a, part_b)      # one desk short
+    assert "no exclusive count is even a bound" in note_for(part_a, part_b)
+    assert "unknown list, never an empty one" in note_for(whole_a, shut_b)
+
 
 def test_every_table_row_has_the_columns_it_declares(one):
     """A key carrying a markdown pipe splits its row silently, and the founder
