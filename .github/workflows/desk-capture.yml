@@ -25,7 +25,20 @@ name: desk-capture
 # bypassing login, paywall or bot protection, so a 403 is recorded as that
 # desk's answer and nothing here retries it with a disguise.
 
+# TEMPORARY, and removed inside this same PR before it is ready to merge: a
+# `workflow_dispatch` workflow is only dispatchable once it lives on the DEFAULT
+# branch (the API answers 404 for a branch-only file, verified this session), so
+# on the branch that INTRODUCES this worker there is no way to run it — and the
+# reader fix it exists to inform cannot be built against real bytes without it.
+# A `pull_request` trigger runs the PR's own code, so it is the one self-serve
+# path. It is path-filtered to this worker's own two files so no unrelated PR
+# ever makes a live third-party request, and it is deleted again once the
+# capture has been taken: live fetching does not belong in PR CI.
 on:
+  pull_request:
+    paths:
+      - .github/workflows/desk-capture.yml
+      - tools/desk_capture.py
   workflow_dispatch:
     inputs:
       mode:
@@ -68,13 +81,13 @@ jobs:
           pip install -r worker/requirements.txt
 
       - name: Capture the bytes the desks serve
-        if: ${{ inputs.mode == 'capture' || inputs.mode == 'both' }}
+        if: ${{ github.event_name == 'pull_request' || inputs.mode == 'capture' || inputs.mode == 'both' }}
         env:
           # Inputs reach the script as ENVIRONMENT, never interpolated into the
           # shell: `${{ inputs.doors }}` spliced into a command line would run
           # whatever a dispatcher typed.
-          IN_DOORS: ${{ inputs.doors }}
-          IN_MAX_PAGES: ${{ inputs.max_pages }}
+          IN_DOORS: ${{ inputs.doors || 'austin-chronicle-eventsearch do512-today' }}
+          IN_MAX_PAGES: ${{ inputs.max_pages || '2' }}
         run: |
           set -euo pipefail
           : "${IN_DOORS:?dispatch input 'doors' is empty}"
@@ -86,13 +99,17 @@ jobs:
           python3 tools/desk_capture.py "${args[@]}" | tee capture-report.md
 
       - name: Walk the desks dry on THIS ref's reader
-        if: ${{ inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
+        if: ${{ github.event_name == 'pull_request' || inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
         env:
-          IN_DOORS: ${{ inputs.doors }}
+          IN_DOORS: ${{ inputs.doors || 'austin-chronicle-eventsearch do512-today' }}
+          # Small on purpose: this proves what the reader DOES with real pages,
+          # and it is a live third-party request on every run.
+          IN_MAX_PAGES: ${{ inputs.max_pages || '3' }}
         run: |
           set -euo pipefail
           : "${IN_DOORS:?dispatch input 'doors' is empty}"
-          args=(--real --dry-run --city Austin --hours 168 --max-pages 40)
+          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
+          args=(--real --dry-run --city Austin --hours 168 --max-pages "$IN_MAX_PAGES")
           for door in $IN_DOORS; do
             args+=(--door "$door")
           done
