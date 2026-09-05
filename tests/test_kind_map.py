@@ -353,3 +353,113 @@ def test_a_language_rule_word_means_the_same_kind_on_every_committed_desk():
             assert first_kind == row.our_kind, (
                 f"{word!r} maps to {first_kind!r} in {first_map} but to "
                 f"{row.our_kind!r} in {map_id} — one word, two kinds")
+
+
+# --- listing selectors: the only thing that may split a page into cards -------
+#
+# Added 2026-09-05 with the deletion of `worker/segment._CARDISH_CLASS_RE`.
+# The founder: "stop treating 'class contains card/show/event' as a listing ...
+# If a desk has no selector and no JSON-LD, it uses (d) or (e). It does not get
+# a guessed card." A selector is therefore a COMMITTED, graded, per-desk claim,
+# and every refusal below keeps it from widening into the guess it replaced.
+
+def test_both_walked_desks_state_the_card_shape_they_were_walked_with():
+    for map_id, tag in (("austin-chronicle", "div"), ("do512", "div")):
+        mapping = km.load_kind_map(map_id)
+        assert mapping.listing_selectors, f"{map_id} states no listing selector"
+        for selector in mapping.listing_selectors:
+            assert selector.tag == tag
+            assert len(selector.classes) >= 2, (
+                "a one-token selector is close to the substring guess; both "
+                "committed desks name their card by two tokens")
+
+
+def test_every_selector_says_what_kind_of_claim_it_is():
+    """No page of either desk has been READ here (CONNECT 403 from this sandbox,
+    2026-09-04), so both committed selectors must say `fixture_shape` — the
+    grade exists so a selector can never imply a reading that did not happen."""
+    for map_id in ("austin-chronicle", "do512"):
+        for selector in km.load_kind_map(map_id).listing_selectors:
+            assert selector.evidence in km.SELECTOR_EVIDENCE_GRADES
+            assert selector.evidence == "fixture_shape"
+            assert selector.note and "SYNTHETIC" in selector.note
+
+
+def test_a_selector_is_delivered_to_the_segmenter_as_plain_data():
+    """The segmenter reads no file and imports no loader: it is handed values."""
+    assert km.desk_selectors_for_door("do512-today") == (
+        ("div", ("ds-listing", "event-card")),)
+    assert km.load_kind_map("do512").selector_matchers == (
+        ("div", ("ds-listing", "event-card")),)
+
+
+def test_every_door_a_mapping_claims_gets_that_mappings_selectors():
+    for door in ("do512-today", "do512-live-music-today", "do512-family"):
+        assert km.desk_selectors_for_door(door) == (
+            ("div", ("ds-listing", "event-card")),)
+
+
+def test_a_door_no_mapping_claims_has_no_selector_and_that_is_not_an_error():
+    assert km.desk_selectors_for_door("no-such-door") == ()
+
+
+def test_the_crawl_path_resolves_a_selector_by_the_host_that_served_the_page():
+    assert km.desk_selectors_for_url("https://do512.com/events/today") == (
+        ("div", ("ds-listing", "event-card")),)
+    # Another path on the same desk reads the same, which is why the match is on
+    # the host: a card shape belongs to a desk, not to one committed door URL.
+    assert km.desk_selectors_for_url(
+        "https://www.do512.com/events/live-music/today?page=3") == (
+        ("div", ("ds-listing", "event-card")),)
+    assert km.desk_selectors_for_url(
+        "https://calendar.austinchronicle.com/austin/EventSearch?v=g") == (
+        ("div", ("event", "listing")),)
+
+
+def test_a_host_no_mapping_claims_gets_nothing():
+    for url in ("https://example.com/events", "https://notdo512.com/events/today",
+                "not a url", "", None):
+        assert km.desk_selectors_for_url(url) == ()
+
+
+def test_a_selector_may_not_match_every_element_of_its_tag(tmp_path):
+    d = write_map(tmp_path, base_doc(listing_selectors=[
+        {"tag": "div", "classes": [], "evidence": "fixture_shape"}]))
+    with pytest.raises(km.KindMapError):
+        km.load_kind_map(SHIPPED, maps_dir=d)
+
+
+def test_a_class_token_is_one_token(tmp_path):
+    d = write_map(tmp_path, base_doc(listing_selectors=[
+        {"tag": "div", "classes": ["event listing"], "evidence": "fixture_shape"}]))
+    with pytest.raises(km.KindMapError):
+        km.load_kind_map(SHIPPED, maps_dir=d)
+
+
+def test_an_ungraded_selector_is_refused(tmp_path):
+    d = write_map(tmp_path, base_doc(listing_selectors=[
+        {"tag": "div", "classes": ["event", "listing"], "evidence": "desk_observed_ish"}]))
+    with pytest.raises(km.KindMapError):
+        km.load_kind_map(SHIPPED, maps_dir=d)
+
+
+def test_a_selector_missing_its_tag_or_classes_is_refused(tmp_path):
+    for bad in ({"classes": ["event"], "evidence": "fixture_shape"},
+                {"tag": "div", "evidence": "fixture_shape"},
+                {"tag": "", "classes": ["event"], "evidence": "fixture_shape"},
+                {"tag": "div p", "classes": ["event"], "evidence": "fixture_shape"}):
+        d = write_map(tmp_path, base_doc(listing_selectors=[bad]))
+        with pytest.raises(km.KindMapError):
+            km.load_kind_map(SHIPPED, maps_dir=d)
+
+
+def test_the_same_selector_twice_is_refused(tmp_path):
+    sel = {"tag": "div", "classes": ["event", "listing"], "evidence": "fixture_shape"}
+    d = write_map(tmp_path, base_doc(listing_selectors=[sel, dict(sel)]))
+    with pytest.raises(km.KindMapError):
+        km.load_kind_map(SHIPPED, maps_dir=d)
+
+
+def test_a_mapping_with_no_selectors_is_normal(tmp_path):
+    d = write_map(tmp_path, base_doc())
+    assert km.load_kind_map(SHIPPED, maps_dir=d).listing_selectors == ()
