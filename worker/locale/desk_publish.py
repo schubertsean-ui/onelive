@@ -428,6 +428,66 @@ def _quote(row: UnionRow, member) -> str:
     return " — ".join(parts)[:500]
 
 
+def _document_key(url: str) -> Optional[Tuple[str, str]]:
+    """(host, path) with the trailing slash dropped — "is this the same page?".
+
+    Query and fragment are deliberately ignored: `/events/` and `/events/?p=2`
+    are the same index page wearing different clothes, and both are the desk's
+    own list rather than anything on it.
+    """
+    parts = urlsplit((url or "").strip())
+    host = _host(url)
+    if not host:
+        return None
+    return host, (parts.path or "").rstrip("/")
+
+
+def front_door_reason(listing_url: Optional[str],
+                      registration: Optional[DeskRegistration]) -> Optional[str]:
+    """Why this row is a PAGE and not a happening — or None if it is a row.
+
+    A desk's walk can come back with a row whose only identity is the desk's
+    own front door: the paper's home page, or its events index. That happens
+    when a page holds no per-listing structure the reader can key on, and what
+    it produces is not a small error — it is ONE row carrying every title on
+    the page glued together, at every venue on the page glued together, with no
+    date. Published, that row is a happening nobody is holding, under a real
+    paper's masthead, on a public feed. It is the fabrication rule (CLAUDE.md
+    prime directive 1: never fabricate to fill a gap) arriving through the
+    front door rather than through a model.
+
+    So the test is on IDENTITY, not on the text — deliberately, because
+    guessing "does this title look like too many titles?" is the generic card
+    parser the founder's Must-not list excludes, and it would be a heuristic
+    with no true answer. A URL is checkable: a happening never lives at a
+    site's bare origin, and it is never the events index itself. Both cases
+    are HELD, not dropped: the candidate and its evidence are written, so the
+    row is in the store and in the ops queue where a person can see what the
+    walk actually read. Nothing is deleted and nothing publishes.
+    """
+    url = (listing_url or "").strip()
+    if not url:
+        return None
+    key = _document_key(url)
+    if key is None:
+        return None
+    host, path = key
+    if not path:
+        return (f"this row's identity is {url} — a site's front door, not a "
+                f"happening. A page that gave the walk no per-listing address "
+                f"yields ONE row holding every title on it, which would "
+                f"publish a happening nobody is holding. Held as a candidate: "
+                f"the desk needs a reader that keys each listing")
+    if registration is not None:
+        base = _document_key(registration.base_url)
+        if base is not None and base == key:
+            return (f"this row's identity is {url}, which IS the desk's own "
+                    f"events index in the catalog ({registration.base_url}) — "
+                    f"the list, not anything on it. Held as a candidate rather "
+                    f"than published as a happening")
+    return None
+
+
 def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
               *, mode: str) -> CandidateWrite:
     """One union row as a candidate write.
@@ -502,6 +562,12 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         clock_hole = "no desk stated a date for this row"
 
     listing_url = _listing_url(row)
+    # THIS ONE OUTRANKS EVERY CLOCK REASON ABOVE. A clock hole is a hole in a
+    # real listing; a front-door row is not a listing at all, so "what time?"
+    # is the wrong question to hold it on and the right hold has to say so.
+    front_door = front_door_reason(listing_url, first)
+    if front_door:
+        hold_reason = front_door
     desk_note = {
         "key": ingest_key(row),
         "union_key": row.key,

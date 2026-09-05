@@ -49,6 +49,9 @@ from worker.locale.desk_read import Happening  # noqa: E402
 from worker.locale.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, PageFetch, walk, walk_table,
 )
+from worker.locale.desk_fetch import (  # noqa: E402
+    USER_AGENT as DESK_USER_AGENT, live_fetcher as desk_live_fetcher,
+)
 from worker.locale.kind_map import (  # noqa: E402
     KindMap, KindMapError, load_kind_map, map_for_door, normalize_label,
 )
@@ -59,7 +62,10 @@ from worker.locale.pack import (  # noqa: E402
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE_ROOT = os.path.join(REPO_ROOT, "tests", "fixtures", "desk_pages")
 
-USER_AGENT = "OneLiveBot/0.1 (+contact: ops@onelive.example)"
+#: One identity for every live desk fetch, defined once in
+#: `worker/locale/desk_fetch.py` and imported here so a second copy can never
+#: drift from the one robots.txt rules are written against.
+USER_AGENT = DESK_USER_AGENT
 
 #: What `in_store` prints when we could not ask. Not a number, on purpose:
 #: an unchecked store must never render as an empty one (docs/OPERATING_RULES —
@@ -93,28 +99,21 @@ def fixture_fetcher(door_id: str, *, fixture_root: Optional[str] = None):
     return fetch, manifest.get("start_url"), manifest
 
 
-def live_fetcher(*, timeout_s: int, min_interval_s: float):
-    """A polite live fetcher. Every transport failure becomes a PageFetch the
-    walker can classify — never an exception that loses the pages already read.
+def live_fetcher(*, timeout_s: int, min_interval_s: float,
+                 cache_path: Optional[str] = None):
+    """The polite live fetcher: one identity, robots honored, bytes re-used.
+
+    The implementation moved to `worker/locale/desk_fetch.py` when the walk
+    became a SCHEDULED job (founder ticket 2026-09-05). A walk somebody watches
+    can be impolite and get told off; a walk that runs every six hours forever
+    has to sign its requests, read robots.txt (Crawl-delay included), and stop
+    re-downloading pages that have not changed. The returned object is callable
+    exactly as before — `fetch(url) -> PageFetch` — and additionally carries
+    `.save()` and `.summary()` for callers that persist the conditional-GET
+    cache between runs.
     """
-    try:
-        import requests
-    except ImportError:  # pragma: no cover - environment-dependent
-        def unavailable(url: str) -> PageFetch:
-            return PageFetch(url=url, error="requests is not installed")
-        return unavailable
-
-    def fetch(url: str) -> PageFetch:
-        time.sleep(max(0.0, min_interval_s))
-        try:
-            resp = requests.get(url, headers={"User-Agent": USER_AGENT},
-                                timeout=timeout_s)
-        except Exception as exc:  # noqa: BLE001 — a failed page is a row, not a crash
-            return PageFetch(url=url, error=f"{type(exc).__name__}: {exc}"[:200])
-        return PageFetch(url=url, status=resp.status_code, body=resp.text,
-                         final_url=str(resp.url))
-
-    return fetch
+    return desk_live_fetcher(timeout_s=timeout_s, min_interval_s=min_interval_s,
+                             cache_path=cache_path)
 
 
 # --------------------------------------------------------------------------

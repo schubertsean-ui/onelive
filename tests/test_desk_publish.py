@@ -1083,3 +1083,98 @@ def test_one_desk_stating_two_times_is_held_not_published_as_a_settled_tba():
         promote=lambda cid: promoted.append(cid) or "event")
     assert promoted == [], "it must not reach the feed as a confirmed TBA"
     assert len(result["held"]) == 1
+
+
+# --------------------------------------------------------------------------
+# A row whose identity is the desk's own front door is not a happening
+# --------------------------------------------------------------------------
+#
+# These pin the defect the 2026-09-05 master dry run printed from a GitHub
+# runner (run 33986288662): the Chronicle walk read 40 pages and produced ONE
+# row, keyed `url:https://www.austinchronicle.com`, whose title was ten event
+# names glued together and whose place was forty venues glued together, with no
+# date — and the plan said `1 publish`. Arming a schedule against that would
+# have written a happening nobody is holding, under a real paper's masthead,
+# every six hours. The test is on the row's IDENTITY, never on how its text
+# looks, because a "does this title look wrong?" heuristic is the generic card
+# parser this ticket's Must-not list excludes.
+
+def _front_door_write(listing_url):
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Promoted Events Back To The Ranch Austin Steel Guitar Fest "
+             "Barbie Dream Heist Day of Dance",
+             place="Butterfly Bar at the Vortex 2307 Manor Rd. East Saengerrunde "
+                   "Hall 1607 San Jacinto TexARTS 1110 S RR 620",
+             listing_url=listing_url)]))
+    return write_for(one.rows[0], REGS, mode="LIVE")
+
+
+def test_the_papers_bare_front_door_is_held_not_published():
+    write = _front_door_write("https://www.austinchronicle.com")
+    assert write.hold_reason, "the site root published as a happening"
+    assert "front door" in write.hold_reason
+    assert "https://www.austinchronicle.com" in write.hold_reason
+
+
+def test_a_front_door_row_is_still_written_as_a_candidate():
+    """HELD is not DROPPED. The row stays auditable in the store and the ops
+    queue — the walk's own evidence that a desk gave us no per-listing address —
+    and only the PUBLIC step is withheld."""
+    write = _front_door_write("https://www.austinchronicle.com")
+    assert write.ingest_key and write.evidence
+    assert write.source_name == "Austin Chronicle Events"
+
+
+def test_the_events_index_itself_is_held():
+    """The catalog row's own base_url is the LIST, not anything on it."""
+    write = _front_door_write("https://www.austinchronicle.com/events/")
+    assert write.hold_reason and "events index" in write.hold_reason
+
+
+def test_the_index_matches_whatever_trailing_slash_or_query_it_wears():
+    for url in ("https://www.austinchronicle.com/events",
+                "https://www.austinchronicle.com/events/?page=2",
+                "https://austinchronicle.com/events/"):
+        assert _front_door_write(url).hold_reason, url
+
+
+def test_a_real_listing_under_the_same_host_still_publishes():
+    """The guard must not cost us a single real row — that would be the
+    Coverage Law failure (do not drop rows) answering the fabrication one."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00",
+             listing_url="https://www.austinchronicle.com/events/12345/")]))
+    write = write_for(one.rows[0], REGS, mode="LIVE")
+    assert write.hold_reason is None
+    assert write.start_time
+
+
+def test_a_front_door_row_is_not_counted_as_publishable():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Everything On This Page", listing_url="https://www.austinchronicle.com"),
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00",
+             listing_url="https://www.austinchronicle.com/events/12345/")]))
+    digest = plan_digest(plan(one, REGS))
+    assert digest["rows"] == 2
+    assert digest["held"] == 1
+    assert digest["publishable"] == 1
+
+
+def test_the_front_door_hold_outranks_a_clock_hold():
+    """A clock hole is a hole in a real listing. This is not a listing, so the
+    reason a person reads has to say THAT, not "no time stated"."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Everything On This Page", when="2026-09-14",
+             listing_url="https://www.austinchronicle.com")]))
+    write = write_for(one.rows[0], REGS, mode="LIVE")
+    assert "front door" in (write.hold_reason or "")
+    assert "R-111" not in (write.hold_reason or "")
+
+
+def test_a_row_with_no_listing_url_is_judged_on_its_other_facts():
+    """No URL is not a front door — the desk simply printed no address, which
+    the union already keys desk-locally. Holding those would be a silent
+    coverage cut."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00")]))
+    assert write_for(one.rows[0], REGS, mode="LIVE").hold_reason is None
