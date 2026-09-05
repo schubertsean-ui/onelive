@@ -598,24 +598,50 @@ def board_table(one: DeskUnion) -> str:
     here: a brand literal in this package is how a locale stops being data
     (`worker.locale.pack`, and the guard in tests/test_locale_pack.py).
 
-    An unreadable desk turns every bucket that depends on it into `unknown`,
-    with the reason. "X-only" is a claim about the OTHER desk — that it did not
-    have the row — and a desk we could not open supports no such claim.
+    "X only" is a claim about EVERY OTHER desk — that it did not have the row —
+    so what those other desks gave us decides what may be printed, and each
+    bucket carries the direction its number can still move in:
+
+      * another desk UNREADABLE -> `unknown`. A desk we could not open supports
+        no claim at all: 403 is not a zero list.
+      * another desk PARTIAL (its list continues past where the walk stopped)
+        -> **at most** N. Rows on its unread pages can still match these, which
+        moves them out of "only" and into "both". An exact-looking count here
+        would overstate one desk's exclusive coverage — the same defect as
+        printing a blocked desk's zero, one degree weaker.
+      * this desk partial, every OTHER desk read to the end -> **at least** N.
+        Its unread pages can only add rows, and nothing left to read can claim
+        them, so the count can only grow.
+      * everything exhausted -> the exact number.
+
+    `both` and the unique total are floors under any partial walk, in the other
+    direction: more reading reveals more overlap and more rows, and neither
+    un-merges what is already matched.
     """
     readable = [d for d in one.desks if d.readable]
     unreadable = [d for d in one.desks if not d.readable]
     lines = ["| bucket | rows | note |", "|---|---|---|"]
     for d in one.desks:
+        others_partial = [o for o in one.desks
+                          if o.door_id != d.door_id and o.readable and o.floor]
         if unreadable:
             note = ("cannot be stated: "
                     + ", ".join(f"`{u.door_id}` was not readable" for u in unreadable)
                     + " — 403 is not a zero list")
             value = "unknown"
-        elif not d.readable:
-            value, note = "unknown", "this desk was not readable"
+        elif others_partial:
+            value = f"**at most** {one.only(d.via)}"
+            note = ("a claim about the OTHER desk: "
+                    + ", ".join(f"`{o.door_id}`" for o in others_partial)
+                    + " stopped short, and rows on its unread pages could still "
+                      "match these — an exclusive count needs the other list whole")
+        elif d.floor:
+            value = f"**at least** {one.only(d.via)}"
+            note = ("this desk's list continues, and every other desk was read to "
+                    "the end — so these stay its own and the count can only grow")
         else:
             value = str(one.only(d.via))
-            note = "floor — this desk's list continues" if d.floor else "—"
+            note = "exact — every desk was read to the end of its list"
         lines.append(f"| {_cell(d.via)} only | {value} | {note} |")
     if unreadable:
         lines.append("| both | unknown | one desk was not readable |")
@@ -623,11 +649,17 @@ def board_table(one: DeskUnion) -> str:
                      f"floor from the readable desk(s) only: "
                      f"{', '.join('`' + d.door_id + '`' for d in readable) or 'none'} |")
     else:
-        lines.append(f"| both | {one.both} | matched on "
-                     f"`{BASIS_UNION}` (or `{BASIS_PERFORMER}`) |")
-        floor = " (a FLOOR — at least one desk's list continues)" if one.any_floor else ""
-        lines.append(f"| **unique total** | **{one.total}** | "
-                     f"the union, deduped{floor} |")
+        matched = f"matched on `{BASIS_UNION}` (or `{BASIS_PERFORMER}`)"
+        if one.any_floor:
+            lines.append(f"| both | **at least** {one.both} | {matched}; a partial "
+                         f"walk can reveal more overlap and never less |")
+            lines.append(f"| **unique total** | **at least {one.total}** | "
+                         f"the union, deduped — a FLOOR: at least one desk's list "
+                         f"continues, and unread rows can only add or merge |")
+        else:
+            lines.append(f"| both | {one.both} | {matched} |")
+            lines.append(f"| **unique total** | **{one.total}** | "
+                         f"the union, deduped — every desk read to the end |")
     return "\n".join(lines)
 
 

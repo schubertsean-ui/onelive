@@ -89,10 +89,10 @@ De-dup rule: same night + same place-text + same title-or-performer -> one row, 
 
 | bucket | rows | note |
 |---|---|---|
-| Austin Chronicle only | 16 | — |
-| Do512 only | 15 | floor — this desk's list continues |
-| both | 1 | matched on `night+place+title` (or `night+place+performer`) |
-| **unique total** | **32** | the union, deduped (a FLOOR — at least one desk's list continues) |
+| Austin Chronicle only | **at most** 16 | a claim about the OTHER desk: `do512-today` stopped short, and rows on its unread pages could still match these — an exclusive count needs the other list whole |
+| Do512 only | **at least** 15 | this desk's list continues, and every other desk was read to the end — so these stay its own and the count can only grow |
+| both | **at least** 1 | matched on `night+place+title` (or `night+place+performer`); a partial walk can reveal more overlap and never less |
+| **unique total** | **at least 32** | the union, deduped — a FLOOR: at least one desk's list continues, and unread rows can only add or merge |
 
 ## 4. Held apart — rows that can only ever be themselves
 

@@ -317,6 +317,30 @@ def test_a_blocked_desk_is_unreadable_never_empty():
     assert "UNREADABLE" in desk_table(got)
 
 
+def test_an_only_bucket_never_looks_exact_while_another_desk_is_partial(one):
+    """Evaluator finding (openai/absence-only, PR #226): "X only" is a claim
+    about the OTHER desk's WHOLE list. The Do512 fixture stops at a Load More
+    button, so "Chronicle only" can still shrink as those pages are read — an
+    exact-looking count there overstates one desk's exclusive coverage."""
+    board = board_table(one)
+    assert "| Austin Chronicle only | **at most** 16 |" in board
+    assert "| Austin Chronicle only | 16 |" not in board
+    # Do512 is the partial one and the Chronicle was read to the end: nothing
+    # left to read can claim its rows, so its own count can only grow.
+    assert "| Do512 only | **at least** 15 |" in board
+    assert "| both | **at least** 1 |" in board
+    assert "at least 32" in board
+
+
+def test_every_bucket_is_exact_once_both_desks_are_exhausted():
+    a = _fake_walk("desk-a", "A", [_row("Alpha", when="2026-09-12T20:00:00-05:00")])
+    b = _fake_walk("desk-b", "B", [_row("Beta", when="2026-09-12T20:00:00-05:00",
+                                        door_id="desk-b", via="B")])
+    board = board_table(union([a, b], timezone=TZ, timezone_id=TZ_ID))
+    assert "| A only | 1 |" in board and "| B only | 1 |" in board
+    assert "at most" not in board and "at least" not in board
+
+
 def test_a_partial_walk_is_a_floor(one):
     """The Do512 fixture ends on a Load More button. Its list continues, so no
     count here may be presented as the desk's whole output."""
