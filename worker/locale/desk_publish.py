@@ -42,13 +42,24 @@ it to what the desks actually printed:
     when the desk reorders its list, so keying on it would mint a fresh
     duplicate on every run.
 
-  * ONLY A CLOCK A DESK STATED. `when_precision` must be `datetime`. A row
-    dated to the DAY states a night, not a time, and writing midnight would
-    invent the one field the whole pipeline exists to be honest about — it
-    publishes with a NULL start (the feed already renders that as "Date TBA").
-    Two desks stating DIFFERENT instants for one show is a hole on the clock,
-    not a tiebreak: both claims are recorded and the start is written NULL,
-    which is what ONE-LIVE-TRUST.md says a field-level disagreement means.
+  * ONLY A CLOCK A DESK STATED — AND THE HOLE MUST READ AS THE RIGHT HOLE.
+    `when_precision` must be `datetime`; writing midnight for a date-only row
+    would invent the one field this pipeline exists to be honest about. But
+    `event` has a single clock column, so every unstated clock becomes the same
+    NULL, and the feed renders every NULL as "Date TBA" — one display for three
+    very different truths. So the three are separated HERE, before they
+    collapse (evaluator PR #229 r3):
+      - no desk stated a date -> publish with NULL. "Date TBA" is exactly true.
+      - desks state DIFFERENT times -> publish, and mark the row `disputed`.
+        The desks agree it is on; they disagree about when, and a reader shown
+        a bare TBA beside `confirmed` has been told the clock is merely unknown
+        when it is contested.
+      - a desk stated the NIGHT and no time -> HOLD as a candidate. Publishing
+        would say "we do not know the date" about a date we were given, under
+        that desk's masthead; manufacturing an absence is the mirror of
+        fabricating a fact. The row is in the catalog and in the ops queue, and
+        it publishes when the public row can carry a date without a clock
+        (R-111).
 
   * NO FIELD IS INVENTED TO FILL A COLUMN. `artist_names` stays empty — the
     performer this module can derive is a de-dup heuristic over a title, and
@@ -221,6 +232,19 @@ class CandidateWrite:
     #: Why the clock is NULL, when it is. Printed by the tool so a "Date TBA"
     #: listing is never mistaken for a parser that failed silently.
     clock_hole: Optional[str] = None
+    #: Set when the desks state DIFFERENT times for this one happening. The row
+    #: publishes — the desks agree it is ON — but its confidence is `disputed`,
+    #: because a reader shown a bare "Date TBA" beside a `confirmed` label has
+    #: been told the clock is merely unknown when it is actually contested
+    #: (evaluator PR #229 r3, openai/attacker-smuggle).
+    clock_disputed: bool = False
+    #: Set when the desk stated a NIGHT and no time. Such a row is written as a
+    #: candidate and NOT published, because `event` has one clock column and a
+    #: NULL in it renders publicly as "Date TBA" — which would say "we do not
+    #: know the date" about a date the desk gave us, on the surface a reader
+    #: uses to decide whether to go. Manufacturing that absence is the mirror
+    #: of fabricating a fact, and it wears the desk's masthead. R-111.
+    hold_reason: Optional[str] = None
 
     @property
     def title(self) -> str:
@@ -356,6 +380,8 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
 
     clocks = _stated_clocks(row)
     clock_hole: Optional[str] = None
+    clock_disputed = False
+    hold_reason: Optional[str] = None
     start_time: Optional[str] = None
     if len(clocks) == 1:
         start_time = clocks[0]
@@ -363,10 +389,28 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         # Two desks, two clocks, one show. ONE-LIVE-TRUST.md: the disagreement
         # is a hole on the FIELD, never a reason to withhold the listing — and
         # never a tiebreak, because neither desk is the venue.
+        #
+        # But a NULL clock renders as "Date TBA", which reads as "nobody said",
+        # and here somebody said twice. So the listing publishes and its
+        # confidence is `disputed` — the state the four-state model has for
+        # evidence that no longer agrees with itself, shown never hidden. The
+        # existence is not in doubt; the clock is.
         clock_hole = (f"{len(clocks)} desks state different times for this "
                       f"happening: {', '.join(clocks)}")
+        clock_disputed = True
     elif row.night:
+        # THE DESK GAVE US THE NIGHT. `event` has one clock column, so the only
+        # way to publish this row is with a NULL that the feed renders as "Date
+        # TBA" — telling a reader we do not know a date we were given, under
+        # this desk's masthead. Manufacturing an absence is the mirror image of
+        # fabricating a fact, so the row is HELD as a candidate instead: it is
+        # in the catalog, auditable and in the ops queue, and it publishes the
+        # day the public model can say "this night, time not stated" (R-111).
         clock_hole = "the desk stated a night, not a time"
+        hold_reason = (
+            f"the desk stated the night ({row.night}) and no time; publishing "
+            f"would render as 'Date TBA' and hide a date we were given — held "
+            f"until the public row can carry a date without a clock (R-111)")
     else:
         clock_hole = "no desk stated a date for this row"
 
@@ -383,6 +427,8 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         "titles": list(row.titles),
         "clocks_stated": clocks,
         "clock_hole": clock_hole,
+        "clock_disputed": clock_disputed,
+        "held": hold_reason,
         "walk_mode": mode,
         # What the desk SAID, kept so a later walk can tell "we already have
         # this" from "we already have this and the desk has since changed its
@@ -437,6 +483,8 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         evidence=evidence,
         vias=vias,
         clock_hole=clock_hole,
+        clock_disputed=clock_disputed,
+        hold_reason=hold_reason,
     )
 
 
@@ -471,10 +519,18 @@ def plan(one: DeskUnion, registrations: Mapping[str, DeskRegistration]) -> List[
 
 def plan_digest(writes: Sequence[CandidateWrite]) -> Dict[str, Any]:
     """Counts a report can print without recomputing them from the table."""
+    held = sum(1 for w in writes if w.hold_reason)
     return {
         "rows": len(writes),
         "timed": sum(1 for w in writes if w.start_time),
         "clock_holes": sum(1 for w in writes if w.clock_hole),
+        # The three shapes a clock hole takes, counted apart, because they
+        # reach a reader as three different things (evaluator PR #229 r3) and
+        # a summary that adds them up would be the prose-restates-computation
+        # defect this ledger has recorded twice.
+        "held": held,
+        "clock_disputed": sum(1 for w in writes if w.clock_disputed),
+        "publishable": len(writes) - held,
         "single_desk": sum(1 for w in writes if w.single_desk),
         "multi_desk": sum(1 for w in writes if not w.single_desk),
         "by_source": _by_source(writes),

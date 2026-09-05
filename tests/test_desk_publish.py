@@ -748,3 +748,101 @@ def test_a_dispute_that_fails_is_reported_never_silent():
     assert "COULD NOT DISPUTE" in result["changed"][0][1]
     assert "may still read as confirmed" in result["changed"][0][1]
     assert sum(len(v) for v in result.values()) == len(writes)
+
+
+# --------------------------------------------------------------------------
+# A hole must reach a reader as the hole it actually is
+# (evaluator, PR #229 r3 — openai/attacker-smuggle)
+# --------------------------------------------------------------------------
+
+def test_a_date_only_row_is_held_rather_than_published_as_date_unknown():
+    """THE BLOCKING FINDING. `event` has one clock column, so a date-only row
+    can only be published with a NULL start — which the feed renders as "Date
+    TBA". That tells a reader we do not know a date the desk GAVE us, under
+    that desk's masthead. Manufacturing an absence is the mirror image of
+    fabricating a fact, so the row is held instead of published.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Farm Stand", when="2026-09-13",
+                             when_text="Sun., Sept. 13")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.start_time is None
+    assert w.hold_reason and "2026-09-13" in w.hold_reason
+    assert not w.clock_disputed
+    assert w.extracted[DESK_KEY]["night"] == "2026-09-13", (
+        "the night the desk stated is kept on the record even while held")
+
+
+def test_a_row_with_no_date_at_all_still_publishes_because_tba_is_true():
+    """The neighbouring branch, and it must NOT be held: when no desk stated a
+    date, "Date TBA" is exactly what we know. Holding it would drop coverage
+    for a display that is already honest.
+    """
+    one = _union(_walk(DO512, "Do512",
+                       [_row("Chapbook Swap", place="Back room", via="Do512",
+                             door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.hold_reason is None
+    assert w.start_time is None
+    assert w.clock_hole == "no desk stated a date for this row"
+
+
+def test_desks_disagreeing_on_the_time_publish_disputed_not_merely_unknown():
+    """A contested clock reaching a reader as a generic TBA beside `confirmed`
+    says "nobody told us" when in fact two desks told us different things.
+    """
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.clock_disputed is True
+    assert w.hold_reason is None, "existence is not in doubt — only the clock"
+    assert w.start_time is None
+
+
+def test_the_three_holes_are_counted_apart(fixture_union):
+    """Cardinality over the branches: held + disputed + true-TBA + timed must
+    account for every planned row, or a summary line is describing something
+    other than the plan.
+    """
+    d = plan_digest(plan(fixture_union, REGS))
+    true_tba = d["clock_holes"] - d["held"] - d["clock_disputed"]
+    assert d["timed"] + d["clock_disputed"] + true_tba + d["held"] == d["rows"]
+    assert d["publishable"] + d["held"] == d["rows"]
+
+
+def test_a_held_row_is_written_but_never_promoted():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Farm Stand", when="2026-09-13")]))
+    writes = plan(one, REGS)
+    promoted, created = [], []
+    result = ingest_tool.ingest(
+        writes, seen={},
+        create=lambda **kw: created.append(kw) or "cand-held",
+        add_evidence=lambda *a: None,
+        promote=lambda cid: promoted.append(cid) or "event")
+    assert len(created) == 1, "a held row is still IN the catalog as a candidate"
+    assert promoted == [], "a held row must not publish"
+    assert len(result["held"]) == 1
+    assert "R-111" in result["held"][0][1]
+    assert sum(len(v) for v in result.values()) == len(writes)
+
+
+def test_a_disputed_clock_publishes_and_is_flagged_in_one_step():
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+    disputed = []
+    result = ingest_tool.ingest(
+        plan(one, REGS), seen={}, create=lambda **kw: "cand",
+        add_evidence=lambda *a: None, promote=lambda cid: "event-new",
+        dispute=lambda eid: disputed.append(eid) or "DISPUTED")
+    assert len(result["promoted"]) == 1
+    assert disputed == ["event-new"], "the contested clock must be flagged"
+    assert "DISPUTED" in result["promoted"][0][1]

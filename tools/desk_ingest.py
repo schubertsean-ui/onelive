@@ -30,6 +30,13 @@ Two guards worth knowing before you run it:
   * `--write` requires `--real`. A FIXTURE union is refused at the write seam
     itself (`desk_publish.refuse_fixture_write`), because "Fixture Quartet at
     the Shape Hall" in the live catalog is worse than an empty catalog.
+  * A HOLE IS PUBLISHED AS THE HOLE IT IS. `event` has one clock column, so
+    every unstated time becomes the same NULL and the feed renders every NULL
+    as "Date TBA". Three different truths would arrive as one display, so
+    `desk_publish` separates them first: no date stated publishes (TBA is
+    true); desks disagreeing about the time publishes and is marked DISPUTED;
+    a desk that stated the NIGHT and no time is HELD, because saying "date
+    unknown" about a date we were given is manufacturing an absence (R-111).
   * Re-running is safe, and it asks TWO questions rather than one. Every
     candidate carries the founder's de-dup key at `extracted._desk.key`, so a
     happening already in the store is not written twice. But a key answers only
@@ -371,8 +378,28 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                    f" — recorded as candidate {cid}, not re-published; "
                    f"{verdict}"))
             continue
+        if w.hold_reason:
+            # Written, deliberately not published: `event` has one clock column
+            # and a NULL in it renders as "Date TBA", which would tell a reader
+            # we do not know a date the desk gave us (evaluator PR #229 r3).
+            # The row is in the catalog as a candidate and in the ops queue.
+            out["held"].append((w, f"{w.hold_reason} — candidate {cid}"))
+            continue
         try:
             event_id = promote(cid)
+            if w.clock_disputed:
+                # The desks agree it is ON and disagree about WHEN. Published,
+                # because existence is not in doubt — and marked disputed,
+                # because a bare "Date TBA" beside a `confirmed` label tells a
+                # reader the clock is merely unknown when it is contested.
+                try:
+                    verdict = dispute(event_id)
+                except Exception as exc:  # noqa: BLE001 — reported, never silent
+                    verdict = (f"COULD NOT DISPUTE {event_id} "
+                               f"({type(exc).__name__}: {exc}) — it may read as "
+                               f"confirmed while its desks disagree on the time")
+                out["promoted"].append((w, f"{event_id} ({w.clock_hole}; {verdict})"))
+                continue
             out["promoted"].append((w, event_id))
         except ValueError as exc:
             # The gate said HOLD/ESCALATE, or promote's own duplicate guard
@@ -408,7 +435,7 @@ def outcome_table(result: Mapping[str, list]) -> str:
     out = ["| outcome | rows | what it means |", "|---|---:|---|"]
     meaning = {
         "promoted": "written and published — visible on `/events`, and on `/tonight` when the clock falls in the window",
-        "held": "written as a candidate, not published — the gate or the duplicate guard said so (reason below)",
+        "held": "written as a candidate, not published — the gate, the duplicate guard, or a hole we cannot display honestly said so (reason below)",
         "changed": "the desk has CHANGED its statement about a happening we already published — recorded as a new candidate and the published row marked disputed, so it is still shown but no longer reads as settled (reason below)",
         "skipped": "this happening was already in the store, and the desk still says the same thing about it — a re-run, not a loss",
         "failed": "not written — the reason is printed, never swallowed",
@@ -490,9 +517,16 @@ def main(argv=None) -> int:
     print()
     print(plan_table(writes))
     print()
-    print(f"{bounded(digest['rows'], one)} happening(s) planned: "
-          f"{digest['timed']} carry a clock a desk stated, {digest['clock_holes']} "
-          f"publish with an honest hole on the clock. "
+    tba = digest['clock_holes'] - digest['held'] - digest['clock_disputed']
+    print(f"{bounded(digest['rows'], one)} happening(s) planned, of which "
+          f"{digest['publishable']} publish and {digest['held']} "
+          f"{'is' if digest['held'] == 1 else 'are'} HELD "
+          f"(a desk stated the night and no time — publishing would render as "
+          f"'Date TBA' and hide a date we were given; R-111). "
+          f"{digest['timed']} carry a clock a desk stated; "
+          f"{digest['clock_disputed']} publish DISPUTED because their desks "
+          f"state different times; {tba} publish with a true 'Date TBA' "
+          f"because no desk stated a date at all. "
           f"{digest['single_desk']} come from ONE desk and are written anyway "
           f"(founder: do not require a second desk to publish); "
           f"{digest['multi_desk']} carr{'ies' if digest['multi_desk'] == 1 else 'y'} two.")
