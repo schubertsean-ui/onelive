@@ -423,12 +423,17 @@ def _keyed(walk: DeskWalk, timezone) -> List[Keyed]:
     out: List[Keyed] = []
     via = walk.via or walk.door_id
     for ordinal, row in enumerate(walk.rows):
-        night, _note = local_night(row.when, timezone)
+        night, note = local_night(row.when, timezone)
         place = place_key(row.place_text)
         title_key = _hard(row.title)
         why = None
         if night is None:
-            why = NO_NIGHT
+            # `local_night` distinguishes "the desk stated nothing" from "the
+            # desk stated something this module will not read", and the two must
+            # never print the same. Reporting a parser failure as "no night
+            # stated" blames the desk for our own gap and hides the bug — and it
+            # sits beside a `dated: yes` cell, since the desk DID state a date.
+            why = note or NO_NIGHT
         elif not place:
             why = NO_PLACE
         elif not title_key:
@@ -557,7 +562,16 @@ def near_misses(one: DeskUnion) -> List[Tuple[str, str, str, str]]:
 # --------------------------------------------------------------------------
 
 def _cell(value: Optional[str]) -> str:
-    text = (value or "").replace("|", "\\|").strip()
+    """One markdown cell, safe against anything a desk printed.
+
+    Two characters end a cell early: a pipe ends the column, and a NEWLINE ends
+    the ROW — after which the desk's own text becomes the next line of the
+    table, which a reader sees as extra rows or notes that nobody wrote. A
+    title carrying a line break is ordinary in live HTML, so both are handled
+    HERE rather than trusted to have been cleaned upstream: this is the last
+    place before a person reads it.
+    """
+    text = _WS_RE.sub(" ", (value or "")).replace("|", "\\|").strip()
     return text or "—"
 
 

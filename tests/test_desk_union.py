@@ -462,6 +462,35 @@ def test_the_certainty_sentence_matches_each_shape_of_walk():
     assert "unknown list, never an empty one" in note_for(whole_a, shut_b)
 
 
+def test_a_newline_in_a_desks_own_text_cannot_forge_a_table_row():
+    """Evaluator r5 (openai/attacker-smuggle, PR #226): a pipe ends a column and
+    a NEWLINE ends the ROW, after which the desk's text becomes lines of the
+    table that nobody wrote. A title carrying a line break is ordinary in live
+    HTML."""
+    forged = "Real Show\n| 99 | `forged` | Austin Chronicle | `music` | yes | Fake"
+    walk_one = _fake_walk("desk-a", "A", [
+        _row(forged, when="2026-09-12T20:00:00-05:00", place="Line\nBreak Hall")])
+    table = union_table(union([walk_one], timezone=TZ, timezone_id=TZ_ID))
+    body = [ln for ln in table.splitlines() if ln.startswith("| ")
+            and not ln.startswith("| # |")]
+    assert len(body) == 1, "one happening is one row, whatever it is called"
+    assert "\n" not in body[0]
+
+
+def test_a_date_we_cannot_read_is_never_reported_as_a_date_the_desk_never_gave():
+    """Same round, second finding: `local_night` distinguishes "stated nothing"
+    from "stated something we will not read", and printing the second as the
+    first blames the desk for our own parser gap — beside a `dated: yes` cell,
+    because the desk DID state a date."""
+    walk_one = _fake_walk("desk-a", "A", [
+        _row("Odd Clock", when="Friday the 12th, 8pm", place="Shape Hall")])
+    got = union([walk_one], timezone=TZ, timezone_id=TZ_ID)
+    reasons = [why for _what, why in got.held_apart]
+    assert reasons and "unparsed date" in reasons[0]
+    assert "no night stated" not in reasons[0]
+    assert "unparsed date" in held_apart_table(got)
+
+
 def test_every_table_row_has_the_columns_it_declares(one):
     """A key carrying a markdown pipe splits its row silently, and the founder
     reads a table with the wrong number of columns. Pinned per table."""

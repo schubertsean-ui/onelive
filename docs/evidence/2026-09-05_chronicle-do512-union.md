@@ -29,11 +29,18 @@ python tools/desk_union.py            # exactly what is pasted below
 python tools/desk_union.py --real     # the live desks, same tables, labelled LIVE
 ```
 
-The rest of this file is that command's own output, pasted verbatim.
+Everything after the marker below is that command's own output, pasted
+verbatim. To refresh this file, replace everything after the marker:
 
----
+```
+{ sed -n '1,/^<!-- everything below/p' FILE; python tools/desk_union.py; } > NEW
+```
 
-# One happening table — Austin Chronicle + Do512 — FIXTURE walk
+(the marker is what the refresh cuts on — an earlier version cut on a LINE
+COUNT, which re-read its own output and duplicated the report's heading)
+
+<!-- everything below this line is `python tools/desk_union.py` output, pasted verbatim -->
+
 # One happening table — Austin Chronicle + Do512 — FIXTURE walk
 
 Locale: `us-tx-capcog` (Capital Area Council of Governments) · nights are calendar dates in `America/Chicago`, projected from the instant each desk stated.
