@@ -446,12 +446,32 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
             f"its rows are written.")
 
     clocks = _stated_clocks(row)
+    # WHICH DESKS stated a clock — a conflict is a disagreement BETWEEN desks,
+    # and one desk printing two times is not that (evaluator PR #229 r9).
+    clock_desks = {m.via for m in row.members
+                   if m.row.when and m.row.when_precision == "datetime"}
     clock_hole: Optional[str] = None
     clock_disputed = False
     hold_reason: Optional[str] = None
     start_time: Optional[str] = None
     if len(clocks) == 1:
         start_time = clocks[0]
+    elif len(clocks) > 1 and len(clock_desks) < 2:
+        # ONE desk, two times, one union row. Either the desk contradicts
+        # itself or the founder's key merged two showings that are genuinely
+        # different — and this module cannot tell which, so it must not pick.
+        # Publishing is the one thing it certainly must not do: the publisher
+        # correctly refuses a same-source contradiction, which would leave a
+        # row reading `confirmed` with an empty clock — a settled "Date TBA"
+        # for a listing whose desk DID state times. That is R-111's harm
+        # again, so it takes R-111's answer.
+        clock_hole = (f"one desk states {len(clocks)} different times for this "
+                      f"row: {', '.join(clocks)}")
+        hold_reason = (
+            f"{clock_hole} — a conflict is a disagreement BETWEEN desks, and "
+            f"this is one desk disagreeing with itself (or the de-dup key "
+            f"merging two showings). Held rather than published with an empty "
+            f"clock the desk did not leave empty")
     elif len(clocks) > 1:
         # Two desks, two clocks, one show. ONE-LIVE-TRUST.md: the disagreement
         # is a hole on the FIELD, never a reason to withhold the listing — and

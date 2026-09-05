@@ -341,6 +341,36 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
             # one r2 fixed. So the desk's new word is always RECORDED, and only
             # a contradicting field puts the published row's label in question.
             against = contradicts(stored, fresh)
+
+            # DISPUTE FIRST, RECORD SECOND (evaluator PR #229 r9). The order
+            # was the other way round, and it quietly broke the recovery this
+            # tool ADVERTISES. `existing_keys` reads the NEWEST statement for a
+            # key, so a drift candidate written after a FAILED dispute becomes
+            # the thing tomorrow's run compares against: no drift is seen, the
+            # row is skipped, and the published event stays `confirmed` while
+            # its own desk contradicts it — with the run's own "re-run this
+            # tool, it will re-detect these" telling an operator otherwise.
+            # Disputing first means a failure leaves the store EXACTLY as it
+            # was, so the next run sees the same drift and tries again. That is
+            # what makes the printed instruction true.
+            if against:
+                try:
+                    verdict = dispute(event_id)
+                except Exception as exc:  # noqa: BLE001 — a row we could not flag fails the run
+                    verdict = (f"COULD NOT DISPUTE published row {event_id} "
+                               f"({type(exc).__name__}: {exc}) — it may still "
+                               f"read as confirmed")
+                    out["dispute_failures"].append((event_id, verdict))
+                    out["failed"].append((
+                        w, f"{verdict}. NOTHING was recorded for this row, "
+                           f"deliberately: the next run must see the same drift "
+                           f"and retry rather than mistake this correction for "
+                           f"the desk's settled word"))
+                    continue
+            else:
+                verdict = (f"published row {event_id} is left alone: this is "
+                           f"corroboration, not a contradiction — nothing the "
+                           f"desks say about it has changed")
             supersedes = {"candidate_id": cid, "event_id": event_id,
                           "was": stored, "changed": moved,
                           "contradicts": against}
@@ -389,18 +419,6 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
             # and which the feed renders without hiding the row. Correcting the
             # FIELD is still worker/listing_update.py's (R-110); telling the
             # truth about our confidence in it is ours, now.
-            if not supersedes["contradicts"]:
-                verdict = (f"published row {supersedes['event_id']} is left "
-                           f"alone: this is corroboration, not a contradiction "
-                           f"— nothing the desks say about it has changed")
-            else:
-                try:
-                    verdict = dispute(supersedes["event_id"])
-                except Exception as exc:  # noqa: BLE001 — a row we could not flag fails the run
-                    verdict = (f"COULD NOT DISPUTE published row "
-                               f"{supersedes['event_id']} ({type(exc).__name__}: "
-                               f"{exc}) — it may still read as confirmed")
-                    out["dispute_failures"].append((supersedes["event_id"], verdict))
             out["changed"].append((
                 w, f"the desk has changed its statement since we published "
                    f"event {supersedes['event_id']} — "

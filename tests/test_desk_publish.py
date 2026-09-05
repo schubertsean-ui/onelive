@@ -691,12 +691,17 @@ def test_drift_records_the_desks_new_word_and_never_publishes_it():
         writes, seen=seen,
         create=lambda **kw: created.append(kw) or "cand-new",
         add_evidence=lambda *a: None,
-        promote=lambda cid: promoted.append(cid) or "event-new")
+        promote=lambda cid: promoted.append(cid) or "event-new",
+        # Injected like every other DB seam: the dispute now runs BEFORE the
+        # record (r9), so a test that let it fall through to the real one would
+        # be exercising a failed connection, not this branch.
+        dispute=lambda eid: "DISPUTED")
 
     assert len(result["changed"]) == 1, result
     assert not result["skipped"] and not result["promoted"]
     assert promoted == [], "a drift row must never publish a second listing"
     assert len(created) == 1, "the desk's new word is recorded as a candidate"
+    assert result["dispute_failures"] == []
     note = created[0]["extracted"][DESK_KEY]
     assert note["supersedes"]["event_id"] == "event-old"
     assert note["supersedes"]["changed"] == ["clocks"]
@@ -736,23 +741,36 @@ def test_a_superseded_row_is_disputed_not_left_reading_confirmed():
     assert "DISPUTED" in result["changed"][0][1]
 
 
-def test_a_dispute_that_fails_is_reported_never_silent():
-    """A row we could not flag may still be reading `confirmed`, which is the
-    exact harm — so the run says so instead of printing a clean `changed`.
+def test_a_dispute_that_fails_records_nothing_so_the_next_run_retries():
+    """Evaluator, PR #229 r9. `existing_keys` reads the NEWEST statement for a
+    key, so a drift candidate written after a FAILED dispute becomes what
+    tomorrow's run compares against — no drift is seen, the row is skipped, and
+    the published event stays `confirmed` while its desk contradicts it. The
+    run even PRINTS "re-run this tool" while that path is dead.
+
+    Disputing first means a failure leaves the store exactly as it was.
     """
     writes = _writes(1)
     stale = dict(writes[0].extracted[DESK_KEY]["statement"])
     stale["clocks"] = ["2026-09-01T01:00:00-05:00"]
+    created = []
 
     def boom(event_id):
         raise RuntimeError("connection lost")
 
     result = ingest_tool.ingest(
         writes, seen={writes[0].ingest_key: ("c", "promoted", "event-old", stale)},
-        create=lambda **kw: "cand-new", add_evidence=lambda *a: None,
-        promote=lambda cid: "never", dispute=boom)
-    assert "COULD NOT DISPUTE" in result["changed"][0][1]
-    assert "may still read as confirmed" in result["changed"][0][1]
+        create=lambda **kw: created.append(kw) or "cand-new",
+        add_evidence=lambda *a: None, promote=lambda cid: "never", dispute=boom)
+
+    assert created == [], (
+        "recording the correction would make the next run see no drift and "
+        "skip the row it must retry")
+    assert not result["changed"]
+    assert len(result["failed"]) == 1
+    assert "COULD NOT DISPUTE" in result["failed"][0][1]
+    assert "NOTHING was recorded" in result["failed"][0][1]
+    assert result["dispute_failures"][0][0] == "event-old"
     assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes)
 
 
@@ -889,6 +907,8 @@ def test_a_failed_dispute_on_a_superseded_row_is_recorded_as_a_run_failure():
     assert "COULD NOT DISPUTE" in why and "connection lost" in why
     assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes), (
         "the failure list is NOT a row bucket — cardinality is unchanged")
+    assert len(result["failed"]) == 1, (
+        "the row lands in `failed`, not `changed`: nothing was recorded for it")
 
 
 def test_a_contested_clock_cannot_fail_a_dispute_because_it_never_makes_one():
@@ -1035,3 +1055,31 @@ def test_genuinely_different_instants_are_still_contested():
               [_row("Real Conflict", when="2026-09-12T21:30:00-05:00", place="Room",
                     via="Do512", door_id=DO512)]))
     assert write_for(one.rows[0], REGS, mode="LIVE").clock_disputed
+
+
+def test_one_desk_stating_two_times_is_held_not_published_as_a_settled_tba():
+    """Evaluator, PR #229 r9. A conflict is a disagreement BETWEEN desks. One
+    desk printing two same-night/same-place/same-title rows with different
+    times is either self-contradiction or the de-dup key merging two showings —
+    and the publisher correctly refuses a same-source contradiction, which
+    would leave the row `confirmed` with an empty clock: a settled "Date TBA"
+    for a listing whose desk DID state times.
+    """
+    one = _union(_walk(DO512, "Do512", [
+        _row("Twice Tonight", when="2026-09-12T20:00:00-05:00", place="Room",
+             via="Do512", door_id=DO512),
+        _row("Twice Tonight", when="2026-09-12T22:00:00-05:00", place="Room",
+             via="Do512", door_id=DO512)]))
+    assert len(one.rows) == 1, "the founder's key merges these into one row"
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert not w.clock_disputed, "one desk cannot contest itself"
+    assert w.hold_reason and "one desk states 2 different times" in w.hold_reason
+    assert w.start_time is None
+
+    promoted = []
+    result = ingest_tool.ingest(
+        plan(one, REGS), seen={}, create=lambda **kw: "cand",
+        add_evidence=lambda *a: None,
+        promote=lambda cid: promoted.append(cid) or "event")
+    assert promoted == [], "it must not reach the feed as a confirmed TBA"
+    assert len(result["held"]) == 1

@@ -140,6 +140,7 @@ def promote_candidate(candidate_id: str) -> str:
             # how many instants its payload lists.
             claimed = [c for c in (extracted.get("start_times") or [])
                        if isinstance(c, dict) and c.get("source") and c.get("at")]
+            clock_claims_all_rejected = False
             if claimed:
                 # PER CLAIM, NOT PER CANDIDATE (evaluator PR #229 r7). Counting
                 # the candidate's evidence rows and then trusting the whole list
@@ -203,6 +204,10 @@ def promote_candidate(candidate_id: str) -> str:
                                 "not stated a clock; and one moment written two "
                                 "ways is one claim, not two"),
                         })))
+                    # Nothing usable survived. Whether that is publishable at
+                    # all depends on the candidate's OWN clock, which is read
+                    # further down — see the refusal after the row load.
+                    clock_claims_all_rejected = True
 
             verdict = assert_promotable(
                 source_classes=classes,
@@ -239,6 +244,23 @@ def promote_candidate(candidate_id: str) -> str:
             # and no new copy. The end goes with it: an end_time with no start
             # is not a window, and a reader using it treats the event as already
             # over (the same reasoning R-098 forced onto the mutation path).
+            # FAIL CLOSED WHEN THE SOURCE STATED TIMES, NONE SURVIVED, AND THE
+            # ROW HAS NO CLOCK OF ITS OWN (evaluator PR #229 r9). Such a row
+            # would publish as an ordinary `confirmed` "Date TBA" — telling a
+            # reader nobody mentioned a time when somebody did and we could not
+            # make sense of what they said. Refusing leaves the candidate at
+            # `needs_review`, which is where an unreadable clock claim belongs.
+            # Checked HERE because `start_time` is the candidate's own column,
+            # read just above; the claim rejection happens earlier and only
+            # sets the flag.
+            if clock_claims_all_rejected and start_time is None:
+                raise ValueError(
+                    f"promotion refused: this candidate's source stated "
+                    f"{len(claimed)} clock claim(s), none of them usable "
+                    f"(unsourced or self-contradicting), and the row carries no "
+                    f"clock of its own — publishing would show a settled "
+                    f"'Date TBA' for a listing whose source did state a time")
+
             clock_hole = verdict.field_holes.get(FIELD_START_TIME)
             if clock_hole:
                 cur.execute(

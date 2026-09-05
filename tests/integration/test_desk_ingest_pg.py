@@ -727,3 +727,49 @@ def test_a_source_that_contradicts_itself_does_not_make_a_cross_source_conflict(
             "where entity_id=%s and action='promote_unsourced_clock_claims'", (cid,))
         row = cur.fetchone()
     assert row and "Do512" in row[0], "the self-contradiction is on the record"
+
+
+def test_unusable_clock_claims_with_no_clock_of_its_own_refuse_to_publish(pg, registrations):
+    """Evaluator, PR #229 r9. A candidate whose source STATED times, none of
+    them usable, and which carries no clock of its own, would otherwise publish
+    as an ordinary `confirmed` "Date TBA" — telling a reader nobody mentioned a
+    time when somebody did and we could not make sense of what they said.
+    """
+    import json as _json
+
+    import pytest as _pytest
+
+    from worker.promote import promote_candidate
+
+    tag = uuid.uuid4().hex[:8]
+    title = f"Unreadable Clock {tag}"
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            insert into event_candidate(
+              source_name, source_class, raw_text, extracted, title, start_time,
+              venue_name, city, status)
+            values ('Do512','local_media','raw', %s::jsonb, %s, NULL,
+                    %s, 'Austin', 'needs_review')
+            returning candidate_id
+            """,
+            (_json.dumps({"start_times": [
+                # One source, two instants: unusable, and nothing else states
+                # a clock — not on the column, not in the payload.
+                {"source": "Do512", "at": "2027-04-04T20:00:00+00:00"},
+                {"source": "Do512", "at": "2027-04-04T22:00:00+00:00"}]}),
+             title, f"Unreadable Room {tag}"))
+        cid = str(cur.fetchone()[0])
+        cur.execute(
+            "insert into candidate_evidence(candidate_id, source_class, source_name)"
+            " values (%s,'local_media','Do512')", (cid,))
+
+    with _pytest.raises(ValueError, match="none of them usable"):
+        promote_candidate(cid)
+
+    with pg.cursor() as cur:
+        cur.execute("select count(*) from event where title=%s", (title,))
+        assert cur.fetchone()[0] == 0, "it must not reach the feed"
+        cur.execute("select status from event_candidate where candidate_id=%s", (cid,))
+        assert cur.fetchone()[0] == "needs_review", (
+            "an unreadable clock claim belongs in the review queue")
