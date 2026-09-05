@@ -25,15 +25,16 @@ name: desk-capture
 # bypassing login, paywall or bot protection, so a 403 is recorded as that
 # desk's answer and nothing here retries it with a disguise.
 
-# Dispatch only. A temporary, path-filtered `pull_request` trigger lived here
-# while this branch was written, because a `workflow_dispatch` workflow is only
+# Dispatch only. A path-filtered `pull_request` trigger lived here while this
+# branch was written, because a `workflow_dispatch` workflow is only
 # dispatchable once it lives on the DEFAULT branch (the API answers 404 for a
 # branch-only file, verified 2026-09-05) — so the branch that INTRODUCES this
 # worker cannot otherwise run it. It did its job: runs 33989762931 / 33989889096
-# / 33990383951 captured the desks' own bytes and proved the reader on them.
-# It is removed again here, before merge, because live third-party fetching does
-# not belong in PR CI. Once this is on master, `mode` selects capture, dry-walk,
-# or both.
+# / 33990383951 captured the desks' own bytes and proved the reader on them, and
+# it was deleted in the same PR because live third-party fetching does not
+# belong in PR CI. Nothing about it is deferred: it is gone from this file, and
+# this note is history, not a plan. Once this is on master, `mode` selects
+# capture, dry-walk, or both.
 on:
   workflow_dispatch:
     inputs:
