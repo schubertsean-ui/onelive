@@ -49,7 +49,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
 from worker.locale.desk_union import (  # noqa: E402
     DeskUnionError, board_table, certainty_note, desk_table, held_apart_table,
-    near_miss_table, union, union_table,
+    near_miss_table, summary_line, union, union_table,
 )
 from worker.locale.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalkError, walk,
@@ -209,12 +209,9 @@ def main(argv=None) -> int:
     print()
     print(union_table(one))
     print()
-    print(f"{sum(d.rows for d in one.desks if d.readable)} row(s) came off the "
-          f"readable desk(s); {one.total} unique happening(s) after the de-dup; "
-          f"{one.both} carried by more than one desk. "
-          f"{sum(1 for r in one.rows if r.dated)} carry a date a desk stated, "
-          f"{sum(1 for r in one.rows if not r.dated)} have an honest hole on the "
-          f"clock and can never be matched across desks.")
+    # Derived, like the board's cells: this sentence used to state the total
+    # flat while the board beside it stated a bound.
+    print(summary_line(one))
     if one.performer_merges:
         print()
         print(f"**Merged on the performer, not the whole title ({len(one.performer_merges)})** "

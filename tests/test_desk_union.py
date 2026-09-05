@@ -29,8 +29,9 @@ from worker.locale import pack as lp
 from worker.locale.desk_read import Happening
 from worker.locale.desk_union import (
     BASIS_LOCAL, BASIS_PERFORMER, BASIS_UNION, DeskUnionError, board_table,
-    certainty_note, desk_table, held_apart_table, local_night, near_miss_table,
-    near_misses, performer_key, place_key, union, union_table,
+    bounded, certainty_note, desk_table, held_apart_table, local_night,
+    near_miss_table, near_misses, performer_key, place_key, summary_line, union,
+    union_table,
 )
 from worker.locale.desk_walk import DeskWalk, PageVisit, walk
 from worker.locale.kind_map import map_for_door
@@ -222,8 +223,35 @@ def test_unkeyable_rows_stay_in_the_table_as_themselves(one):
     assert local, "the fixtures contain rows with no stated night"
     for row in local:
         assert len(row.vias) == 1        # single-source, and it stays that way
-        assert row.key.count("#") == 1   # a desk-local key, not a union key
+        assert "#" in row.key            # a desk-local key, not a union key
+        assert len(row.members) == 1     # and it is ROW-local: one row, one key
     assert len(one.held_apart) == len(local)
+
+
+def test_two_unkeyable_rows_on_one_desk_are_two_rows():
+    """Evaluator r4 (openai/attacker-smuggle, PR #226): the desk-local key fell
+    back to the title when a row stated no address, so two undated, placeless
+    rows with the same title on one desk collided into one — while the table
+    went on saying every such row "can only ever be itself". A key that is not
+    row-local hides a real listing and undercounts live coverage."""
+    twice = _fake_walk("desk-a", "A", [
+        _row("Open Mic", when_text="Ongoing", place=None),
+        _row("Open Mic", when_text="Ongoing", place=None)])
+    got = union([twice], timezone=TZ, timezone_id=TZ_ID)
+    assert got.total == 2
+    assert len({r.key for r in got.rows}) == 2
+    assert all(len(r.members) == 1 for r in got.rows)
+    assert got.within_desk_merges == []   # nothing was collapsed, so nothing to report
+
+
+def test_a_stated_address_still_keys_a_row_without_its_ordinal():
+    """The walk already de-duplicates by the listing's own address, so a row
+    that stated one is unique on its desk and its key stays readable."""
+    walk_one = _fake_walk("desk-a", "A", [
+        _row("Open Mic", when_text="Ongoing", place=None, door_id="desk-a",
+             listing_url="https://desk.example/events/open-mic")])
+    got = union([walk_one], timezone=TZ, timezone_id=TZ_ID)
+    assert got.rows[0].key == "desk-a#open-mic"
 
 
 def test_two_desks_with_no_shared_row_still_union_to_the_sum(doors):
@@ -375,6 +403,30 @@ def test_a_partial_walk_is_a_floor(one):
 # --------------------------------------------------------------------------
 # The tables a founder actually reads
 # --------------------------------------------------------------------------
+
+def test_no_sentence_states_a_count_the_board_calls_a_bound(one):
+    """Evaluator r4 (openai/absence-only, PR #226): the headline sentence said
+    "32 unique happening(s)" flat while the board below said "at least 32". The
+    r3 fix derived the FOOTER and left this one hand-written — so the rule is
+    now swept over every sentence in the report that states a union count."""
+    assert "at least 32 unique" in summary_line(one)
+    assert "; 32 unique" not in summary_line(one)   # never stated flat
+    assert bounded(7, one) == "at least 7"
+
+
+def test_a_count_is_stated_flat_only_when_every_desk_was_read_whole():
+    whole = union([_fake_walk("desk-a", "A", [_row("Alpha", when="2026-09-12")]),
+                   _fake_walk("desk-b", "B", [_row("Beta", when="2026-09-12",
+                                                   door_id="desk-b", via="B")])],
+                  timezone=TZ, timezone_id=TZ_ID)
+    assert bounded(2, whole) == "2"
+    assert "at least" not in summary_line(whole)
+    shut = union([_fake_walk("desk-a", "A", [_row("Alpha", when="2026-09-12")]),
+                  _fake_walk("desk-b", "B", [], blocked="HTTP 403",
+                             stopped="blocked")],
+                 timezone=TZ, timezone_id=TZ_ID)
+    assert bounded(1, shut) == "at least 1"
+
 
 def test_the_certainty_sentence_never_contradicts_the_board(one):
     """Evaluator r3 (openai/absence-only, PR #226): the footer said "every count

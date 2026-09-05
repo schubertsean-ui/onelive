@@ -250,6 +250,10 @@ class Keyed:
     title_key: str
     performer: str
     why_local: Optional[str]  # None when the row carries a union key
+    #: This row's position in its own desk walk. It exists so an unkeyable row
+    #: can be told apart from another unkeyable row that reads identically —
+    #: see `_key_of`. Deterministic: the walk's order is the desk's own.
+    ordinal: int = 0
 
     @property
     def unionable(self) -> bool:
@@ -395,15 +399,30 @@ KEY_SEP = "~"
 
 
 def _key_of(k: Keyed) -> str:
+    """The row's identity in this table: the union key when all three parts are
+    stated, otherwise a key that belongs to THIS ROW and nothing else.
+
+    The desk-local half has to be row-local or the module's own promise is
+    false. A listing that stated its address is already unique on its desk (the
+    walk de-duplicated by exactly that address), so the address tail alone is
+    enough. A row with NO address falls back to its title — and two rows on one
+    desk with the same title and no night can be two different happenings, so
+    the fallback carries the row's position in its own walk. Without it the
+    second one vanishes into the first while the table still says every row is
+    its own, which is the one thing this module refuses to do
+    (ONE-LIVE-COVERAGE-LAW.md: do not drop single-source rows).
+    """
     if k.unionable:
         return f"{k.night}{KEY_SEP}{k.place}{KEY_SEP}{k.title_key}"
-    return f"{k.row.door_id}#{_slug(k)}"
+    if (k.row.listing_url or "").strip():
+        return f"{k.row.door_id}#{_slug(k)}"
+    return f"{k.row.door_id}#{_slug(k)}#{k.ordinal}"
 
 
 def _keyed(walk: DeskWalk, timezone) -> List[Keyed]:
     out: List[Keyed] = []
     via = walk.via or walk.door_id
-    for row in walk.rows:
+    for ordinal, row in enumerate(walk.rows):
         night, _note = local_night(row.when, timezone)
         place = place_key(row.place_text)
         title_key = _hard(row.title)
@@ -417,7 +436,7 @@ def _keyed(walk: DeskWalk, timezone) -> List[Keyed]:
         out.append(Keyed(row=row, via=via, night=night, place=place,
                          title_key=title_key,
                          performer=performer_key(row.title, place),
-                         why_local=why))
+                         why_local=why, ordinal=ordinal))
     return out
 
 
@@ -681,6 +700,37 @@ def board_table(one: DeskUnion) -> str:
             lines.append(f"| **unique total** | **{one.total}** | "
                          f"the union, deduped — every desk read to the end |")
     return "\n".join(lines)
+
+
+def bounded(count: int, one: DeskUnion) -> str:
+    """A count of what the union HOLDS, rendered with the certainty it has.
+
+    Every such count is a floor while anything is unread — an unreadable desk
+    or a walk that stopped short alike — because unread rows can only add to
+    the table or merge into it. Rendering is centralised here so no sentence
+    can state one of these numbers flat while the board beside it states a
+    bound: prose next to a computation is a second implementation of it, and
+    this report has already shipped that drift twice.
+    """
+    incomplete = (not one.all_readable) or one.any_floor
+    return f"at least {count}" if incomplete else str(count)
+
+
+def summary_line(one: DeskUnion) -> str:
+    """The sentence under the happenings table, DERIVED like the board's cells.
+
+    It was hand-written, and it printed "32 unique happening(s)" flat while the
+    board three inches below said "at least 32" — the reader was left to decide
+    which the report meant.
+    """
+    printed = sum(d.rows for d in one.desks if d.readable)
+    dated = sum(1 for r in one.rows if r.dated)
+    return (f"{printed} row(s) came off the readable desk(s); "
+            f"{bounded(one.total, one)} unique happening(s) after the de-dup; "
+            f"{bounded(one.both, one)} carried by more than one desk. "
+            f"{bounded(dated, one)} carry a date a desk stated, and "
+            f"{bounded(one.total - dated, one)} have an honest hole on the clock "
+            f"and can never be matched across desks.")
 
 
 def certainty_note(one: DeskUnion) -> str:

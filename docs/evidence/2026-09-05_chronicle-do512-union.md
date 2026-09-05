@@ -76,14 +76,14 @@ De-dup rule: same night + same place-text + same title-or-performer -> one row, 
 | 24 | `2026-09-24~placeholder theatre~placeholder stage play` | Austin Chronicle | `theater` | yes | Placeholder Stage Play | Placeholder Theatre |
 | 25 | `2026-09-25~fixture field~sample league night` | Austin Chronicle | `sport` | yes | Sample League Night | Fixture Field |
 | 26 | `2026-09-26~fixture gallery~example gallery opening` | Austin Chronicle | `art` | yes | Example Gallery Opening | Fixture Gallery |
-| 27 | `do512-today#no address chapbook swap` _(desk-local)_ | Do512 | `other` | **no** | No-Address Chapbook Swap | Back room, address not printed |
+| 27 | `do512-today#no address chapbook swap#10` _(desk-local)_ | Do512 | `other` | **no** | No-Address Chapbook Swap | Back room, address not printed |
 | 28 | `austin-chronicle-eventsearch#no-date-stated` _(desk-local)_ | Austin Chronicle | `other` | **no** | A Listing With No Date On The Page | Fixture Annex |
 | 29 | `austin-chronicle-eventsearch#placeholder-reading` _(desk-local)_ | Austin Chronicle | `literary` | **no** | A Placeholder Reading | Fixture Branch Library |
 | 30 | `austin-chronicle-eventsearch#sample-kids-hour` _(desk-local)_ | Austin Chronicle | `family` | **no** | Sample Kids Hour | Fixture Branch Library |
 | 31 | `austin-chronicle-eventsearch#test-open-mic` _(desk-local)_ | Austin Chronicle | `other` | **no** | Test Open Mic | The Fixture Room |
 | 32 | `do512-today#riverside-story-circle` _(desk-local)_ | Do512 | `other` | **no** | Riverside Story Circle | Riverside Lawn |
 
-33 row(s) came off the readable desk(s); 32 unique happening(s) after the de-dup; 1 carried by more than one desk. 26 carry a date a desk stated, 6 have an honest hole on the clock and can never be matched across desks.
+33 row(s) came off the readable desk(s); at least 32 unique happening(s) after the de-dup; at least 1 carried by more than one desk. at least 26 carry a date a desk stated, and at least 6 have an honest hole on the clock and can never be matched across desks.
 
 ## 3. Board
 
