@@ -158,7 +158,58 @@ are unchanged by the fix — it touches only where a permalink row ENDS.
 The other three panel lenses (`absence-only`, `dataflow-taint`,
 `spec-vs-contract`) returned APPROVE on the same head.
 
-## 7. Gates
+## 7. Evaluator round 2 — two more, both real, both in the permalink rung
+
+Same panel, new head. `dataflow-taint` and `spec-vs-contract` APPROVE (and both
+verified the r1 fix by name); the two openai lenses each found a distinct way to
+manufacture a happening that does not exist.
+
+**(a) A pattern matched a PREFIX of a path, so an event's own subpages became
+events** (`attacker-smuggle`). Reproduced:
+
+```
+IDENTITY  .../austin/event/foo-1234567/comments
+IDENTITY  .../events/2026/9/12/bright-room-quartet/tickets
+IDENTITY  .../e/show-987654/refunds
+```
+
+Each has a different URL, so each entered as its own identity — one happening
+published three times. A committed pattern now has to name the WHOLE path
+(`IdentityPattern.matches_path`, every match position tried, one trailing slash
+trimmed first). Anchoring in the matcher rather than in the table keeps the
+committed rows readable — `/event/[^/]+-\d+`, exactly as the law writes it —
+and applies the rule to every row anyone adds later. `_identity_of` trims the
+trailing slash too, so the matcher and identity agree about what one address is.
+
+**(b) The table covers several hosts, and any of them could declare an identity
+on any page** (`absence-only`). A desk card carrying a ticket vendor's link
+split into two:
+
+```
+rows: 2
+   'Real Show' | None      | .../austin/event/real-show-1234567
+   'tickets'   | None      | https://www.eventbrite.com/e/real-show-tickets-987654321
+```
+
+Note the second cost: `place_text` is None on the REAL row too, because a card
+holding two identities can be claimed by neither. §2 tier 2 says a pattern
+declares an identity "for that host family" — the PAGE's — so tier 2 now
+considers only patterns covering the desk being read. After:
+
+```
+rows: 1
+   'Real Show' | The Hall | .../austin/event/real-show-1234567
+```
+
+No row is demoted by this: a vendor's own pattern still splits a page on that
+host when it is the door being read, and there is a test for exactly that.
+
+Five tests pin this round. The repo's own brand guard
+(`test_no_brand_from_the_pack_appears_in_the_locale_modules`) then caught a desk
+name in the comment explaining the fix — that guard's remedy text was followed
+rather than the guard worked around.
+
+## 8. Gates
 
 ```
 $ bash tools/validate

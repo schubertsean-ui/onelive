@@ -55,6 +55,7 @@ from worker.locale.identity_patterns import (
     IdentityPattern,
     load_patterns,
     match as match_identity,
+    patterns_for_url,
 )
 from worker.locale.kind_map import KindMap
 from worker.locale.pack import KIND_OTHER, Door, ListingSelector
@@ -310,15 +311,23 @@ def _topmost(root: _Node, predicate) -> List[_Node]:
 
 
 def _identity_of(url: str) -> str:
-    """The address a row IS, with the fragment dropped.
+    """The address a row IS: fragment dropped, one trailing slash dropped.
 
     A fragment addresses a position inside a page, never a different happening,
-    so `/event/foo-1#tickets` and `/event/foo-1` are one identity. The query is
-    KEPT: two desks do use `?date=` to address two instances of one series, and
-    collapsing those would delete a night.
+    so `/event/foo-1#tickets` and `/event/foo-1` are one identity. A trailing
+    slash is the same address too, and the pattern matcher already treats it
+    that way (`IdentityPattern.matches_path`) — so identity must agree, or a
+    desk printing both forms publishes the happening twice.
+
+    The query is KEPT: two desks do use `?date=` to address two instances of one
+    series, and collapsing those would delete a night.
     """
-    from urllib.parse import urldefrag
-    return urldefrag(url)[0]
+    from urllib.parse import urldefrag, urlsplit, urlunsplit
+    defragged = urldefrag(url)[0]
+    parts = urlsplit(defragged)
+    if len(parts.path) > 1 and parts.path.endswith("/"):
+        return urlunsplit(parts._replace(path=parts.path.rstrip("/") or "/"))
+    return defragged
 
 
 def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPattern],
@@ -341,6 +350,18 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
     is a hole, while a too-large row publishes somebody else's words as this
     happening's.
     """
+    # ONE-LIVE-ENTITY-SPLIT-LAW.md §2 tier 2: "an `href` that matches a
+    # committed identity pattern FOR THAT HOST FAMILY". The host family is the
+    # PAGE's, so only patterns covering the desk we are reading may declare an
+    # identity on it. The table covers several hosts, and without this bound a
+    # desk's card carrying a TICKET VENDOR's link splits into two identities:
+    # the vendor link becomes its own happening titled "tickets", and the real
+    # row loses the venue printed beside it, because a card holding two
+    # identities can be claimed by neither (evaluator finding, PR #234). A
+    # vendor's link is the next step for THIS happening, never a second one.
+    # No row is demoted by this: a vendor's own pattern still declares
+    # identities when a page on that host is the door being read.
+    patterns = patterns_for_url(base_url, patterns)
     if not patterns:
         return []
     anchors: List[Tuple[str, _Node, IdentityPattern]] = []

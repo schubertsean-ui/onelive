@@ -357,6 +357,82 @@ def test_a_desk_the_table_does_not_cover_is_unsplit_not_mashed():
 
 # --- the committed table itself ----------------------------------------------
 
+# --- an event's own subpages are not more events -----------------------------
+
+def test_a_subpage_of_a_permalink_is_not_a_second_happening():
+    """`/event/foo-1/comments` is a page OF one happening, not another one. A
+    pattern applied as a prefix match accepts it, and each such URL enters as
+    its own identity — one happening published several times (evaluator
+    finding, PR #234)."""
+    html = ('<div class="row"><h3><a href="/event/foo-1">Foo</a></h3>'
+            '<a href="/event/foo-1/comments">12 comments</a>'
+            '<a href="/event/foo-1/tickets">tickets</a></div>')
+    result = read(door(), html, patterns=EVENT_PATTERNS)
+    assert result.count == 1
+    assert result.rows[0].title == "Foo"
+    assert result.rows[0].listing_url == "https://desk.test/event/foo-1"
+
+
+def test_a_trailing_slash_is_the_same_address_to_both_the_matcher_and_identity():
+    rows = patterns(("desk.test", r"/event/[^/]+-\d+"))
+    assert ip.match("https://desk.test/event/foo-1/", rows) is not None
+    html = ('<div class="row"><a href="/event/foo-1">Foo</a></div>'
+            '<div class="row"><a href="/event/foo-1/">Foo again</a></div>')
+    result = read(door(), html, patterns=EVENT_PATTERNS)
+    assert result.count == 1, "one address written two ways is one happening"
+
+
+def test_the_committed_rows_name_whole_permalinks_not_prefixes():
+    rows = ip.load_patterns()
+    for subpage in (
+        "https://calendar.austinchronicle.com/austin/event/foo-1234567/comments",
+        "https://do512.com/events/2026/9/12/bright-room-quartet/tickets",
+        "https://www.eventbrite.com/e/show-987654/refunds",
+    ):
+        assert ip.match(subpage, rows) is None, subpage
+    for permalink in (
+        "https://calendar.austinchronicle.com/austin/event/foo-1234567",
+        "https://do512.com/events/2026/9/12/bright-room-quartet",
+        "https://www.eventbrite.com/e/spoon-live-tickets-987654321012",
+    ):
+        assert ip.match(permalink, rows) is not None, permalink
+
+
+# --- a ticket vendor's link is the next step, not a second happening ---------
+
+def test_an_off_host_ticket_link_is_not_an_identity_on_this_desks_page():
+    """The committed table covers several hosts. §2 tier 2 says a pattern
+    declares an identity FOR THAT HOST FAMILY — the page's. Without that bound
+    a card carrying an Eventbrite "tickets" link splits in two: a row titled
+    "tickets", and a real row that has lost the venue printed beside it,
+    because a card holding two identities can be claimed by neither."""
+    chronicle = door(url="https://calendar.austinchronicle.com/austin/EventSearch")
+    html = ('<div class="results"><div class="card">'
+            '<h3><a href="/austin/event/real-show-1234567">Real Show</a></h3>'
+            '<span class="venue">The Hall</span>'
+            '<a href="https://www.eventbrite.com/e/real-show-tickets-987654321">tickets</a>'
+            '</div></div>')
+    result = read(chronicle, html,
+                  base_url="https://calendar.austinchronicle.com/austin/EventSearch")
+    assert result.count == 1
+    row = result.rows[0]
+    assert row.title == "Real Show"
+    assert row.place_text == "The Hall"
+    assert row.listing_url == (
+        "https://calendar.austinchronicle.com/austin/event/real-show-1234567")
+
+
+def test_the_same_pattern_still_declares_identities_when_that_host_is_the_door():
+    """The bound is the PAGE's host family, not a demotion of any row: read an
+    Eventbrite page and Eventbrite's own pattern splits it."""
+    eventbrite = door(url="https://www.eventbrite.com/d/tx--austin/events--today/")
+    html = ('<div class="row"><a href="/e/one-show-tickets-111111">One Show</a></div>'
+            '<div class="row"><a href="/e/two-show-tickets-222222">Two Show</a></div>')
+    result = read(eventbrite, html,
+                  base_url="https://www.eventbrite.com/d/tx--austin/events--today/")
+    assert [r.title for r in result.rows] == ["One Show", "Two Show"]
+
+
 def test_the_committed_table_loads_and_every_row_is_typed():
     rows = ip.load_patterns()
     assert rows, "the committed identity table must not be empty"
@@ -409,7 +485,9 @@ def test_a_query_string_never_confers_identity():
 
 
 def test_the_host_family_matches_subdomains_but_not_lookalikes():
-    rows = patterns(("do512.test", r"/events/\d{4}/"))
+    # The path shape names a WHOLE permalink; a prefix like `/events/\d{4}/`
+    # is not one, and is refused for the reason the subpage tests above cover.
+    rows = patterns(("do512.test", r"/events/\d{4}/[^/]+"))
     assert ip.match("https://family.do512.test/events/2026/x", rows) is not None
     assert ip.match("https://notdo512.test/events/2026/x", rows) is None
 

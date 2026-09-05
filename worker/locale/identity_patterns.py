@@ -84,7 +84,26 @@ class IdentityPattern:
         return host == family or host.endswith("." + family)
 
     def matches_path(self, path: str) -> bool:
-        return bool(self.rx.search(path or ""))
+        """True when this pattern names the WHOLE path, not a prefix of it.
+
+        A committed pattern names a permalink. `/event/foo-123` is a happening;
+        `/event/foo-123/comments`, `/events/2026/9/12/name/tickets` and
+        `/e/show-987654/refunds` are SUBPAGES OF one, and a plain `re.search`
+        accepts all three — each with a different URL, so each would enter as
+        its own identity and publish a duplicate of the same happening
+        (evaluator finding, PR #234). So the match must reach the end of the
+        path; a trailing slash is the same address and is trimmed first.
+
+        Every match position is tried, not just the leftmost: a leftmost match
+        that stops short must not veto a later one that does name the whole
+        path. Anchoring here rather than in the table keeps the committed rows
+        readable (`/event/[^/]+-\d+`, exactly as the law writes it) and applies
+        the rule to every row that is ever added.
+        """
+        trimmed = (path or "").rstrip("/")
+        if not trimmed:
+            return False
+        return any(m.end() == len(trimmed) for m in self.rx.finditer(trimmed))
 
 
 _COMPILED: Dict[str, "re.Pattern[str]"] = {}
@@ -182,11 +201,12 @@ def patterns_for_url(url: str, patterns: Sequence[IdentityPattern]) -> Tuple[Ide
 
 
 def match(url: str, patterns: Iterable[IdentityPattern]) -> Optional[IdentityPattern]:
-    """The first committed pattern this URL's host and PATH satisfy, or None.
+    """The first committed pattern this URL's host and WHOLE PATH satisfy, else None.
 
     None is the honest answer for every other link on the page — a nav item, a
-    category filter, a ticket vendor, the desk's own logo. It is what keeps tier
-    2 from turning a list page's furniture into happenings.
+    category filter, a ticket vendor, the desk's own logo, and an event's own
+    subpages (`/comments`, `/tickets`). It is what keeps tier 2 from turning a
+    list page's furniture, or one happening's other pages, into happenings.
     """
     parts = urlsplit(url or "")
     if parts.scheme not in ("http", "https"):
