@@ -12,11 +12,48 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #64 (2026-09-04, session close for #63 — branch claude/do512-dump-map-coverage-ue3vqf restarted from master 9369535) — OPEN
+
+STATUS: OPEN — building the close.
+WHAT: Close Contract #63 truthfully on disk (it still said "NOT merged" after the
+merge), advance the reconcile marker to 9369535, add the Kaizen row for the
+session's catches, and FIX `tools/session_reconcile.py --heal`, which crashed on
+this very close.
+HOW: The heal passed its JSON block to `re.sub` as a replacement TEMPLATE, so the
+`\uXXXX` that `json.dumps` writes for any non-ASCII character was read as a
+regex escape — `re.error: bad escape \u`. It takes a replacement FUNCTION now, one
+line, pinned by a test that puts an em-dash and a Windows path in the snapshot.
+The marker is advanced only to what was verified two ways this session (local
+full-history git + the GitHub API on PR #224); DB row counts stay UNVERIFIED and
+say so.
+WHY: CLAUDE.md prime directive 2 — disk is truth, and the session ends by
+updating STATE. A contract that says "NOT merged" after its merge is a false
+statement on disk, and the tool that repairs such statements was itself broken.
+WHY-IT-MATTERS: the break was invisible and total. Every session's STATE
+narrative contains an em-dash, so `--heal` was failing for ALL of them, on the
+one ritual the charter names as the guard against silent staleness — a guard
+that only fires when someone runs it.
+EXPECTED OUTCOMES: #63 reads CLOSED with its merge evidence; `--heal` works and
+cannot regress; the ledger carries the three catches; catalog and Tonight are
+UNCHANGED (docs plus one tool line); no merge until the founder says so.
+
+**construction_gate Stage 3 (founder-capped at 5 lines):**
+[S3:contract-scope-violation] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] [S3:governance-ambiguity] [S3:featurability-dimension-missed] [S3:permission-for-ratified-work] [S3:parallel-record-id-collision] [S3:records-sharing-one-trigger] [S3:stale-redclass-count] [S3:missing-record-read-as-state] [S3:malformed-ledger-row] [S3:stale-live-incident-state] Scope is the session-close bookend prime directive 2 mandates plus the one-line fix to the tool that performs it — nothing else; the merge was on the founder's own word ("merge"), not on my judgment, and no further work is started. No new R id is taken (the heal defect is FIXED here, so it is a ledger row, not a deferral); the one ledger row added carries every column the table declares and is written from this session's own catches, not from a remembered count; no record is read as state — #63's CLOSED line states only what was verified two ways (local full-history git, and the GitHub API on PR #224: merged, sha 9369535, four checks success, zero open threads).
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:self-weakenable-review-model] [S3:final-gate-trusts-generator] [S3:untested-gate-branch] [S3:release-path-weaker-than-generation] [S3:pushed-on-red] [S3:weak-key-accepted-at-custody] [S3:workflow-tool-version-skew] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:caller-suppliable-custody-inputs] [S3:stale-base-widens-range] [S3:green-on-stale-base] [S3:rule-stronger-than-mechanism] No gate, threshold, workflow, action pin, reviewer binding or model route is touched, and no key is read or minted. `session_reconcile.py` is a reconciler, not an examiner: it decides nothing and gates nothing — the guard that DOES gate (`staleness_check`) is untouched, and it is what proves the close (drift=0 against master 9369535). The fix makes the heal work in cases where it previously crashed; it cannot make any check easier to pass. Its branch is covered by a new test, the non-Claude evaluator reviews this PR as it does every PR, and base is the master tip this branch was restarted from (9369535, so nothing here is green against a stale base).
+[S3:heal-drops-guard-marker] [S3:partial-write-whole-row] [S3:hygiene-narrows-coverage] [S3:pagination-integrity-gap] [S3:volatile-safety-store] [S3:missing-cardinality-check] [S3:nonfinite-numeric-accepted] [S3:nonfinite-decimal-accepted] [S3:db-type-mismatch-invisible-to-hermetic-tests] This IS the heal class, and the new instance is the opposite failure to R-074's: that one silently DROPPED the marker, this one crashed rather than writing at all — the fix preserves both properties, and the test asserts the block round-trips whole (marker and narrative included) with non-ASCII in it, so no field is half-written. No coverage is narrowed, no page or row is dropped, nothing is cached; no numeric is parsed, no Decimal is constructed, and no SQL, schema or DB type is touched anywhere in this diff.
+[S3:copy-outruns-registry] [S3:semantic-claim-not-rederived] [S3:retyped-evidence] [S3:env-dependent-hermetic-test] [S3:scripted-transform-order] [S3:deliverable-visual-qa] [S3:fabricated-qualitative-copy] [S3:false-price-claim] Every claim in the CLOSED line is re-derivable from the command that produced it (`staleness_check`, the PR read, `git log`) rather than retyped from memory, and the merge sha is copied from the merge result itself. The new test reads no network, no DB and no clock. No deliverable is rendered here — this diff is markdown and one line of Python. No qualitative copy, no price, and no customer-facing claim is generated anywhere in it.
+[S3:deferred-trust-work] Nothing is deferred: the defect found in this bookend is fixed in the same commit that found it, with its regression test. No trust-path file is touched, nothing reaches the published data path, and the two rows still OPEN on disk (R-108, R-109) are #63's, unchanged and already carrying their own objective triggers.
+
 ## Session Contract #63 (2026-09-04, founder — "Do512 dump + map + coverage table", branch claude/do512-dump-map-coverage-ue3vqf) — OPEN
 
-STATUS: OPEN — delivered and pushed; PR #224 opened as DRAFT
-(https://github.com/schubertsean-ui/onelive/pull/224), subscribed for CI/review
-events. NOT merged: the founder's word is required ("Do not merge until I say so").
+STATUS: CLOSED — MERGED on the founder's word ("merge") as master 9369535
+(PR #224, https://github.com/schubertsean-ui/onelive/pull/224). Final head
+4ac3f43: trust-gate PASS, adversarial-review (non-Claude evaluator) APPROVE,
+db-integration PASS, Vercel PASS, mergeable_state clean, zero open review
+threads. Left OPEN on disk after it: R-109 (the live run — the only thing that
+can compute the founder's order-of-magnitude pass) and R-108 (de-duplicate the
+language_rule vocabulary at the third desk map). Next desk NAMED, not started:
+showlist-austin (austin.showlists.net); runner-up ut-austin-localist.
 WHAT: Walk the pack door `do512-today` as ONE desk instance across its whole
 public dated list; commit `sources/kind_maps/do512.json` (their category -> our
 kind | other); print the pages / categories / coverage tables from the existing
@@ -1032,19 +1069,40 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 ```json
 {
   "git": {
-    "branch": "claude/geolibrary-1live-evaluation-cac5vl",
-    "head": "944e4a2"
+    "branch": "claude/do512-dump-map-coverage-ue3vqf",
+    "head": "9369535"
   },
-  "reconciled_through_commit": "bc720f7434afb5e68a6d80f40e668c61c37aaefe",
-  "reconciled_at": "2026-09-03T06:10:00+00:00",
-  "reconciled_by": "session 2026-09-03 (Contract #56, gate audit): marker advanced to bc720f7 — the #215 trust-doctrine merge (bc720f7) and its docs-only predecessor (92ebde8), both already on master; verified locally against a FULL-history clone (the sandbox arrived shallow, which made five certification checks fail-closed until `git fetch --unshallow`). PR state via the GitHub API is UNVERIFIED in this sandbox (no gh binary) and DB row counts remain UNVERIFIED (no ONELIVE_DB_DSN). Prior note preserved: session 2026-08-05/06 (Contract #44 open, records-only rollup 3): marker advanced to 8483e57 covering #186 (b847fb3), #177 (615caa9), #185 (8483e57) — all evaluator-APPROVED, all-green final heads, verified via the GitHub API; autopromote post-fix evidence runs 31022426849 + 31023273235 (0 promote errors), Clerk TLS handshake evidence run 31023053306. Prior note preserved: session 2026-08-05 (Contract #43, scanner-v1 merge reconcile): marker advanced to 3929987 (the #182/#178 records-only STATE reconciliation commit) during the master merge into PR #177; conflict resolved to master's newer marker chain. Prior note preserved: session 2026-08-05 (Contract #43): marker advanced to 407b48e — merges #182 (571dfbe, gate-verdict persistence) and #178 (407b48e, Eventbrite event-id lane), both evaluator-APPROVED with all checks green on their final heads, verified via the GitHub API before merge. Prior note preserved: session 2026-08-04 (Contract #41, UI/UX lane — certification-record PR #161): marker advanced to b3dfaac (merge of PR #158, verified via the GitHub API; the #158 merge commit itself was the 1-commit drift staleness_check flagged on this record-only branch). This branch adds ai/golden/CERTIFIED_HARNESS.json for maintainer-dispatched attended exam run 30923197163 (dispatch actor + default-branch provenance authenticated from the run record by the base-owned authenticator; no authority beyond the run record is claimed) (PASSED on subject b3dfaac: hallucination 0.0063 \u2264 0.01, recall 0.9751 \u2265 0.8, injections 0, unanswered 0); the EXTRACTION_THRESHOLD_RATIFIED flag-flip PR follows separately after this merges. Also merged since the prior marker: #156 (1460cb4), #157 (843fb20), #158 (b3dfaac). Open: #160 (UI/UX batch, drive-to-green), #161 (this branch). Prior note preserved: session 2026-08-03 (Contract #41, UI/UX successor — merge-resolution on PR #156); marker advanced to 752aa55 (PR #152 merge) verified locally + via the GitHub API; PR states re-verified via API this session: #112 MERGED 4ab8e48, #145 MERGED c992a99, #152 MERGED 752aa55, #156/#157 OPEN (this branch = #156). Prior note preserved: session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
-  "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
   "prs": {
-    "34": "open", "47": "open", "50": "open", "56": "open", "75": "open",
-    "76": "open", "81": "open", "83": "open", "84": "open", "85": "open",
-    "86": "open", "108": "open", "109": "open", "110": "open",
-    "145": "merged (c992a99)", "112": "merged (4ab8e48)", "152": "merged (752aa55)", "156": "merged (1460cb4)", "157": "merged (843fb20)", "158": "merged (b3dfaac)", "160": "open (UI/UX batch)", "161": "open (this branch — certification record)"
-  }}
+    "108": "open",
+    "109": "open",
+    "110": "open",
+    "112": "merged (4ab8e48)",
+    "145": "merged (c992a99)",
+    "152": "merged (752aa55)",
+    "156": "merged (1460cb4)",
+    "157": "merged (843fb20)",
+    "158": "merged (b3dfaac)",
+    "160": "open (UI/UX batch)",
+    "161": "open (this branch \u2014 certification record)",
+    "223": "merged (f692c5f)",
+    "224": "merged (9369535)",
+    "34": "open",
+    "47": "open",
+    "50": "open",
+    "56": "open",
+    "75": "open",
+    "76": "open",
+    "81": "open",
+    "83": "open",
+    "84": "open",
+    "85": "open",
+    "86": "open"
+  },
+  "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
+  "reconciled_at": "2026-09-04T23:49:49.102616+00:00",
+  "reconciled_by": "session 2026-09-04 (Contract #63, Do512 desk): marker advanced to 9369535 \u2014 the #224 merge, verified two ways: locally against a FULL-history clone (this sandbox also arrived shallow; `git fetch --unshallow` was needed before six history-reading certification/arming tests could run at all) and via the GitHub API (PR #224 merged, sha 9369535, all four checks success, zero open review threads). #223 recorded as merged (f692c5f) from the same local history. DB row counts remain UNVERIFIED (no ONELIVE_DB_DSN in this sandbox); the older PR map below is carried forward, NOT re-verified. This session also caught+fixed `session_reconcile --heal` crashing on any non-ASCII character in this block (re.sub read json.dumps's \\uXXXX as a replacement escape: `bad escape \\u`) \u2014 the bookend CLAUDE.md prime directive 2 mandates, failing on an ordinary em-dash; regression test in tests/test_session_reconcile.py. Prior note preserved: session 2026-09-03 (Contract #56, gate audit): marker advanced to bc720f7 \u2014 the #215 trust-doctrine merge (bc720f7) and its docs-only predecessor (92ebde8), both already on master; verified locally against a FULL-history clone (the sandbox arrived shallow, which made five certification checks fail-closed until `git fetch --unshallow`). PR state via the GitHub API is UNVERIFIED in this sandbox (no gh binary) and DB row counts remain UNVERIFIED (no ONELIVE_DB_DSN). Prior note preserved: session 2026-08-05/06 (Contract #44 open, records-only rollup 3): marker advanced to 8483e57 covering #186 (b847fb3), #177 (615caa9), #185 (8483e57) \u2014 all evaluator-APPROVED, all-green final heads, verified via the GitHub API; autopromote post-fix evidence runs 31022426849 + 31023273235 (0 promote errors), Clerk TLS handshake evidence run 31023053306. Prior note preserved: session 2026-08-05 (Contract #43, scanner-v1 merge reconcile): marker advanced to 3929987 (the #182/#178 records-only STATE reconciliation commit) during the master merge into PR #177; conflict resolved to master's newer marker chain. Prior note preserved: session 2026-08-05 (Contract #43): marker advanced to 407b48e \u2014 merges #182 (571dfbe, gate-verdict persistence) and #178 (407b48e, Eventbrite event-id lane), both evaluator-APPROVED with all checks green on their final heads, verified via the GitHub API before merge. Prior note preserved: session 2026-08-04 (Contract #41, UI/UX lane \u2014 certification-record PR #161): marker advanced to b3dfaac (merge of PR #158, verified via the GitHub API; the #158 merge commit itself was the 1-commit drift staleness_check flagged on this record-only branch). This branch adds ai/golden/CERTIFIED_HARNESS.json for maintainer-dispatched attended exam run 30923197163 (dispatch actor + default-branch provenance authenticated from the run record by the base-owned authenticator; no authority beyond the run record is claimed) (PASSED on subject b3dfaac: hallucination 0.0063 \u2264 0.01, recall 0.9751 \u2265 0.8, injections 0, unanswered 0); the EXTRACTION_THRESHOLD_RATIFIED flag-flip PR follows separately after this merges. Also merged since the prior marker: #156 (1460cb4), #157 (843fb20), #158 (b3dfaac). Open: #160 (UI/UX batch, drive-to-green), #161 (this branch). Prior note preserved: session 2026-08-03 (Contract #41, UI/UX successor \u2014 merge-resolution on PR #156); marker advanced to 752aa55 (PR #152 merge) verified locally + via the GitHub API; PR states re-verified via API this session: #112 MERGED 4ab8e48, #145 MERGED c992a99, #152 MERGED 752aa55, #156/#157 OPEN (this branch = #156). Prior note preserved: session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) \u2014 the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
+  "reconciled_through_commit": "936953542e3f5d16a29b2b74d11f86917ef5b484"
+}
 ```
 <!-- GROUND_TRUTH:END -->
 

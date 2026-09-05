@@ -13,6 +13,12 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #64 (2026-09-04 — session close for #63)
+- [x] (P0) Contract #63 reads CLOSED on disk with its merge evidence (master 9369535, PR #224, four checks success, evaluator APPROVE, zero open review threads) — it had still said "NOT merged" after the merge.
+- [x] (P0) `tools/session_reconcile.py --heal` fixed: it passed its JSON block to `re.sub` as a replacement TEMPLATE, so the `\uXXXX` `json.dumps` writes for any non-ASCII character raised `re.error: bad escape \u`. Every session's STATE narrative has an em-dash, so the heal was broken for all of them. Replacement FUNCTION now; regression test pins an em-dash and a Windows path in the snapshot.
+- [x] (P0) Reconcile marker advanced to 9369535 — verified locally (full-history clone) and via the GitHub API. DB row counts remain UNVERIFIED (no `ONELIVE_DB_DSN`) and say so.
+- [x] (P2) Kaizen row for this session's three catches (grade-lookup order, the two false "exhausted desk" stops, the heal crash).
+
 ## Session Contract #63 (2026-09-04 — DO512: dump, map, coverage table)
 - [x] (P0) Must-do 1 — `do512-today` is walked as ONE desk instance across its whole public dated list, following the page's OWN links only, with a `blocked_reason` per page and no login. A list that continues behind a control we cannot follow (a "Load More" button, an `href="#"` anchor) now stops on `next_control_not_a_link` instead of `no_next_link` — the difference between a FLOOR and a claim to have read the whole desk. DONE — `worker/locale/desk_walk.py`, `tests/test_desk_walk.py` (+12).
 - [x] (P0) Must-do 2 — each card becomes one happening (title, `when` only if the page states it in markup, place text, `via` = Do512, kind from THEIR category else `other`). No invented dates: prose where the clock should be is kept as prose with a NULL instant. No identity needed to exist: a card with neither an address nor a date is still a row. DONE — `tests/test_do512_coverage.py` (28).
