@@ -56,6 +56,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 from urllib.parse import urldefrag, urljoin, urlsplit
 
 from worker.locale.desk_read import DeskReadError, Happening, fill_holes, read, row_key
+from worker.locale.identity_patterns import IdentityPattern
 from worker.locale.kind_map import KindMap
 from worker.locale.pack import Door
 from worker.sourcing.source_class import ClassVerdict, demote_on_response
@@ -86,6 +87,12 @@ NEXT_ARIA = ("next page", "next results", "go to next", "next set")
 
 _WS_RE = re.compile(r"\s+")
 _REL_SPLIT_RE = re.compile(r"[\s,]+")
+#: Status codes that mean a wall, read out of a blocked page's REASON text for
+#: the case where there is no HTTP status to read: a proxy CONNECT denial
+#: ("Tunnel connection failed: 403 Forbidden") is a wall between us and the
+#: desk, and counting it as an ordinary error would print `403_n = 0` for a
+#: desk nobody could reach.
+_WALL_CODE_RE = re.compile(r"\b(?:401|402|403|407|429)\b")
 
 
 class DeskWalkError(ValueError):
@@ -110,6 +117,12 @@ class PageFetch:
     body: Optional[str] = None
     final_url: Optional[str] = None
     error: Optional[str] = None
+    #: The fetcher's own answer to "was this a wall?", for the case its `error`
+    #: text cannot carry it: a transport failure is truncated for display, and
+    #: whether "403" survives that truncation depends on how long the URL was.
+    #: The walk still classifies the error text itself, so a fetcher that never
+    #: sets this loses nothing; it can only ever ADD a wall, never hide one.
+    walled: bool = False
 
     @property
     def landed_url(self) -> str:
@@ -128,10 +141,29 @@ class PageVisit:
     blocked_reason: Optional[str] = None
     next_url: Optional[str] = None
     notes: List[str] = field(default_factory=list)
+    #: Which rung of the split ladder read this page (`DeskRead.identity_tier`).
+    #: None when the page was never read at all — a wall, an error, an empty
+    #: body — which is a different silence from `unsplit` and is kept apart.
+    identity_tier: Optional[str] = None
+    #: Rows on this page whose stated address was the LIST's own URL and were
+    #: dropped to a hole (ONE-LIVE-ENTITY-SPLIT-LAW.md §2 Forbidden).
+    mash_blocked: int = 0
+    #: This page hit a WALL — the desk's own 401/402/403/407/429 or 4xx/5xx, a
+    #: login redirect, or a proxy CONNECT denial between us and it. Set where
+    #: the block is decided, from the FULL error text, because `blocked_reason`
+    #: is truncated for display and a counter must never depend on how long a
+    #: URL happened to be.
+    walled: bool = False
 
     @property
     def blocked(self) -> bool:
         return self.blocked_reason is not None
+
+    @property
+    def unsplit(self) -> bool:
+        """The page was read and declared no identity we hold: zero rows, and a
+        coverage defect on this door. Never 'the desk had nothing on'."""
+        return self.identity_tier == "unsplit"
 
 
 @dataclass
@@ -174,6 +206,62 @@ class DeskWalk:
     @property
     def pages_blocked(self) -> int:
         return sum(1 for p in self.pages if p.blocked)
+
+    @property
+    def unsplit_n(self) -> int:
+        """Pages read that declared no identity. A coverage defect on this door
+        (ONE-LIVE-ENTITY-SPLIT-LAW.md §4), answered by a pattern or a claim —
+        never by a mashed row, and never printed as an empty desk."""
+        return sum(1 for p in self.pages if p.unsplit)
+
+    @property
+    def walled_n(self) -> int:
+        """Pages that hit a WALL: class D on contact (401/402/403/407/429 or a
+        login redirect), any 4xx/5xx the desk answered with, or a proxy CONNECT
+        denial between us and it.
+
+        Ours or theirs, the consequence is identical and is the whole point of
+        counting it: that page's list is UNKNOWN, never empty (Operating Law,
+        effectiveness rule 4 — "403/404 on a start URL is triage, not 'this
+        venue has no events'"). Reading the transport error too is deliberate:
+        the sandbox's own 403 arrives as a ProxyError with no HTTP status, and a
+        wall that shows up as `0` in the 403 column is exactly the number that
+        would let a walled desk be reported as an empty calendar.
+        """
+        return sum(1 for p in self.pages if p.walled)
+
+    @property
+    def unread_n(self) -> int:
+        """Pages we opened and could not read, for ANY reason — walls included.
+        `403_n` is a subset of it, and the gap between them is the pages that
+        failed some other way."""
+        return sum(1 for p in self.pages if p.blocked)
+
+    @property
+    def mash_n(self) -> int:
+        """Rows in THIS walk's output whose address is a list URL rather than
+        their own. Derived from the rows themselves, never from the guard's
+        counter, because "mash_n = 0" is the claim this ticket has to prove.
+        """
+        starts = {_normalize(p.url) for p in self.pages}
+        starts.add(_normalize(self.start_url))
+        return sum(1 for r in self.rows
+                   if r.listing_url and _normalize(r.listing_url) in starts)
+
+    @property
+    def mash_blocked(self) -> int:
+        """How many times the reader dropped a list URL off a row. Reported
+        beside `mash_n` so a zero there is visibly a REFUSAL, not an absence."""
+        return sum(p.mash_blocked for p in self.pages)
+
+    @property
+    def identity_tiers(self) -> List[str]:
+        """Which rungs split this desk's pages, in first-seen order."""
+        out: List[str] = []
+        for page in self.pages:
+            if page.identity_tier and page.identity_tier not in out:
+                out.append(page.identity_tier)
+        return out
 
     @property
     def exhausted(self) -> bool:
@@ -392,12 +480,15 @@ def _row_identity(row: Happening) -> Tuple[str, str, str]:
 def walk(door: Door, fetch: Callable[[str], PageFetch], *,
          max_pages: int = DEFAULT_MAX_PAGES,
          start_url: Optional[str] = None,
-         kind_map: Optional[KindMap] = None) -> DeskWalk:
+         kind_map: Optional[KindMap] = None,
+         patterns: Optional[Sequence[IdentityPattern]] = None) -> DeskWalk:
     """Follow one public desk's list to its end (or to the first honest stop).
 
     `fetch` is injected: this module never opens a socket, so the whole walk is
     testable against committed pages and a live run differs only in the fetcher
-    it is handed.
+    it is handed. `patterns` is passed straight through to `read()` and defaults
+    to the committed identity table, so a test states the shapes of ITS pages
+    without any host reaching this module.
     """
     if not isinstance(door, Door):
         raise DeskWalkError(f"walk() takes a Door, got {type(door).__name__}")
@@ -441,6 +532,7 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
             fetched = fetch(url)
         except Exception as exc:  # noqa: BLE001 — a fetcher blowing up is one page's news
             page.blocked_reason = f"fetch raised: {type(exc).__name__}: {exc}"[:300]
+            page.walled = bool(_WALL_CODE_RE.search(f"{exc}"))
             result.stopped_because = "fetch_error"
             break
         if not isinstance(fetched, PageFetch):
@@ -456,10 +548,12 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
             final_url=fetched.final_url, error=fetched.error)
         if verdict.is_closed_door:
             page.blocked_reason = f"class D on contact — {verdict.reason}"
+            page.walled = True
             result.stopped_because = "wall"
             break
         if fetched.error:
             page.blocked_reason = f"fetch failed: {fetched.error}"[:300]
+            page.walled = bool(fetched.walled) or bool(_WALL_CODE_RE.search(fetched.error))
             result.stopped_because = "fetch_error"
             break
         if fetched.status is not None and fetched.status >= 400:
@@ -467,6 +561,7 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
             # effectiveness rule 4).
             page.blocked_reason = (
                 f"HTTP {fetched.status} — triage, not 'no events here'")
+            page.walled = True
             result.stopped_because = "http_error"
             break
         if not fetched.body or not fetched.body.strip():
@@ -476,13 +571,16 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
 
         landed = fetched.landed_url
         try:
-            page_read = read(door, fetched.body, base_url=landed, kind_map=kind_map)
+            page_read = read(door, fetched.body, base_url=landed, kind_map=kind_map,
+                             patterns=patterns)
         except DeskReadError as exc:
             page.blocked_reason = f"unreadable: {exc}"[:300]
             result.stopped_because = "unreadable"
             break
 
         page.rows_seen = page_read.count
+        page.identity_tier = page_read.identity_tier
+        page.mash_blocked = page_read.mash_blocked
         page.notes.extend(page_read.notes)
         result.skipped_untitled += page_read.skipped_untitled
         result.merged_readings += page_read.merged_readings

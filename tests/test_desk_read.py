@@ -111,7 +111,12 @@ def test_a_json_ld_event_with_no_start_date_still_exists(doors):
 
 
 def test_a_non_iso_datetime_attribute_is_not_coerced(doors, tmp_path):
-    html = ('<ul><li><time datetime="next friday">Next Friday</time> '
+    # The `<ul class="calendar">` is this door's COMMITTED listing selector
+    # (its locale-pack row). Before the split law a bare `<ul><li>` split too,
+    # by a "row-shaped tag containing a <time>" guess — that guess is gone, and
+    # a page declaring no identity is now `unsplit` with zero rows
+    # (ONE-LIVE-ENTITY-SPLIT-LAW.md §2). Nothing about the DATE rule changed.
+    html = ('<ul class="calendar"><li><time datetime="next friday">Next Friday</time> '
             'Porch Concert</li></ul>')
     row = read(doors["visit-austin-events"], html).rows[0]
     assert row.when is None
@@ -163,8 +168,11 @@ def test_a_general_desk_states_no_kind_so_its_rows_are_other(desk):
 
 
 def test_a_single_kind_door_states_that_kind_for_its_rows(doors):
-    rows = read(doors["kutx-concert-calendar"], fixture("desk_listing.html")).rows
-    assert {r.kind for r in rows} == {"music"}
+    # Read through a page that declares its own identities (JSON-LD), because a
+    # listing SELECTOR is committed per door and this door commits none — the
+    # split law will not let one desk's selector colour another desk's pages.
+    rows = read(doors["kutx-concert-calendar"], fixture("civic_jsonld.html")).rows
+    assert rows and {r.kind for r in rows} == {"music"}
 
 
 def test_kind_is_never_read_out_of_a_title(desk):
