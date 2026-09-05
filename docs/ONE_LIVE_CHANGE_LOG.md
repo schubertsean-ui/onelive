@@ -4,6 +4,43 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-05 — Two desks, one list: the first time we can say what we hold ACROSS desks
+
+Until today each desk had its own table and its own count. Adding a second desk
+made the number bigger without telling anyone which rows were the same row —
+which is the opposite of the promise: the union, deduped, then broader.
+
+There is now one table. Every happening appears once, carrying every desk that
+printed it, with the founder's own rule deciding sameness: same night, same
+place as the desk wrote it, same title or performer. Three equalities and
+nothing else — no matching service, no scoring, no model. Two rows either say
+the same three things or they stay two rows.
+
+The rule has one part that needed care. A night has to come from a date the desk
+actually printed, and desks print the same moment in different forms: one of our
+Chronicle pages states a show as `2026-09-12T01:00:00Z` while printing "Fri.,
+Sept. 11, 8pm" — the same instant, written on a different clock. Chopping the
+date out of that string would have called it a September 12th night, disagreeing
+with the desk's own words and splitting two desks that actually agree. So a
+night is now the calendar date of the stated moment read on the LOCALE's clock,
+and the locale's clock is written in the locale's data file rather than in code
+— because the day a second city arrives, a hardcoded Texas timezone would be a
+silent wrong answer rather than a visible one.
+
+Three things this deliberately refuses. A row with no stated date is never
+merged with another — merging them would assert a night nobody printed — so it
+stays in the table as itself, single-source, listed with the reason. A midnight
+listing is keyed to its own date, not rolled back to the previous evening; that
+is a rule the founder has not set, and guessing it would move rows between
+nights invisibly. And a desk that answers 403 is never printed as a desk with
+nothing on: every "the other desk only had these" count turns to `unknown`,
+because that is a claim about a list nobody read.
+
+Nothing here changes the catalog or the live site. It reads two committed page
+sets and prints tables. What it buys is the number that was previously
+unstateable — and the shortlist of doors we have still not opened, which is the
+next thing worth building.
+
 ## 2026-09-04 — A second desk, and the difference between the end of a list and a button
 
 Do512 is the second listings desk we read end to end, and it is a different

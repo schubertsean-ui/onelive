@@ -132,6 +132,11 @@ class LocalePack:
     parent_locale_id: Optional[str]
     query_grammar: Mapping[str, Any]
     doors: Tuple[Door, ...]
+    #: IANA timezone this locale keeps its nights on, when the pack states one.
+    #: Optional here and REQUIRED by the caller that needs it: a locale's clock
+    #: is pack DATA like everything else, so nothing downstream may fall back to
+    #: a hardcoded home town (`worker.locale.desk_union` raises instead).
+    timezone: Optional[str] = None
 
     @property
     def kinds(self) -> Tuple[str, ...]:
@@ -287,6 +292,15 @@ def load_pack(locale_id: str, *, packs_dir: Optional[str] = None) -> LocalePack:
     if not isinstance(grammar, dict):
         raise LocalePackError("pack: 'query_grammar' must be an object")
 
+    # Stated or absent, never half-stated: a `timezone` key that is not a
+    # non-empty string raises here rather than reaching a caller as None and
+    # reading like a pack that simply said nothing.
+    timezone = locale.get("timezone")
+    if timezone is not None and (not isinstance(timezone, str) or not timezone.strip()):
+        raise LocalePackError(
+            f"pack.locale: 'timezone' must be a non-empty IANA name when stated, "
+            f"got {timezone!r}")
+
     return LocalePack(
         locale_id=locale_id,
         label=_require(locale, "label", "pack.locale"),
@@ -294,6 +308,7 @@ def load_pack(locale_id: str, *, packs_dir: Optional[str] = None) -> LocalePack:
         parent_locale_id=locale.get("parent_locale_id"),
         query_grammar=grammar,
         doors=doors,
+        timezone=timezone.strip() if isinstance(timezone, str) else None,
     )
 
 

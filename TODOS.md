@@ -13,6 +13,14 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #65 (2026-09-05 — union of Chronicle + Do512)
+- [x] (P0) Must-do 1 — ONE happening table across the two dumps already on master: unique key, via (Chronicle / Do512 / both), kind or `other`, dated or not. DONE — `worker/locale/desk_union.py`, `tools/desk_union.py`, printed in `docs/evidence/2026-09-05_chronicle-do512-union.md`.
+- [x] (P0) Must-do 2 — board labelled FIXTURE, with each bucket carrying the direction it can still move: Chronicle-only **at most** 16 (Do512's list continues, so its unread pages could still claim those rows), Do512-only **at least** 15, both **at least** 1, unique total **at least** 32. A blocked desk prints UNREADABLE with "403 is not a zero list" instead of a zero, and a PARTIAL desk stops every other desk's "only" count from looking exact (evaluator finding, PR #226). DONE — `tests/test_desk_union.py::test_a_blocked_desk_is_unreadable_never_empty`.
+- [x] (P0) Must-do 3 — de-dup on same night + same place-text + same title-or-performer, one row many vias. No identity service (three equalities, no scoring). No invented dates (a night comes only from a date the desk STATED, projected onto the locale's clock — hence the one new pack field `locale.timezone`). DONE — 33 tests.
+- [x] (P1) Must-do 4 — short list of NEXT doors we still miss, read off the committed pack and NOT fetched; walls and copy farms named as never-open rather than as a gap. DONE — `tools/desk_union.py::next_doors`.
+- [x] (P0) Must-do 5 — stopped: no third desk, no Tonight, no R-108 vocab rewrite (not required for this table), one PR.
+- [ ] (P1) OPEN for the founder: whether a 12:30am listing should be keyed to the evening before (late-set rollover). Not assumed — the table keys it to its own calendar date and says so.
+
 ## Session Contract #64 (2026-09-04 — session close for #63)
 - [x] (P0) Contract #63 reads CLOSED on disk with its merge evidence (master 9369535, PR #224, four checks success, evaluator APPROVE, zero open review threads) — it had still said "NOT merged" after the merge.
 - [x] (P0) `tools/session_reconcile.py --heal` fixed: it passed its JSON block to `re.sub` as a replacement TEMPLATE, so the `\uXXXX` `json.dumps` writes for any non-ASCII character raised `re.error: bad escape \u`. Every session's STATE narrative has an em-dash, so the heal was broken for all of them. Replacement FUNCTION now; regression test pins an em-dash and a Windows path in the snapshot.
