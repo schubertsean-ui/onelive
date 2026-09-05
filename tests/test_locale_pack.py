@@ -106,7 +106,22 @@ def test_no_brand_from_the_pack_appears_in_the_locale_modules():
         for name, text in sources.items()
         if brand and brand in text
     ]
-    assert offenders == [], f"brand literal(s) in code: {offenders}"
+    # The message carries the REMEDY, not just the refusal. This guard has now
+    # caught the same mistake in two consecutive sessions (KAIZEN 2026-09-05,
+    # contracts #65 and #66), both times from an author quoting the founder's
+    # ticket verbatim in a new module's docstring — a case where the offending
+    # text is not a hardcoded locale at all, and the fix is not obvious from
+    # "brand literal(s) in code". A repeat class whose guard fires correctly and
+    # then leaves the author to guess is a gap in the GUARD, not in the author.
+    assert offenders == [], (
+        f"brand literal(s) in code: {offenders}\n"
+        f"Brands live in the pack so a locale stays data. If this is a DOCSTRING "
+        f"quoting a ticket or a decision that names a desk: quote it from "
+        f"`tools/` or the STATE contract instead (brands belong where the "
+        f"locale is chosen, not where it is processed), or keep it here with the "
+        f"brand elided in [brackets] and the reason on the same line. If it is "
+        f"CODE: read the name off the door or the source catalog — this package "
+        f"must work for a locale nobody has written yet.")
 
 
 def test_no_place_name_from_the_grammar_appears_in_the_locale_modules():

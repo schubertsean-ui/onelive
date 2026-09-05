@@ -82,6 +82,16 @@ PROMOTE_IMPORT_ALLOWLIST = {
     # Fail-closed behind AUTO_PUBLISH_RATIFIED (default OFF) and re-gated by
     # promote_candidate itself; the orchestrator remains deliberately absent.
     "worker/autopromote.py",
+    # Founder ticket 2026-09-05 ("write candidates + promote into the
+    # catalog"): the local-desk walk's write step. An OPERATOR-RUN CLI, in the
+    # same seat as api/ops_candidates.py — never the AI loop, never a schedule.
+    # It reads a public desk's own printed list and calls promote_candidate,
+    # which re-runs the FULL trust gate on every row; this file adds no
+    # judgment of its own and cannot publish anything the gate holds. Pinned by
+    # tests/test_desk_publish.py::test_the_ingest_cli_publishes_only_through_
+    # the_gate, which fails if it ever reaches past promote_candidate. The
+    # orchestrator remains deliberately absent from this list.
+    "tools/desk_ingest.py",
 }
 
 

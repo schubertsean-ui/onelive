@@ -1,0 +1,323 @@
+"""Real-Postgres leg for the DESK WRITE path (OPERATING_RULES: 'Real-database
+leg for publish-path changes', founder-ratified 2026-08-05 — decision record
+docs/memory/decisions/2026-08-05_founder-path-preflight-and-real-db-leg.md).
+
+WHY THIS EXISTS: `tests/test_desk_publish.py` proves what the walker DECIDES,
+with the three DB seams injected — and by construction it cannot see a
+server-side type, a constraint, or what `promote_candidate` actually does with
+the payload (red class db-type-mismatch-invisible-to-hermetic-tests, the class
+that shipped the artist_ids uuid[] refusal through 2,000+ green tests). This
+module runs the founder's own path for real: plan -> create_candidate ->
+add_evidence -> promote_candidate -> the before/after counts the ticket asks
+for, against a real PostgreSQL with the repo's committed migrations applied.
+
+It is also the answer to red class founder-path-unprobed. The founder's path is
+"run the tool, refresh /tonight, see more than one listing". The only step of
+it this sandbox cannot perform is READING THE DESKS (the egress proxy 403s the
+CONNECT), so the rows here are built in-process rather than fetched — but every
+step AFTER the walk is the real one, including the SQL the API serves from.
+
+ENV-GATED, loud (red class env-dependent-hermetic-test): runs only when
+ONELIVE_TEST_PG_DSN is set (CI's db-integration workflow sets it against a
+service container; locally, point it at any disposable database — this suite
+DROPS AND RECREATES public objects, so never a real DSN). Without the env it
+SKIPs with a visible reason, never a silent pass.
+"""
+from __future__ import annotations
+
+import os
+import pathlib
+import uuid
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from zoneinfo import ZoneInfo
+
+DSN = os.environ.get("ONELIVE_TEST_PG_DSN")
+
+pytestmark = pytest.mark.skipif(
+    not DSN,
+    reason="ONELIVE_TEST_PG_DSN not set — the real-Postgres desk-write leg "
+    "runs in CI (db-integration.yml); this skip is loud by design, not a pass.",
+)
+
+MIGRATIONS = pathlib.Path(__file__).resolve().parents[2] / "supabase" / "migrations"
+TZ = ZoneInfo("America/Chicago")
+
+CHRONICLE_DOOR = "austin-chronicle-eventsearch"
+DO512_DOOR = "do512-today"
+
+
+@pytest.fixture(scope="module")
+def pg():
+    import psycopg2
+
+    conn = psycopg2.connect(DSN)
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute("drop schema if exists public cascade")
+        cur.execute("drop schema if exists extensions cascade")
+        cur.execute("create schema public")
+        cur.execute("grant all on schema public to public")
+        for role in ("anon", "authenticated"):
+            cur.execute(
+                "do $$ begin if not exists (select 1 from pg_roles where "
+                f"rolname = '{role}') then create role {role} nologin; end if; "
+                "end $$;")
+        cur.execute("create schema if not exists extensions")
+        cur.execute("select current_database()")
+        dbname = cur.fetchone()[0]
+        cur.execute(
+            f'alter database "{dbname}" set search_path = public, extensions')
+        cur.execute("set search_path = public, extensions")
+        for path in sorted(MIGRATIONS.glob("*.sql")):
+            cur.execute(path.read_text())
+    os.environ["ONELIVE_DB_DSN"] = DSN
+    yield conn
+    conn.close()
+
+
+@pytest.fixture(scope="module")
+def registrations(pg):
+    """The two desks, registered in `source` exactly as the committed catalog
+    spells them — because the public row's label is a REGISTRY lookup, and a
+    test that skipped it would prove the label works while it silently didn't.
+    """
+    from worker.locale.desk_publish import DeskRegistration
+
+    rows = {
+        "Austin Chronicle": ("Austin Chronicle Events",
+                             "https://www.austinchronicle.com/events/"),
+        "Do512": ("Do512", "https://do512.com/"),
+    }
+    with pg.cursor() as cur:
+        for name, base_url in rows.values():
+            cur.execute(
+                "insert into source(name, source_type, base_url) values "
+                "(%s,'local_media',%s) on conflict do nothing", (name, base_url))
+    return {via: DeskRegistration(door_id=via, via=via, source_name=name,
+                                  source_class="local_media", base_url=base_url,
+                                  catalog_id=via.lower())
+            for via, (name, base_url) in rows.items()}
+
+
+def _happening(title, *, when, place, via, door_id, listing_url=None):
+    from worker.locale.desk_read import Happening
+
+    return Happening(
+        title=title, when=when.isoformat() if when else None,
+        when_text=when.strftime("%a., %b. %d, %I:%M%p") if when else None,
+        when_precision="datetime" if when else None, place_text=place, via=via,
+        kind="music", door_id=door_id, door_type="local_desk",
+        locale_id="us-tx-capcog", source_url=f"https://{door_id}.example/list",
+        listing_url=listing_url)
+
+
+def _walk(door_id, via, rows):
+    from worker.locale.desk_walk import DeskWalk, PageVisit
+
+    return DeskWalk(
+        door_id=door_id, door_type="local_desk", via=via,
+        start_url=f"https://{door_id}.example/list",
+        pages=[PageVisit(n=1, url=f"https://{door_id}.example/list", status=200,
+                         rows_seen=len(rows), new_rows=len(rows))],
+        rows=list(rows), stopped_because="no_next_link")
+
+
+def _live_union(*walks):
+    from worker.locale.desk_union import union
+
+    return union(list(walks), timezone=TZ, timezone_id="America/Chicago",
+                 mode="LIVE")
+
+
+def _run(writes, *, pg):
+    """The tool's own write loop against the real seams — nothing injected but
+    the store's current keys, which the tool reads the same way.
+    """
+    import importlib.util
+
+    from worker.candidate_store import add_evidence, create_candidate
+    from worker.promote import promote_candidate
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location(
+        "_desk_ingest_it", root / "tools" / "desk_ingest.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    with pg.cursor() as cur:
+        seen = tool.existing_keys(cur)
+    result = tool.ingest(writes, seen=seen, create=create_candidate,
+                         add_evidence=add_evidence, promote=promote_candidate)
+    return tool, result
+
+
+def _tonight_rows(pg, *, city="Austin", hours=168):
+    """`GET /tonight`'s own query, run against this database."""
+    now = datetime.now(timezone.utc)
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            select e.title, e.source_name, e.confidence, e.start_time
+            from event e
+            left join venue v on v.venue_id = e.venue_id
+            where e.status='scheduled'
+              and e.start_time >= %s and e.start_time <= %s
+              and (v.city is null or v.city = %s)
+            order by e.start_time asc
+            """, (now, now + timedelta(hours=hours), city))
+        return cur.fetchall()
+
+
+# --------------------------------------------------------------------------
+
+def test_a_single_desk_row_reaches_tonight_labelled(pg, registrations):
+    """The whole ticket in one test: one desk, one row, no corroboration — and
+    it must appear on `/tonight` carrying that desk's name.
+    """
+    from worker.locale.desk_publish import plan
+    from tools.desk_ingest import counts_table  # noqa: F401  (import-shape check)
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=5)
+    one = _live_union(_walk(CHRONICLE_DOOR, "Austin Chronicle", [
+        _happening(f"Solo Desk Show {tag}", when=when, place=f"Room {tag}",
+                   via="Austin Chronicle", door_id=CHRONICLE_DOOR,
+                   listing_url=f"https://chronicle.example/e/{tag}")]))
+    writes = plan(one, registrations)
+
+    before = _tonight_rows(pg)
+    _tool, result = _run(writes, pg=pg)
+    after = _tonight_rows(pg)
+
+    assert not result["failed"], result["failed"]
+    assert len(result["promoted"]) == 1, result["held"]
+    assert len(after) == len(before) + 1
+
+    row = [r for r in after if r[0] == f"Solo Desk Show {tag}"]
+    assert row, "the single-desk listing never reached /tonight"
+    title, source_name, confidence, start_time = row[0]
+    assert source_name == "Austin Chronicle Events", (
+        "the public row must carry the desk's registry label")
+    assert confidence == "confirmed"
+    assert start_time is not None
+
+
+def test_one_show_on_two_desks_is_one_listing_with_two_evidence_rows(pg, registrations):
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=6)
+    place = f"Shared Room {tag}"
+    one = _live_union(
+        _walk(CHRONICLE_DOOR, "Austin Chronicle", [
+            _happening(f"Both Desks {tag}", when=when, place=place,
+                       via="Austin Chronicle", door_id=CHRONICLE_DOOR)]),
+        _walk(DO512_DOOR, "Do512", [
+            _happening(f"Both Desks {tag}", when=when, place=place,
+                       via="Do512", door_id=DO512_DOOR)]))
+    writes = plan(one, registrations)
+    assert len(writes) == 1
+
+    _tool, result = _run(writes, pg=pg)
+    assert len(result["promoted"]) == 1, result
+
+    with pg.cursor() as cur:
+        cur.execute("select count(*) from event where title=%s", (f"Both Desks {tag}",))
+        assert cur.fetchone()[0] == 1, "two desks must not become two listings"
+        cur.execute(
+            """
+            select count(*) from candidate_evidence ce
+            join event_candidate c on c.candidate_id = ce.candidate_id
+            where c.title = %s
+            """, (f"Both Desks {tag}",))
+        assert cur.fetchone()[0] == 2, "both desks must be recorded as evidence"
+
+
+def test_running_twice_does_not_publish_the_same_happening_twice(pg, registrations):
+    """The re-run guard, against the real store. A nightly job that doubled the
+    catalog every night would be worse than no job.
+    """
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=7)
+    rows = [_happening(f"Nightly {tag}", when=when, place=f"Venue {tag}",
+                       via="Do512", door_id=DO512_DOOR)]
+    writes = plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations)
+
+    _tool, first = _run(writes, pg=pg)
+    assert len(first["promoted"]) == 1
+
+    # Re-plan from a fresh walk of the same list, exactly as tomorrow's run would.
+    writes_again = plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations)
+    _tool, second = _run(writes_again, pg=pg)
+    assert len(second["skipped"]) == 1, second
+    assert not second["promoted"]
+
+    with pg.cursor() as cur:
+        cur.execute("select count(*) from event where title=%s", (f"Nightly {tag}",))
+        assert cur.fetchone()[0] == 1
+
+
+def test_a_row_with_no_stated_time_publishes_with_a_null_start(pg, registrations):
+    """Date-TBA reaches the catalog rather than being withheld — `web/lib/feed.ts`
+    renders a null start honestly and never hides it. The row must NOT appear
+    in a /tonight window, because it never claimed to be in one.
+    """
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    one = _live_union(_walk(DO512_DOOR, "Do512", [
+        _happening(f"No Clock {tag}", when=None, place=f"Somewhere {tag}",
+                   via="Do512", door_id=DO512_DOOR,
+                   listing_url=f"https://do512.example/e/{tag}")]))
+    writes = plan(one, registrations)
+    assert writes[0].start_time is None
+
+    _tool, result = _run(writes, pg=pg)
+    assert len(result["promoted"]) == 1, result
+
+    with pg.cursor() as cur:
+        cur.execute("select start_time, source_name, status from event where title=%s",
+                    (f"No Clock {tag}",))
+        start_time, source_name, status = cur.fetchone()
+    assert start_time is None
+    assert source_name == "Do512"
+    assert status == "scheduled"
+    assert not [r for r in _tonight_rows(pg) if r[0] == f"No Clock {tag}"]
+
+
+def test_the_before_after_counts_are_the_apis_own_predicates(pg, registrations):
+    """The ticket's deliverable is a before/after table. This proves the table's
+    numbers are the ones `/events` and `/tonight` serve, not a parallel count.
+    """
+    import importlib.util
+
+    from worker.locale.desk_publish import plan
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location(
+        "_desk_ingest_counts", root / "tools" / "desk_ingest.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=8)
+    writes = plan(_live_union(_walk(DO512_DOOR, "Do512", [
+        _happening(f"Counted {tag}", when=when, place=f"Counted Room {tag}",
+                   via="Do512", door_id=DO512_DOOR)])), registrations)
+
+    with pg.cursor() as cur:
+        before = tool.snapshot(cur, city="Austin", hours=168)
+    _t, result = _run(writes, pg=pg)
+    with pg.cursor() as cur:
+        after = tool.snapshot(cur, city="Austin", hours=168)
+
+    assert len(result["promoted"]) == 1
+    assert after["events"] == before["events"] + 1
+    assert after["tonight_168h"] == before["tonight_168h"] + 1
+    # The row is 8 hours out, so the 12-hour window moves too — and the wide
+    # window can never be smaller than the narrow one.
+    assert after["tonight_168h"] >= after["tonight_12h"]

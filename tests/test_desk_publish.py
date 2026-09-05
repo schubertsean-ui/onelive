@@ -1,0 +1,568 @@
+"""The desks' rows become candidates — and only what the desks stated.
+
+`worker/locale/desk_publish.py` is the seam between a walk that reads and a
+catalog that publishes, so what it decides is what a friend eventually sees.
+These tests pin the five rules the module's docstring states, and each one is
+here because getting it wrong puts something false, something duplicated, or
+something fixture-shaped on the live site.
+
+Hermetic: no network, no database, no clock. The walks are built in-process
+from the committed fixtures (a page someone already fetched) or from rows
+constructed here; the three DB seams are injected as plain functions.
+"""
+from __future__ import annotations
+
+import importlib.util
+import os
+
+import pytest
+from zoneinfo import ZoneInfo
+
+from worker.locale import pack as lp
+from worker.locale.desk_read import Happening
+from worker.locale.desk_publish import (
+    DESK_KEY,
+    DeskPublishError,
+    DeskRegistration,
+    ingest_key,
+    plan,
+    plan_digest,
+    refuse_fixture_write,
+    registration_for,
+    write_for,
+)
+from worker.locale.desk_union import union
+from worker.locale.desk_walk import DeskWalk, PageVisit
+from worker.locale.kind_map import map_for_door
+
+CAPCOG = "us-tx-capcog"
+CHRONICLE = "austin-chronicle-eventsearch"
+DO512 = "do512-today"
+TZ_ID = "America/Chicago"
+TZ = ZoneInfo(TZ_ID)
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _load_tool(name):
+    spec = importlib.util.spec_from_file_location(
+        f"_tool_{name}", os.path.join(ROOT, "tools", f"{name}.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+coverage_tool = _load_tool("desk_coverage")
+ingest_tool = _load_tool("desk_ingest")
+
+
+# --------------------------------------------------------------------------
+# Builders
+# --------------------------------------------------------------------------
+
+def _row(title, *, when=None, when_precision=None, place="Shape Hall",
+         via="Austin Chronicle", door_id=CHRONICLE, listing_url=None,
+         when_text=None, kind="other"):
+    if when and when_precision is None:
+        when_precision = "date" if len(when) == 10 else "datetime"
+    return Happening(
+        title=title, when=when, when_text=when_text,
+        when_precision=when_precision, place_text=place, via=via, kind=kind,
+        door_id=door_id, door_type="local_desk", locale_id=CAPCOG,
+        source_url="https://desk.example/page", listing_url=listing_url)
+
+
+def _walk(door_id, via, rows, *, blocked=None, stopped="no_next_link"):
+    pages = [PageVisit(n=1, url="https://desk.example/", status=200,
+                       rows_seen=len(rows), new_rows=len(rows))]
+    if blocked:
+        pages = [PageVisit(n=1, url="https://desk.example/", status=403,
+                           blocked_reason=blocked)]
+    return DeskWalk(door_id=door_id, door_type="local_desk", via=via,
+                    start_url="https://desk.example/", pages=pages,
+                    rows=list(rows), stopped_because=stopped)
+
+
+def _union(*walks, mode="LIVE"):
+    return union(list(walks), timezone=TZ, timezone_id=TZ_ID, mode=mode)
+
+
+REGS = {
+    "Austin Chronicle": DeskRegistration(
+        door_id=CHRONICLE, via="Austin Chronicle",
+        source_name="Austin Chronicle Events", source_class="local_media",
+        base_url="https://www.austinchronicle.com/events/", catalog_id="austin_chronicle"),
+    "Do512": DeskRegistration(
+        door_id=DO512, via="Do512", source_name="Do512",
+        source_class="local_media", base_url="https://do512.com/",
+        catalog_id="do512"),
+}
+
+
+@pytest.fixture(scope="module")
+def doors():
+    return {d.door_id: d for d in lp.hunt(CAPCOG)}
+
+
+@pytest.fixture(scope="module")
+def catalog():
+    import json
+    with open(os.path.join(ROOT, "sources", "master_sources_catalog_120.json"),
+              encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+# --------------------------------------------------------------------------
+# The label — read from the committed catalog, or refuse to write
+# --------------------------------------------------------------------------
+
+def test_each_founder_named_desk_resolves_to_its_catalog_row(doors, catalog):
+    """The founder asked for the source to be LABELLED. The label is the
+    registry's own name because that is the string promote.py matches the
+    `source` table on — the pack's `via` ("Austin Chronicle") would match
+    nothing and publish a NULL label.
+    """
+    chronicle = registration_for(doors[CHRONICLE], catalog)
+    assert chronicle.source_name == "Austin Chronicle Events"
+    do512 = registration_for(doors[DO512], catalog)
+    assert do512.source_name == "Do512"
+
+
+def test_both_desks_carry_a_class_the_gate_promotes_on_one_source(doors, catalog):
+    """"Do not require a second desk to publish" needs no gate change: both
+    desks are `local_media`, which worker/gating.py has treated as an anchor
+    since the founder's 2026-08-05 ruling. If a catalog edit ever moved them
+    out of that class, single-desk rows would silently start holding — this
+    test is what makes that loud.
+    """
+    from worker.gating import is_first_party
+    for door_id in (CHRONICLE, DO512):
+        reg = registration_for(doors[door_id], catalog)
+        assert is_first_party(reg.source_class), (
+            f"{reg.source_name} is class {reg.source_class!r}, which is not an "
+            f"anchor — its rows would wait for a second desk")
+
+
+def test_a_door_on_a_subdomain_still_matches_its_publisher(doors, catalog):
+    """The Chronicle's calendar lives on `calendar.austinchronicle.com` while
+    the catalog row says `www.austinchronicle.com`. An exact-host match would
+    refuse the founder's own primary desk.
+    """
+    door = doors[CHRONICLE]
+    assert "calendar.austinchronicle.com" in door.url
+    assert registration_for(door, catalog).catalog_id == "austin_chronicle"
+
+
+def test_a_lookalike_domain_is_not_the_publisher(doors):
+    """`notaustinchronicle.com` ends with `austinchronicle.com` as a STRING.
+    Matching on that would print somebody else's masthead on our listings.
+    """
+    door = doors[CHRONICLE]
+    with pytest.raises(DeskPublishError):
+        registration_for(door, [{"id": "x", "name": "Not The Chronicle",
+                                 "category": "blog",
+                                 "base_url": "https://notaustinchronicle.com/"}])
+
+
+def test_an_unregistered_door_refuses_rather_than_publishing_unlabelled(doors):
+    with pytest.raises(DeskPublishError) as exc:
+        registration_for(doors[DO512], [])
+    assert "LABELLED" in str(exc.value)
+
+
+def test_two_catalog_rows_claiming_one_door_refuse_rather_than_guess(doors):
+    twins = [{"id": "a", "name": "A", "category": "local_media",
+              "base_url": "https://do512.com/"},
+             {"id": "b", "name": "B", "category": "blog",
+              "base_url": "https://do512.com/events/"}]
+    with pytest.raises(DeskPublishError) as exc:
+        registration_for(doors[DO512], twins)
+    assert "guess" in str(exc.value)
+
+
+# --------------------------------------------------------------------------
+# The key — one happening, one row, across desks AND across runs
+# --------------------------------------------------------------------------
+
+def test_one_show_on_two_desks_is_one_write_with_two_evidence_rows():
+    """The founder's whole reason for a key: a second desk must widen the
+    catalog, never double it.
+    """
+    when = "2026-09-12T21:30:00-05:00"
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Shape Town Brass", when=when, place="The Fixture Room")]),
+        _walk(DO512, "Do512",
+              [_row("Shape Town Brass", when=when, place="The Fixture Room",
+                    via="Do512", door_id=DO512)]))
+    writes = plan(one, REGS)
+    assert len(writes) == 1
+    assert writes[0].vias == ("Austin Chronicle", "Do512")
+    assert [e.source_name for e in writes[0].evidence] == [
+        "Austin Chronicle Events", "Do512"]
+
+
+def test_a_single_desk_row_is_written_and_labelled_not_held_back():
+    """Founder Must-do: "Single-source rows stay and are labelled. Do not
+    require a second desk to publish."
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Solo Listing", when="2026-09-12T20:00:00-05:00")]))
+    writes = plan(one, REGS)
+    assert len(writes) == 1
+    assert writes[0].single_desk
+    assert writes[0].source_name == "Austin Chronicle Events"
+    assert writes[0].source_class == "local_media"
+
+
+def test_the_key_of_a_keyable_row_is_the_founders_own_rule():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Night Music", when="2026-09-12T20:00:00-05:00",
+                             place="The Bright Room")]))
+    assert ingest_key(one.rows[0]) == "2026-09-12~bright room~night music"
+
+
+def test_an_unkeyable_rows_key_does_not_move_when_the_desk_reorders():
+    """THE re-run defect. `desk_union` gives an unkeyable row a desk-local key
+    containing its ORDINAL in the walk, which is a position in a list that
+    reorders every night. Keyed on that, tomorrow's walk writes a second copy
+    of the same undated listing, and the catalog grows a duplicate a day.
+    """
+    undated = _row("Chapbook Swap", place="Back room, address not printed")
+    today = _union(_walk(DO512, "Do512", [undated]))
+    tomorrow = _union(_walk(DO512, "Do512", [
+        _row("Something Else", when="2026-09-13T20:00:00-05:00", place="Elsewhere"),
+        undated]))
+    same = [r for r in tomorrow.rows if r.title == "Chapbook Swap"][0]
+    assert ingest_key(today.rows[0]) == ingest_key(same)
+    assert "#" not in ingest_key(same)
+
+
+def test_an_unkeyable_row_that_stated_its_own_address_is_keyed_on_it():
+    one = _union(_walk(DO512, "Do512", [
+        _row("Story Circle", place="Riverside Lawn", via="Do512", door_id=DO512,
+             listing_url="https://do512.com/events/story-circle")]))
+    assert ingest_key(one.rows[0]) == "url:https://do512.com/events/story-circle"
+
+
+# --------------------------------------------------------------------------
+# The clock — only what a desk stated
+# --------------------------------------------------------------------------
+
+def test_a_stated_time_is_published_as_the_start():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Late Set", when="2026-09-13T00:30:00-05:00")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.start_time == "2026-09-13T00:30:00-05:00"
+    assert w.clock_hole is None
+
+
+def test_a_date_with_no_time_publishes_with_a_null_start_never_midnight():
+    """A desk that printed "Sun., Sept. 13" stated a night. Writing 00:00 would
+    invent the one field this pipeline exists to be honest about, and would put
+    every such row at the top of a feed sorted by time.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Farm Stand", when="2026-09-13", when_text="Sun., Sept. 13")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.start_time is None
+    assert w.clock_hole == "the desk stated a night, not a time"
+    assert w.extracted[DESK_KEY]["night"] == "2026-09-13"
+
+
+def test_two_desks_disagreeing_on_the_time_publish_the_row_with_a_hole():
+    """ONE-LIVE-TRUST.md: a disagreement about a FIELD is a hole on that field,
+    never a reason to withhold the listing and never a tiebreak — neither desk
+    is the venue. Both claims are kept so an audit can see the conflict.
+    """
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="The Fixture Room")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00",
+                    place="The Fixture Room", via="Do512", door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.start_time is None
+    assert "different times" in w.clock_hole
+    assert w.extracted[DESK_KEY]["clocks_stated"] == [
+        "2026-09-12T20:00:00-05:00", "2026-09-12T21:30:00-05:00"]
+
+
+def test_two_desks_stating_the_same_clock_is_one_claim_not_a_conflict():
+    when = "2026-09-12T21:30:00-05:00"
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle", [_row("Brass", when=when, place="Room")]),
+        _walk(DO512, "Do512", [_row("Brass", when=when, place="Room",
+                                    via="Do512", door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.start_time == when
+    assert w.clock_hole is None
+
+
+# --------------------------------------------------------------------------
+# No field is invented to fill a column
+# --------------------------------------------------------------------------
+
+def test_nothing_is_invented_to_fill_a_column():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("A Show", when="2026-09-12T20:00:00-05:00",
+                             listing_url="https://desk.example/Events/a-show")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    # No artists: the performer this module could derive is a de-dup heuristic
+    # over a title, and minting artist entities from it puts a guess in the graph.
+    assert w.extracted["artist_names"] == []
+    # No city: these desks name a venue, not a city. The publish seam applies
+    # its own default rather than this module asserting one.
+    assert w.extracted["city"] is None
+    # A listing page is not a ticket.
+    assert w.extracted["ticket_link"] is None
+    # The row's own address IS its identity (worker/identity.py reads this key).
+    assert w.extracted["listing_url"] == "https://desk.example/Events/a-show"
+
+
+def test_the_published_title_and_place_are_the_desks_own_words():
+    one = _union(_walk(DO512, "Do512",
+                       [_row("Gallery Walk: East Side", when="2026-09-16T18:00:00-05:00",
+                             place="East Side blocks", via="Do512", door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.extracted["title"] == "Gallery Walk: East Side"
+    assert w.extracted["venue_name"] == "East Side blocks"
+
+
+def test_every_write_records_the_desks_that_carried_it():
+    one = _union(_walk(DO512, "Do512",
+                       [_row("Solo", when="2026-09-16T18:00:00-05:00",
+                             via="Do512", door_id=DO512)]))
+    note = write_for(one.rows[0], REGS, mode="LIVE").extracted[DESK_KEY]
+    assert note["vias"] == ["Do512"]
+    assert note["doors"] == [DO512]
+    assert note["walk_mode"] == "LIVE"
+
+
+# --------------------------------------------------------------------------
+# Fixtures never reach a database
+# --------------------------------------------------------------------------
+
+def test_a_fixture_union_is_refused_at_the_write_seam():
+    """Founder Must-not: "Do not ship fixture titles to production." The
+    committed fixtures say "Fixture Quartet at the Shape Hall"; a catalog
+    holding that is worse than an empty one.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [_row("Fixture Quartet")]),
+                 mode="FIXTURE")
+    with pytest.raises(DeskPublishError) as exc:
+        refuse_fixture_write(one)
+    assert "fixture" in str(exc.value).lower()
+
+
+def test_a_live_union_passes_the_write_seam():
+    """The refusal must be about the MODE, not about writing at all — a guard
+    that also blocked live walks would be a guard against the ticket.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Real Show", when="2026-09-12T20:00:00-05:00")]))
+    assert refuse_fixture_write(one) is None
+    assert plan(one, REGS), "a live union still plans its rows"
+
+
+def test_the_cli_refuses_write_without_real(capsys):
+    assert ingest_tool.main(["--write"]) == 2
+    assert "requires --real" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------
+# A blocked desk is unknown, never empty
+# --------------------------------------------------------------------------
+
+def test_a_blocked_desk_writes_nothing_and_deletes_nothing():
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Readable Show", when="2026-09-12T20:00:00-05:00")]),
+        _walk(DO512, "Do512", [], blocked="403", stopped="blocked"))
+    writes = plan(one, REGS)
+    assert [w.title for w in writes] == ["Readable Show"]
+    blocked = [d for d in one.desks if d.door_id == DO512][0]
+    assert not blocked.readable
+
+
+# --------------------------------------------------------------------------
+# The write loop — every row lands in exactly one bucket
+# --------------------------------------------------------------------------
+
+def _writes(n=3):
+    rows = [_row(f"Show {i}", when=f"2026-09-1{i}T20:00:00-05:00", place=f"Place {i}")
+            for i in range(1, n + 1)]
+    return plan(_union(_walk(CHRONICLE, "Austin Chronicle", rows)), REGS)
+
+
+def test_a_key_already_in_the_store_is_skipped_not_written_again():
+    writes = _writes(2)
+    seen = {writes[0].ingest_key: ("cand-1", "promoted", "event-1")}
+    calls = []
+    result = ingest_tool.ingest(
+        writes, seen=seen,
+        create=lambda **kw: calls.append(kw) or "cand-new",
+        add_evidence=lambda *a: None,
+        promote=lambda cid: "event-new")
+    assert len(result["skipped"]) == 1
+    assert len(result["promoted"]) == 1
+    assert len(calls) == 1, "the row already in the store must not be re-created"
+
+
+def test_a_gate_hold_is_reported_never_swallowed():
+    writes = _writes(1)
+
+    def refuse(cid):
+        raise ValueError("promotion refused: trust gate did not PASS (hold: weak)")
+
+    result = ingest_tool.ingest(
+        writes, seen={}, create=lambda **kw: "cand-1",
+        add_evidence=lambda *a: None, promote=refuse)
+    assert len(result["held"]) == 1
+    assert not result["promoted"]
+    assert "trust gate" in result["held"][0][1]
+
+
+def test_a_failed_write_is_reported_and_does_not_stop_the_rest():
+    writes = _writes(3)
+    made = []
+
+    def create(**kw):
+        if kw["extracted"]["title"] == "Show 2":
+            raise RuntimeError("connection lost")
+        made.append(kw["extracted"]["title"])
+        return f"cand-{len(made)}"
+
+    result = ingest_tool.ingest(
+        writes, seen={}, create=create, add_evidence=lambda *a: None,
+        promote=lambda cid: f"event-{cid}")
+    assert len(result["promoted"]) == 2
+    assert len(result["failed"]) == 1
+    assert made == ["Show 1", "Show 3"]
+
+
+def test_every_planned_row_lands_in_exactly_one_bucket():
+    """Cardinality: a row that vanished between the plan and the report would
+    be a listing we believe we published and did not.
+    """
+    writes = _writes(4)
+    seen = {writes[3].ingest_key: ("c", "needs_review", None)}
+    n = [0]
+
+    def promote(cid):
+        n[0] += 1
+        if n[0] == 1:
+            raise ValueError("Already published: this venue/minute/title")
+        return "event"
+
+    result = ingest_tool.ingest(
+        writes, seen=seen, create=lambda **kw: "cand",
+        add_evidence=lambda *a: None, promote=promote)
+    assert sum(len(v) for v in result.values()) == len(writes)
+
+
+# --------------------------------------------------------------------------
+# The committed fixtures, end to end
+# --------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def fixture_union(doors):
+    from worker.locale.desk_walk import walk as run_walk
+    walks = []
+    for door_id in (CHRONICLE, DO512):
+        fetch, start, _ = coverage_tool.fixture_fetcher(door_id)
+        walks.append(run_walk(doors[door_id], fetch, start_url=start,
+                              kind_map=map_for_door(door_id)))
+    return union(walks, timezone=TZ, timezone_id=TZ_ID, mode="FIXTURE")
+
+
+def test_no_union_row_is_dropped_on_the_way_to_the_write_plan(fixture_union):
+    writes = plan(fixture_union, REGS)
+    assert len(writes) == fixture_union.total
+    assert len({w.ingest_key for w in writes}) == len(writes), "keys must be unique"
+
+
+def test_the_digest_adds_up(fixture_union):
+    writes = plan(fixture_union, REGS)
+    d = plan_digest(writes)
+    assert d["timed"] + d["clock_holes"] == d["rows"]
+    assert d["single_desk"] + d["multi_desk"] == d["rows"]
+
+
+def test_the_counts_table_reads_as_a_delta():
+    table = ingest_tool.counts_table(
+        {"events": 1, "tonight_12h": 1, "tonight_168h": 1},
+        {"events": 26, "tonight_12h": 4, "tonight_168h": 25},
+        city="Austin", hours=168)
+    assert "| 1 | 26 | +25 |" in table
+    assert table.count("\n") == 4, "header, rule, and one row per surface"
+
+
+# --------------------------------------------------------------------------
+# The allowlist entry this tool holds in tools/trust_gate.py
+# --------------------------------------------------------------------------
+
+def test_the_ingest_cli_publishes_only_through_the_gate():
+    """`tools/desk_ingest.py` is on trust_gate's promote allowlist, which is a
+    widening of the surface that may reach the publish step. This is the
+    compensation, and it is narrower than the hole: the tool may call
+    `promote_candidate` (which re-runs the FULL trust gate on every row) and
+    NOTHING else on that path. If it ever grows its own gate call, its own
+    `insert into event`, or its own confidence decision, this fails — the
+    allowlist entry would then be covering something it was never argued for.
+    """
+    import ast
+
+    source = open(os.path.join(ROOT, "tools", "desk_ingest.py"), encoding="utf-8").read()
+    tree = ast.parse(source)
+
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("worker."):
+            imported.update(f"{node.module}.{a.name}" for a in node.names)
+        elif isinstance(node, ast.Import):
+            imported.update(a.name for a in node.names)
+
+    assert imported & {"worker.promote.promote_candidate"}, (
+        "the tool must publish through promote_candidate, the seam that "
+        "re-runs the whole gate")
+    forbidden = {
+        "worker.promote.set_event_confidence",
+        "worker.promote.mark_event_disputed",
+        "worker.promote.assert_promotable",
+        "worker.gating.multi_confirm_gate",
+        "worker.trust_gate3.evaluate_gate",
+        "worker.confidence.derive_confidence",
+    }
+    assert not (imported & forbidden), (
+        f"the ingest CLI reached past promote_candidate: {sorted(imported & forbidden)}. "
+        f"Deciding confidence, or re-deciding the gate, is the publish step's "
+        f"job — not a walker's.")
+    assert "insert into event" not in source.lower(), (
+        "the ingest CLI must never write the canonical event table itself")
+
+
+def test_a_row_whose_evidence_failed_is_not_promoted_on_a_partial_record():
+    """Found by red class swallowed-corrupt-data while answering it.
+
+    The first version reported an evidence failure and then promoted anyway.
+    Two harms: the gate reads its source classes FROM those rows, so the
+    candidate would be judged (and published) on a record we already knew was
+    incomplete; and the row landed in `failed` and again in `promoted`, so the
+    printed buckets over-counted the plan they claim to account for.
+    """
+    writes = _writes(2)
+    promoted = []
+
+    def add_evidence(cid, *a):
+        raise RuntimeError("evidence write lost")
+
+    result = ingest_tool.ingest(
+        writes, seen={}, create=lambda **kw: "cand",
+        add_evidence=add_evidence,
+        promote=lambda cid: promoted.append(cid) or "event")
+    assert promoted == [], "a candidate with incomplete evidence must not publish"
+    assert len(result["failed"]) == 2
+    assert sum(len(v) for v in result.values()) == len(writes), (
+        "every planned row lands in exactly ONE bucket")
+    assert "NOT promoted" in result["failed"][0][1]
