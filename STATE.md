@@ -12,6 +12,41 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #65 (2026-09-05, founder — "union of Chronicle + Do512 only", branch claude/one-live-union-table-iek4dz) — OPEN
+
+STATUS: OPEN — building.
+WHAT: ONE happening table across the two desk dumps already on master
+(austin-chronicle-eventsearch + do512-today): unique key, via (Chronicle /
+Do512 / both), kind-or-other, dated-or-not; a board (Chronicle-only |
+Do512-only | both | unique total) labelled FIXTURE or LIVE; a de-dup on the
+founder's rule (same night + same place-text + same title-or-performer); a
+short list of NEXT doors we still miss, unfetched.
+HOW: new pure module `worker/locale/desk_union.py` + CLI `tools/desk_union.py`
+over the EXISTING walk (no new importer, no third desk, no fetch of anything
+new); tests in `tests/test_desk_union.py`; evidence at
+`docs/evidence/2026-09-05_chronicle-do512-union.md`. "Night" = the calendar
+date of the instant the desk stated, projected into the locale's timezone —
+which is why the pack gains one data field (`locale.timezone`) and `pack.py`
+one optional attribute. No date is ever parsed out of prose.
+WHY: two desks are two lists until something states which rows are the SAME
+row. The union table is the first artifact that says what 1Live holds across
+desks rather than per desk.
+WHY-IT-MATTERS: the whole product claim is the union, deduped, in our model —
+"broader than any one desk". Without a stated key, a second desk inflates the
+count instead of widening the catalog, and every coverage number after it is
+a sum of overlapping lists.
+EXPECTED OUTCOMES: the table, the board and the held-apart list print from the
+committed fixtures; a blocked (403) desk prints BLOCKED and never a zero;
+catalog and Tonight are UNCHANGED (this tool writes nothing); no merge until
+the founder says so.
+
+**construction_gate Stage 3 (founder-capped at 5 lines):**
+[S3:contract-scope-violation] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] [S3:governance-ambiguity] [S3:parallel-record-id-collision] [S3:stale-redclass-count] [S3:missing-record-read-as-state] [S3:malformed-ledger-row] [S3:deferred-trust-work] [S3:hygiene-narrows-coverage] Scope is the founder's five Must-dos and nothing else: no third desk, no Tonight, no R-108 vocab rewrite, no fetch of any door named in the NEXT list; the Refused list is printed in the PR body. No R id is taken and no ledger count is retyped — the one pack field added (`locale.timezone`) is named in WHAT above because Must-do 3's "same night" cannot be computed without it. Nothing is deferred and no record is read as state: the three defects found while building (the pipe in the key, a brand literal an existing gate refused, and the `destructive-normalization` fold that erased every non-ASCII letter) are fixed in this same commit with the tests that pin them, and the one ledger row added carries every column its table declares. No existing coverage narrows: the walk, the reader and both kind maps are untouched.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:self-weakenable-review-model] [S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] [S3:untested-gate-branch] [S3:pushed-on-red] [S3:weak-key-accepted-at-custody] [S3:caller-suppliable-custody-inputs] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:volatile-safety-store] [S3:workflow-tool-version-skew] [S3:heal-drops-guard-marker] No gate, threshold, workflow, reviewer binding, model route or credential is touched. `desk_union` decides nothing and gates nothing: it reports. Its key is a de-dup key for a printed table, never a custody or identity key — no row is admitted, promoted or published on it, and an unkeyable row stays in the table as itself. Nothing is cached; the whole run is pure over pages someone else fetched. Nothing here is custody: no caller-supplied value reaches a gate, no workflow, action pin or model alias changes, no marker is rewritten, and the non-Claude evaluator reviews this PR as it does every PR. Full pytest is green on the final head with the six shallow-clone failures resolved by `git fetch --unshallow`, not waived.
+[S3:missing-cardinality-check] [S3:pagination-integrity-gap] [S3:partial-write-whole-row] [S3:semantic-claim-not-rederived] [S3:copy-outruns-registry] [S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:nonfinite-numeric-accepted] [S3:nonfinite-decimal-accepted] Cardinality is asserted, not assumed: `test_no_row_is_ever_dropped` proves members == rows printed by both desks, and `test_the_board_adds_up` proves total == printed - both. Both walks' pagination state is carried into the table — the Do512 fixture ends on a Load More button, so every count prints as a FLOOR. No row is half-written (a merge fills holes only). No copy claims a live desk: FIXTURE is stamped on the header, the board and the footer, and every title, venue and kind printed is the desk's own word — no descriptor, no price, no qualitative claim is generated anywhere in this diff. No SQL, schema, DB type or numeric parse is touched: the only value converted is an ISO instant, by `datetime`+`zoneinfo`, and an unparseable one prints as a hole.
+[S3:deliverable-visual-qa] [S3:destructive-normalization] [S3:env-dependent-hermetic-test] [S3:scripted-transform-order] [S3:retyped-evidence] The union key first used `|`, which silently splits a markdown cell; `test_every_table_row_has_the_columns_it_declares` pins the column count of all five tables and the separator is now `~`. The comparison form was the register's own `destructive-normalization` expression (`Café` and `Cafe` keying differently, `Кино Night` keying to `night`); it now folds only ASCII-based diacritics and keeps every other script whole, pinned by three tests. Tests read no network, no DB and no clock (the locale's timezone is pack data, and `zoneinfo` is the only projection). Every number in the evidence doc is pasted from the tool's own stdout, never retyped.
+[S3:stale-base-widens-range] [S3:green-on-stale-base] Base is origin/master tip 4d6c8af, confirmed against ls-remote by the gate's own freshness line; staleness_check is green at drift 0.
+
 ## Session Contract #64 (2026-09-04, session close for #63 — branch claude/do512-dump-map-coverage-ue3vqf restarted from master 9369535) — OPEN
 
 STATUS: OPEN — building the close.

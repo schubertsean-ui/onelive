@@ -5,6 +5,7 @@
     "label": "Capital Area Council of Governments",
     "scale": "region",
     "parent_locale_id": "us-tx",
+    "timezone": "America/Chicago",
     "note": "A pack is DATA. CAPCOG is the test locale and a view filter, not a catalog border (ONE-LIVE-COVERAGE-LAW.md). A second locale is a second file here, never a code change."
   },
   "query_grammar": {
