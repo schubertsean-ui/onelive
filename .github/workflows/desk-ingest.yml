@@ -1,0 +1,145 @@
+name: desk-ingest
+
+# Walk the local desks LIVE and write what they printed into the catalog.
+#
+# Founder ticket 2026-09-05: "Take the Chronicle + Do512 walker that already
+# exists and write candidates + promote into the catalog... If live fetch 403s
+# / Cloudflare in this sandbox, say UNREADABLE and stop... Then tell me the one
+# command to run on a machine that can fetch (or a GH job with egress) so the
+# write happens for real."
+#
+# This IS that job. The build sandbox's egress proxy 403s both desks
+# (`curl: (56) CONNECT tunnel failed, response 403`, 2026-09-05), so nobody in
+# that sandbox can read a live page — and a fixture title must never stand in
+# for one. A GitHub runner has open egress, so the fetch happens here.
+#
+# MANUAL DISPATCH ONLY, and `write` defaults to FALSE. A dispatch with
+# write=false does the whole live walk and prints exactly what it WOULD write,
+# touching no database — that is the run to read before the run that writes.
+# No `schedule:` block: arming a recurring loop needs a dead-man ping and a
+# budget, which is its own ticket and its own founder decision (CLAUDE.md,
+# Sentinel rule).
+#
+# The credential lives only inside the step that needs it (ingest.yml's
+# scope+mask pattern, evaluator PR #19): assembled by command substitution,
+# never written to GITHUB_ENV or a step output, and `--mask-command` registers
+# the escaped ::add-mask:: so the assembled DSN stays redacted even on an
+# unforeseen failure path.
+
+on:
+  workflow_dispatch:
+    inputs:
+      write:
+        description: "Actually write (candidates + promote). Leave false for a live dry run."
+        type: boolean
+        default: false
+      city:
+        description: "City the before/after /tonight counts are taken for"
+        type: string
+        default: "Austin"
+      hours:
+        description: "The wide /tonight window to count, in hours (168 = this week)"
+        type: string
+        default: "168"
+      doors:
+        description: "Space-separated door_ids to walk"
+        type: string
+        default: "austin-chronicle-eventsearch do512-today"
+      max_pages:
+        description: "Page ceiling per desk"
+        type: string
+        default: "40"
+
+permissions:
+  contents: read
+
+concurrency:
+  # One writer at a time. Two concurrent runs would each read the store's keys
+  # BEFORE the other wrote its rows, and both would then write the same
+  # happening — the one race the ingest key cannot see.
+  group: desk-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    # MASTER-ONLY (evaluator finding, PR #174; same guard as db-report.yml): a
+    # workflow_dispatch runs the DISPATCHED ref's code, so without this a
+    # branch could pair edited scripts with the production DB secrets below.
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate DSN + register log mask (before anything installs)
+        if: ${{ inputs.write }}
+        env:
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+        run: |
+          : "${ONELIVE_DB_DSN_RAW:?ONELIVE_DB_DSN secret missing}"
+          : "${ONELIVE_DB_PASSWORD:?ONELIVE_DB_PASSWORD secret missing}"
+          python3 tools/assemble_dsn.py --mask-command
+
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+
+      - name: Walk the desks and write
+        env:
+          # Inputs reach the script as ENVIRONMENT, never interpolated into the
+          # shell: `${{ inputs.doors }}` spliced into a command line would run
+          # whatever a dispatcher typed.
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+          IN_WRITE: ${{ inputs.write }}
+          IN_CITY: ${{ inputs.city }}
+          IN_HOURS: ${{ inputs.hours }}
+          IN_DOORS: ${{ inputs.doors }}
+          IN_MAX_PAGES: ${{ inputs.max_pages }}
+        run: |
+          set -euo pipefail
+          # Every dispatch input is guarded before first use. An input that
+          # arrives empty (a misconfigured dispatch, a renamed field) would
+          # otherwise render as an empty string and change what this run walks
+          # or counts without saying so — and this run writes.
+          : "${IN_WRITE:?dispatch input 'write' is empty}"
+          : "${IN_CITY:?dispatch input 'city' is empty}"
+          : "${IN_HOURS:?dispatch input 'hours' is empty}"
+          : "${IN_DOORS:?dispatch input 'doors' is empty}"
+          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
+          args=(--real --city "$IN_CITY" --hours "$IN_HOURS" --max-pages "$IN_MAX_PAGES")
+          for door in $IN_DOORS; do
+            args+=(--door "$door")
+          done
+          if [ "$IN_WRITE" = "true" ]; then
+            : "${ONELIVE_DB_DSN_RAW:?ONELIVE_DB_DSN secret missing}"
+            : "${ONELIVE_DB_PASSWORD:?ONELIVE_DB_PASSWORD secret missing}"
+            ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
+            export ONELIVE_DB_DSN
+            args+=(--write)
+          else
+            args+=(--dry-run)
+          fi
+          python3 tools/desk_ingest.py "${args[@]}" | tee desk-ingest-report.md
+
+      - name: Put the report in the run summary
+        if: always()
+        run: |
+          if [ -f desk-ingest-report.md ]; then
+            cat desk-ingest-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The run produced no report — read the step log above." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desk-ingest-report
+          path: desk-ingest-report.md
+          if-no-files-found: warn

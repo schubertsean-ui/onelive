@@ -14,7 +14,8 @@ from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.source_catalog import cultural_domain_for_source
 from worker.trust_gate3 import (
-    FIELD_START_TIME, GateDecision, evaluate_gate, start_time_instants,
+    FIELD_START_TIME, GateDecision, evaluate_gate, start_time_claims,
+    start_time_instants,
 )
 
 
@@ -97,6 +98,117 @@ def promote_candidate(candidate_id: str) -> str:
             # refused here regardless of how it got to this call. evaluate_gate
             # wraps multi_confirm_gate, so the count-based check is subsumed.
             extracted, evidence_signals = load_candidate_gate_signals(candidate_id, cur=cur)
+
+            # CLAIMS THE PRODUCER OBSERVED BUT COULD NOT RECONCILE (evaluator,
+            # PR #229 r5). `load_candidate_gate_signals` reads the candidate's
+            # own start_time twice — the column and the payload — which are one
+            # value written two ways, so a producer that saw a REAL conflict
+            # (two sources stating two instants for one happening) had nowhere
+            # to put the second and was forced to resolve it before writing.
+            # That silently disarmed `trust_gate3.start_time_claims`, the check
+            # whose entire job is noticing that disagreement: it can only see
+            # what reaches it. `extracted["start_times"]` is that seat — an
+            # optional list of every instant the producer was told, stated as
+            # evidence rather than settled into a value.
+            #
+            # FOLDED IN HERE rather than in `load_candidate_gate_signals`
+            # because that function lives inside the ARMED ingest cron's
+            # runtime closure (tools/arming_runtime.py) and this file does not:
+            # the cron never promotes, which is the "AI never publishes"
+            # invariant in its structural form. Editing the cron's closure
+            # would invalidate the recorded green smoke run and need a founder-
+            # authorized re-run, and the publisher is the right home anyway —
+            # "publish as disputed or do not publish" is an invariant only the
+            # publisher can hold.
+            #
+            # Additive by construction: it can only ADD claims, so its worst
+            # case is the gate finding a hole it would otherwise have missed.
+            # BOUND TO REAL EVIDENCE, NOT ACCEPTED ON THE PAYLOAD'S WORD
+            # (evaluator, PR #229 r6). `extracted` is producer-supplied, so an
+            # unchecked list here lets any payload manufacture a conflict —
+            # nulling a real scheduled time into "Date TBA" and stamping
+            # `disputed` on a listing whose sources never disagreed. That is a
+            # user-facing degradation from unverified data, and "safe
+            # direction" does not excuse it: a reader loses a time that was
+            # correct.
+            #
+            # A contested clock MEANS two or more sources said different
+            # things, so it requires two or more of them to exist. The count
+            # comes from `candidate_evidence` — rows written through
+            # `add_evidence`, the same table this function already trusts for
+            # `source_classes` — and one source cannot contest itself no matter
+            # how many instants its payload lists.
+            claimed = [c for c in (extracted.get("start_times") or [])
+                       if isinstance(c, dict) and c.get("source") and c.get("at")]
+            clock_claims_all_rejected = False
+            if claimed:
+                # PER CLAIM, NOT PER CANDIDATE (evaluator PR #229 r7). Counting
+                # the candidate's evidence rows and then trusting the whole list
+                # was too coarse: any candidate that happened to have two rows
+                # could carry an unsourced instant into the gate. Each claim
+                # must name a source that actually has an evidence row HERE, and
+                # a conflict must then span two DISTINCT such sources — a source
+                # cannot contest itself, and a source nobody recorded cannot
+                # contest anyone.
+                cur.execute(
+                    "select distinct coalesce(source_name, source_class) "
+                    "from candidate_evidence where candidate_id=%s", (candidate_id,))
+                evidenced = {r[0] for r in cur.fetchall() if r[0]}
+                bound = [c for c in claimed if c["source"] in evidenced]
+
+                # A SOURCE THAT CONTRADICTS ITSELF HAS NOT STATED A CLOCK
+                # (evaluator PR #229 r8). Counting distinct SOURCES was still
+                # too loose: `A@8pm, A@9pm, B@8pm` has two sources and no
+                # cross-source disagreement at all — A cannot make up its mind
+                # and B agrees with one of its readings. Admitting that as a
+                # conflict would null a time the sources actually agree on. So
+                # a source's claims are dropped when they disagree with each
+                # other, and the conflict is then decided among sources that
+                # each said ONE thing. Comparison is by INSTANT throughout
+                # (`start_time_claims`): one moment written two ways is one
+                # claim, never two.
+                per_source: dict = {}
+                for c in bound:
+                    per_source.setdefault(c["source"], []).append(str(c["at"]))
+                settled = {
+                    src: times[0] for src, times in per_source.items()
+                    if len(start_time_claims({"start_times": times})) == 1
+                }
+                self_contradicting = sorted(set(per_source) - set(settled))
+                if len(start_time_claims(
+                        {"start_times": list(settled.values())})) >= 2:
+                    evidence_signals = dict(evidence_signals)
+                    evidence_signals["start_times"] = (
+                        list(evidence_signals.get("start_times") or [])
+                        + list(settled.values()))
+                else:
+                    # Recorded rather than dropped in silence: a producer that
+                    # claims a conflict it cannot source is a defect worth
+                    # seeing, and the row still publishes on what IS evidenced.
+                    cur.execute(
+                        """
+                        insert into audit_log(actor_type, action, entity_type, entity_id, payload)
+                        values ('system','promote_unsourced_clock_claims','candidate',%s,%s::jsonb)
+                        """,
+                        (candidate_id, json.dumps({
+                            "claims": claimed,
+                            "bound_to_evidence": [c["source"] for c in bound],
+                            "evidenced_sources": sorted(evidenced),
+                            "self_contradicting_sources": self_contradicting,
+                            "settled_per_source": settled,
+                            "ignored_because": (
+                                "a contested clock needs two sources that each "
+                                "stated ONE instant and stated different ones. A "
+                                "claim from a source with no evidence row here is "
+                                "dropped; a source that disagrees with itself has "
+                                "not stated a clock; and one moment written two "
+                                "ways is one claim, not two"),
+                        })))
+                    # Nothing usable survived. Whether that is publishable at
+                    # all depends on the candidate's OWN clock, which is read
+                    # further down — see the refusal after the row load.
+                    clock_claims_all_rejected = True
+
             verdict = assert_promotable(
                 source_classes=classes,
                 sxsw_mode=sxsw_mode,
@@ -132,6 +244,23 @@ def promote_candidate(candidate_id: str) -> str:
             # and no new copy. The end goes with it: an end_time with no start
             # is not a window, and a reader using it treats the event as already
             # over (the same reasoning R-098 forced onto the mutation path).
+            # FAIL CLOSED WHEN THE SOURCE STATED TIMES, NONE SURVIVED, AND THE
+            # ROW HAS NO CLOCK OF ITS OWN (evaluator PR #229 r9). Such a row
+            # would publish as an ordinary `confirmed` "Date TBA" — telling a
+            # reader nobody mentioned a time when somebody did and we could not
+            # make sense of what they said. Refusing leaves the candidate at
+            # `needs_review`, which is where an unreadable clock claim belongs.
+            # Checked HERE because `start_time` is the candidate's own column,
+            # read just above; the claim rejection happens earlier and only
+            # sets the flag.
+            if clock_claims_all_rejected and start_time is None:
+                raise ValueError(
+                    f"promotion refused: this candidate's source stated "
+                    f"{len(claimed)} clock claim(s), none of them usable "
+                    f"(unsourced or self-contradicting), and the row carries no "
+                    f"clock of its own — publishing would show a settled "
+                    f"'Date TBA' for a listing whose source did state a time")
+
             clock_hole = verdict.field_holes.get(FIELD_START_TIME)
             if clock_hole:
                 cur.execute(
@@ -144,9 +273,33 @@ def promote_candidate(candidate_id: str) -> str:
                         "reason": clock_hole,
                         "claims": [str(t) for t in (evidence_signals.get("start_times") or [])],
                         "written_as": None,
+                        "confidence": "disputed",
                     })))
                 start_time = None
                 end_time = None
+                # AND THE ROW SAYS SO (evaluator, PR #229 r5). Nulling the clock
+                # is only half the truth: `web/lib/feed.ts` renders a NULL start
+                # as "Date TBA", which reads as "nobody stated a time" — and
+                # here two sources stated two. Beside a `confirmed` label that
+                # tells a reader the clock is merely unknown when it is
+                # CONTESTED, which is the one thing the four-state model has a
+                # state for. `disputed` is shown as disputed and never hidden
+                # (CLAUDE.md), so the listing keeps its place on the feed and
+                # only our claim about it changes.
+                #
+                # WRITTEN HERE, in the same transaction as the INSERT, because
+                # the alternative is not equivalent: a caller that promoted and
+                # THEN marked the row disputed would leave a window in which a
+                # contested row is public and labelled confirmed, and a failure
+                # in between makes that window permanent. Publish-as-disputed
+                # or do not publish is an invariant only the publisher can hold.
+                #
+                # This is a field-level finding from `evaluate_gate`, never a
+                # source count — `worker/confidence.derive_confidence` keeps its
+                # contract ("never returns 'disputed'") and is deliberately not
+                # touched: the count says how well corroborated the EVENT is,
+                # this says the evidence contradicts itself about a FIELD.
+                confidence = "disputed"
 
             # Identity is unsettled but existence is not (see trust_gate3):
             # record it so ops can see the collision, and publish.
