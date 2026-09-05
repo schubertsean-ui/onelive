@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -93,6 +94,13 @@ class Door:
     blocked_reason: Optional[str]
     evidence: str
     locale_id: str
+    #: The shape of THIS desk's own listing door, as a regex the pack states —
+    #: e.g. the `/event/{slug}-{id}` shape one committed desk declares (brands
+    #: stay in the pack, never in code). A desk that states one
+    #: is telling us where identity lives on its pages, and the reader segments
+    #: rows on it instead of guessing from class names. Optional: a door that
+    #: declares nothing reads exactly as it did before.
+    listing_url_pattern: Optional[str] = None
 
     @property
     def readable(self) -> bool:
@@ -226,6 +234,22 @@ def _door_from(raw: Any, *, locale_id: str, index: int) -> Door:
         raise LocalePackError(
             f"{where}: a 'wall' door is class D by definition and cannot be public")
 
+    listing_url_pattern = raw.get("listing_url_pattern")
+    if listing_url_pattern is not None:
+        if not isinstance(listing_url_pattern, str) or not listing_url_pattern.strip():
+            raise LocalePackError(
+                f"{where}: listing_url_pattern must be a non-empty string when "
+                f"stated, got {listing_url_pattern!r}")
+        try:
+            re.compile(listing_url_pattern)
+        except re.error as exc:
+            raise LocalePackError(
+                f"{where}: listing_url_pattern {listing_url_pattern!r} is not a "
+                f"usable regex ({exc}). A door that cannot say where its "
+                f"listings live is a misconfiguration, and this reader fails "
+                f"loudly rather than reading zero rows from a desk that has "
+                f"them.") from exc
+
     return Door(
         door_id=door_id,
         brand=_require(raw, "brand", where),
@@ -239,6 +263,7 @@ def _door_from(raw: Any, *, locale_id: str, index: int) -> Door:
         blocked_reason=blocked_reason,
         evidence=evidence,
         locale_id=locale_id,
+        listing_url_pattern=listing_url_pattern,
     )
 
 
