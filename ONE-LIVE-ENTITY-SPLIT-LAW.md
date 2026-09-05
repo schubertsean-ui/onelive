@@ -1,0 +1,359 @@
+# One Live — Identity Split + Entity Universe Law
+
+Ratified for founder direction: 2026-09-05  
+Status: **in force**. This file wins on *how a page becomes happenings* and *how people/places exist as objects*. Coverage Law still wins on catalog scope. Trust still wins on existence vs field vs mutation. Vision still wins on what 1Live is.
+
+If a ticket hard-codes Austin Chronicle, CSS class `event|card|listing`, or “one blob is fine,” the ticket is wrong.
+
+---
+
+## Founder answers (locked)
+
+| Question | Answer |
+|---|---|
+| Does the blob-split apply to every site and every search-result page, not just Chronicle? | **Yes.** Identity first, everywhere. |
+| Do we treat venue / artist / people / group / event as distinct objects, then hunt their owned site? | **Yes.** Search and licenses find *who exists*. Owned sites become doors. Happenings attach to those objects. |
+| Does that graph drive both ingestion and display? | **Yes.** Ingest writes nodes and edges. Display reads them. Strings on a card are a fallback, not the model. |
+| Is every input (aggregator or not) a candidate, all categories? | **Yes.** Same spine. Kind is a label. Missing a category is a defect. |
+| Must ingest/display feed Heartbeat and diagnostics? | **Yes.** Graph writes are feedstock. Metrics never rank. No PII. No vendor until you say. |
+
+---
+
+## 1. Four objects (never collapse these)
+
+World-class here is a **bounded context** (Fowler): four kinds of thing, explicit relationships, no god-row.
+
+| Object | What it is | What it is not |
+|---|---|---|
+| **Happening** | One instance in the world: a title, a when-if-stated, a where-if-stated | A list page. A venue. A band. |
+| **Place** | A durable location: venue, park, church, museum, restaurant, hall | Tonight’s show. The Chronicle row. |
+| **Actor** | A durable presenter: artist, group, company, promoter, host | The night. The ticket link. |
+| **Door** | A readable source: owned site, local desk, civic calendar, claim, licensed feed | The happening itself. |
+
+Edges (only these, at first):
+
+- Happening **at** Place  
+- Happening **by** Actor (0..n)  
+- Place **has door** Door (owned calendar, ICS, `/events`)  
+- Actor **has door** Door (owned site, public calendar)  
+- Happening **seen via** Door (Chronicle, Do512, the owned page)
+
+A Chronicle listing is evidence on a Happening, seen via a Door. It is not the Place and not the Actor.
+
+---
+
+## 2. Split law — a list is never one happening
+
+A page (desk, search results, aggregator, venue “what’s on”) is a **list** when it declares **more than one happening identity**.
+
+**Identity is declared by the page.** We do not guess from CSS.
+
+### Ladder (first tier that yields ≥1 identity wins; never mix tiers on one page)
+
+1. **Structured declaration** — JSON-LD `@type: Event` (array or graph), ICS `VEVENT`, schema.org Event microdata.  
+2. **Permalink identity** — an `href` that matches a **committed identity pattern** for that host family (data, not a one-off regex in Python).  
+3. **Desk selector** — `(tag, class tokens)` committed for *that* door as `listing_selectors` / identity patterns. Whole tokens, not substring `card`.  
+4. **Unsplit** — stop. Zero Happenings from that page. Notes say `unsplit`. **Never emit one mashed row.**
+
+### Forbidden
+
+- `class` contains `event|card|listing|show|gig|happening` as a global splitter.  
+- Concatenating leftover titles/venues into one Happening.  
+- Using the list URL (`/EventSearch`, `/today`, a Google SERP) as `listing_url` of a single event.  
+- Treating “we fetched 40 pages” as “we read 40 events.” Pages ≠ rows.  
+- Search snippets as Happenings. A SERP is a **finder of URLs**, not a desk.
+
+### Identity patterns (data)
+
+Live in `sources/identity_patterns.json` (or the locale pack). Each pattern is:
+
+- `host_family` (e.g. `calendar.austinchronicle.com`, `do512.com`, `eventbrite.com`)  
+- `path_re` (e.g. `/event/[^/]+-\d+`, `/e/[0-9]+`, `/events/[0-9]+`)  
+- `grade`: `desk_observed` only after a live page was actually read; otherwise `fixture_shape`  
+- `owned`: true if that host is the Place/Actor’s own site, false if a desk/aggregator
+
+Chronicle `/event/{slug}-{id}` is **one row in that table**, not a special case in the reader. Do512, Eventbrite, Localist, a church `/calendar/event/123`, a search result whose URL already matches a pattern — same code path.
+
+### Mash test (must be able to fail)
+
+Given HTML with two `/event/foo-1` and `/event/bar-2` links, `read()` returns **two** Happenings with those listing URLs.  
+Given a list page with **no** identity and a giant text blob, `read()` returns **zero** Happenings and `unsplit` in notes.  
+A test that accepts the blob as one row is a defect.
+
+Live evidence 2026-09-05 (desk-ingest #3/#4 on master): Chronicle opened 40 pages, emitted **1** row titled a concatenation (“Promoted Events Back To The Ranch…”), key `url:https://www.austinchronicle.com`. That is the mash this law forbids. Do not `--write` that.
+
+---
+
+## 3. Entity law — names become objects, then we hunt doors
+
+### 3.1 Extract, don’t invent
+
+From each Happening (and from licenses, civic lists, search hits):
+
+- Place name + locality as **stated**  
+- Actor names as **stated**  
+- Happening title as **stated**
+
+If the page did not name a Place, Place is a hole. Do not invent “Austin” as the venue. Do not split a title into a fake band.
+
+### 3.2 Resolve (fail-closed merge)
+
+Same Place only when: same locale **and** (same listing_url host path **or** same normalized name + same street **or** an official id).  
+Ambiguous (“Mohawk” vs a different Mohawk) → **two Places**. Never merge on name alone.  
+Same rule for Actors.
+
+Brain `Entity` (venue/artist) already exists as memory. Product catalog Places/Actors are the durable store the feed reads. Do not confuse the two: brain does not publish.
+
+### 3.3 Universe vs Tonight
+
+Vision lock, restated as mechanism:
+
+| Input | Writes | Does not write |
+|---|---|---|
+| License / TABC / civic registry / search “who exists here” | Place / Actor (universe) | Happenings on Tonight |
+| Local desk / owned calendar / ICS / JSON-LD / claim | Happenings **and** fills Place/Actor holes | Fake dates |
+| One unofficial social post | Hunt trigger | A Happening (Trust: not enough to exist alone) |
+
+Search is a **finder of official URLs**, never a publisher.
+
+### 3.4 Owned-site hunt (the combination)
+
+For each Place or Actor **without** an official Door:
+
+1. Public search query: `"{name}" {locale} official` / site / calendar — cheapest finder first.  
+2. Candidate URLs only. No login, no paywall, no bot-bust. One knock.  
+3. Keep a URL as **owned door** only with **same-page evidence**: name on the page matches the entity; or NAP (name/address/phone) matches; or the domain is the name they print.  
+4. Ambiguous or 403 → Door class D / unknown. Queue claim. Do not guess.  
+5. When an owned door is kept: it is the **best door** for that entity’s calendar. Desk listings stay as `via [desk]` and attach to the same Happening. Official fills holes; it does not delete the desk row.
+
+This is how “we learn from Chronicle, then go direct” stays honest: Chronicle remains a trusted door; the owned site is a second door on the same Happening and the Place’s own door for the next tick.
+
+Subscribe-inbox / membership: only after public door failed, mail actually carries a schedule, cap per locale (Vision). Not a hunt of hundreds of thousands of logins.
+
+---
+
+## 4. Ingestion model (spine)
+
+Generalize the spine. Specialize the door. Combine evidence.
+
+```
+Universe tick (bounded)     List tick (bounded)           Field tick
+licenses/civic/search  →  Place, Actor                  (no Tonight)
+desk / SERP URLs       →  SPLIT identities → Happenings
+                         attach at Place, by Actor
+owned-site hunt        →  Door on Place/Actor
+fetch best door        →  fields (when, place, actors)  same-page only
+gate                   →  label (via, disputed, TBA)
+view                   →  /tonight reads Happenings + Place + Actor
+```
+
+**Least costly method first:** pattern split and JSON-LD before any model call. Hunt and extract only on new or changed identities. Skip-unchanged / 304 on refresh. T-minus on Happenings that already have `start_time`. No category weighting. Caps are per **tick**, never “this source class is out of scope.”
+
+**Unsplit is a coverage defect on that door**, not a reason to mash. Next ticket is a pattern or a claim, not a blob publish.
+
+---
+
+## 5. Display model (what the person sees)
+
+The card is a Happening. It is **decidable in one look** because Place and Actor are objects:
+
+- Who — Actor names, one-line from **owned materials** when we have them (Spark / sample), never invented bio  
+- What — Happening title  
+- When — as stated; hole stays a hole; no invented day  
+- Where — Place name, short address, small map of **that Place**  
+- Via — Door that stated it (`via Austin Chronicle`, `via Stubb’s`)  
+- Next step — link to ticket or owned page (their shop, not ours)  
+- Adjacent — other Happenings **at the same Place** that window (graph edge, not a related-string guess)
+
+A mashed blob cannot do any of this. That is why split is a display requirement, not a parser nicety.
+
+Trust copy: ordinary rows presumed listed by a trusted door — no per-row “verified” stamp. Path (b) only (independent people, no official word) wears the at-a-glance warning on card **and** detail. Disputed stays shown.
+
+Privacy: Place/Actor/Happening are catalog. Night-out plans stay on device. Heartbeat is aggregates on locale × period × category, never itineraries. **The ingest graph is the feedstock** — see §9.
+
+---
+
+## 6. CTO execution (how we build this without wandering)
+
+Bar: WORLD_CLASS.md §0–§5 + this file. Small CLs. Tests that can fail. Disk is truth.
+
+### Sequence (one ticket at a time; do not skip)
+
+| Ticket | What ships | Must not |
+|---|---|---|
+| **A — this law** | This file at repo root. Pointer in CLAUDE.md. | No worker change. No `--write`. |
+| **B — identity split** | Pattern table + `desk_read` / list walk uses ladder §2. Mash test red on master, green on the PR. Live dry ingest: Chronicle rows ≈ events on the page, each `listing_url` is `/event/…`, zero mash titles. | No Chronicle-only function. No class-substring splitter. No smoke of `ai_extract.py` unless wiring demands it and founder says. No `--write` until the table is honest. |
+| **C — Place/Actor from listings** | Happening rows attach Place/Actor ids from **stated** names; fail-closed resolve. Display can show Place as a link even if hunt has not run. | No owned-site HTTP yet. No merge on name-only. |
+| **D — owned-site hunt** | Finder job, budgeted, one knock, owned-door evidence rules §3.4. | No login. No publishing from search snippets. No telling a venue “we have your calendar.” |
+| **E — display consumes graph** | Card/detail/adjacent from Place/Actor, not concatenated list text. | No Tonight redesign-as-scope-creep; only what the graph already enables. |
+| **F — pulse snapshot** | Nightly locale × kind × supply_n × unresolved_n from the graph. Mash/unsplit counters on every list tick. | No analytics vendor. No PII. No ranking. |
+
+### Operating rules for agents
+
+- Chronicle is the **proving ground**, not the product fence. Patterns learned there go in the **table**, then the same spine reads Do512, civic, owned sites, search-found URLs.  
+- If live HTML ≠ fixture: the live page wins; upgrade `grade` to `desk_observed`; do not silently keep fixture selectors.  
+- Unsplit + 403 are **our** failures or **their** wall — labeled. Never “empty calendar.”  
+- Branch `grok/chronicle-event-href-rows` was a stub accident (2026-09-05). **Do not merge it.** Split ships as ticket B on a clean branch from master.  
+- `--write` only after a dry ingest table a human would recognize as individual events.
+
+### Bottleneck (named, 2026-09-05)
+
+Not GitHub login. Not “can we fetch Chronicle.”  
+**Split:** GitHub Actions already reads 40 Chronicle pages and mashes them into 1 row. Do512 is a 403 wall on the runner (class D / claim).  
+Until ticket B is green, more desks and more write runs only publish blobs.
+
+---
+
+## 7. What “done” looks like for CAPCOG proving ground
+
+Not “music only.” Not “every category designed.”
+
+- Happenings on Tonight are **individual**, each with a real listing URL or a stated hole.  
+- Places and Actors in the universe grow from desks **and** licenses/search, bucketed (fetch / follow / claim / mail / blocked / unknown).  
+- Owned doors appear where public evidence supports them; desks still credit `via`.  
+- A friend opening Tonight can decide: who, where, when, via, next step — then leave.  
+- A mixed Chronicle page (concert + market + lecture + kids) yields **all** of those Happenings, each labeled — not music-only and not one blob.
+
+Friends stay off until the list itself has moved (Vision). Ticket B is what moves the list.
+
+---
+
+## 8. Every input is a candidate — categories are labels, not filters
+
+**Every inbound page, feed, claim, mail, license row, civic list, and search-found URL is a candidate for this process.** Aggregator or not. Music venue or school board. Same spine.
+
+| Input | Role | What we extract |
+|---|---|---|
+| Local desk / aggregator (Chronicle, Do512, KUT, tourism) | Trusted door for Happenings | **All** listings the page declared, every kind |
+| Official Place/Actor site | Best door when proven owned | Their calendar, every activity they printed |
+| ICS / JSON-LD / licensed feed | Structured Happenings | Every Event/VEVENT node |
+| License / civic / search | Universe of Place/Actor | Who exists — not Tonight by itself |
+| Claim / forwarded mail | First-party Happenings | What they handed over |
+| Unofficial social | Hunt trigger only | Not a Happening until a trusted door or path (b) |
+
+There is no “music ingest” and “everything else later.” Music in CAPCOG proves the **pipes**. Coverage Law’s minimum set rides the same pipes, same tick, or fast-flex immediately behind a pipe that just worked (Vision: no category weighting).
+
+### Our kinds (minimum set — extend, do not collapse)
+
+From Coverage Law §7. Unknown stays **other**, a real bucket, never a trash can.
+
+- Live music  
+- Nightlife / DJ / dance  
+- Comedy / spoken word  
+- Theater / performance  
+- Sports / spectacle  
+- Markets / fairs  
+- Food / tasting / pop-up  
+- Outdoors / parks / trails events  
+- Family / kids  
+- Civic / government / school  
+- Lectures / ideas  
+- Faith / community  
+- Volunteer / mutual aid  
+- Classes / workshops  
+- Other  
+
+### How kind is set (never guessed)
+
+1. The **desk’s own category words**, mapped by committed kind_map (`Live Music` → live music). Unmapped words stay `other` and are reported so the map can be completed from *their* taxonomy.  
+2. Else the **door’s declared scope** (KUTX concert calendar → music for everything behind it).  
+3. Else **other**.  
+
+Forbidden: reading “Comedy Night” out of a title and weighting comedy. Forbidden: dropping church, kids, markets, lectures because the proving ground is music. Forbidden: a feed that groups by a closed domain list and silently omits unknown kinds (unknown must fold into Other so N of M still sums).
+
+Views may filter by kind. The catalog keeps every legally seen activity. Missing a category is a defect. “Not on brand” is not a reject.
+
+### What “all possible activities” means on one page
+
+The split ladder runs **once per page**, not once per kind. A Chronicle EventSearch page that mixes concerts, markets, lectures, and kids events yields **one Happening per identity**, each with its mapped kind (or other). We do not take only the music cards. We do not mash the rest.
+
+Same for a church `/events`, a parks calendar, a MeetUp public list, a restaurant’s “what’s on,” a university Localist, a license list that later gets an owned site: one process, all activities they declared.
+
+---
+
+## 9. Heartbeat + diagnostics — the graph is the feedstock
+
+**Code that writes Happenings, Places, Actors, or Doors must also write the facts Heartbeat and ops diagnostics need.** Analytics is not a later bolt-on. A mashed blob cannot be sliced. That is another reason split is law.
+
+One measurement engine, two faces (`docs/strategy/ONE_LIVE_ANALYTICS_METRICS_v1.md`):
+
+| Face | Who it serves | What it answers |
+|---|---|---|
+| **Internal** | Us — rebuilds, repairs, Kaizen, cost, coverage holes | Did this door mash? Did extract invent a date? Is the tick over budget? Which kind is empty in this locale? |
+| **External (Heartbeat)** | Cities, orgs, artists — **aggregates only** | What is on in this locale × period × kind? How is supply moving (ITR 3/12, 6/12, 12/12)? |
+
+Same spine. Same honesty floor. Metrics **never rank** the feed.
+
+### 9.1 Grain we must be able to roll up (Vision pulse, preserved)
+
+Every published Happening carries keys so a nightly (or per-tick) rollup can emit:
+
+- `locale_id` × `period` × `kind` (and optional sub-kind)  
+- `supply_n` — Happenings in catalog for that slice  
+- `view_n` — anonymous impressions (usage face; needs tracking plan)  
+- `exit_n` — clicks out to a specialist  
+- `sample_n` — sample opens  
+- `unresolved_n` — dateless or no-door (quality of the map)  
+- **no** `user_id`, message body, companion list, or itinerary on pulse rows  
+
+Anonymous counters may exist without an account. Linking a counter to a person is explicit-OK, later. Do not block ingest for privacy. Do not lift plans off the device for revenue.
+
+### 9.2 Conformed dimensions (from our four objects)
+
+Heartbeat slices are the graph, not free-text:
+
+| Dimension | Source object |
+|---|---|
+| `dim_happening` | Happening |
+| `dim_place` | Place |
+| `dim_actor` | Actor |
+| `dim_door` | Door (via, owned vs desk vs claim) |
+| `dim_kind` | Coverage Law minimum set + other |
+| `dim_locale` | locale_id (CAPCOG is a test locale, not the universe) |
+| `dim_date` | stated when, or `date_unknown` |
+| `dim_confidence` | 4-state; disputed stays counted and shown |
+
+If a field is a hole, the dimension is `unknown`, never invented. Unknown is countable. That is how we diagnose “46% dateless” instead of hiding it.
+
+### 9.3 Internal diagnostics (must fire even before external Heartbeat ships)
+
+Every list tick / ingest run records, as data not chat:
+
+| Signal | Why |
+|---|---|
+| pages_fetched, rows_split, **mash_n** (1 listing_url = list URL) | Ticket B acceptance |
+| unsplit_n, walled_403_n, skipped_unchanged_n | coverage vs our failure vs their wall |
+| happenings_by_kind | starving a category is a defect |
+| places_without_owned_door, actors_without_owned_door | hunt backlog |
+| field_holes (when, place, actor) | depth |
+| tick_seconds, extract_calls, $ | cost ceiling |
+| escaped vs caught defects | Kaizen |
+
+A silent drop in happenings/night for a door that used to produce is a **broken source**, not an empty city (Barr Moses volume pillar). Dead-man ping stays.
+
+### 9.4 Pipeline facts (accumulating snapshot)
+
+One row per candidate/happening identity as it moves: seen → split → extracted → gated → labeled → shown. Stage latency and conversion are how we know **where to repair**. Do not delete identities when unsplit; count them.
+
+Capture–recapture for the universe denominator needs **which doors independently stated the same Happening**. That is the same corroboration overlap Trust already wants. Log it.
+
+### 9.5 Hard rules
+
+- Metrics never feed ranking or pay-to-rank.  
+- No PII in the analytics store. Night-out / messaging stay on device.  
+- Never guess a number; print `not yet instrumented (trigger: …)`.  
+- ITR 3/12, 6/12, 12/12 only when enough months exist; otherwise say so.  
+- Analytics **vendor** (PostHog, warehouse) = founder-crucial new service. First implementation is **our DB snapshots + existing KPI/Kaizen ledgers**.  
+- Insights never mix tastemaker/opinion with the happening pipeline.
+
+### 9.6 Ticket binding
+
+| Ticket | Heartbeat obligation in the **same** PR |
+|---|---|
+| **B split** | mash_n / rows_split / unsplit_n on the dry-ingest report (already a table — keep it as data) |
+| **C Place/Actor** | happenings attach ids; pulse can group by Place/Actor not by string |
+| **D hunt** | places_without_owned_door as a counted backlog |
+| **E display** | anonymous view_n / exit_n only after privacy policy ratification; until then supply_n and unresolved_n from catalog are enough |
+| **F pulse** (after B+C) | nightly `snapshot_market_coverage` from the graph: locale × kind × supply_n × unresolved_n. No vendor. |
+
+F is its own small CL. Do not wait for a warehouse. Do not ship B without the mash counter — that is the diagnostic that told us Chronicle was one blob.
