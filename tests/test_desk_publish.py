@@ -1178,3 +1178,43 @@ def test_a_row_with_no_listing_url_is_judged_on_its_other_facts():
     one = _union(_walk(CHRONICLE, "Austin Chronicle", [
         _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00")]))
     assert write_for(one.rows[0], REGS, mode="LIVE").hold_reason is None
+
+
+# --------------------------------------------------------------------------
+# An unreadable desk is a FAILED run
+# --------------------------------------------------------------------------
+#
+# Founder ticket 2026-09-05: "UNREADABLE desk = failed check + ops-visible
+# report, never '0 events' and never delete existing rows." Both master dry
+# runs (33986288662, 33988204239) recorded `do512-today` at 0 pages read and
+# exited GREEN, which is the state these pin shut.
+
+class _Unread:
+    def __init__(self, door_id):
+        self.door_id = door_id
+
+
+def test_an_unread_desk_exits_nonzero():
+    assert ingest_tool._unreadable_exit([_Unread(DO512)]) == 3
+
+
+def test_a_clean_run_still_exits_zero():
+    assert ingest_tool._unreadable_exit([]) == 0
+
+
+def test_the_failure_names_the_desk_and_says_nothing_was_deleted(capsys):
+    ingest_tool._unreadable_exit([_Unread(DO512), _Unread(CHRONICLE)])
+    err = capsys.readouterr().err
+    assert DO512 in err and CHRONICLE in err
+    assert "UNKNOWN, not absent" in err
+    assert "nothing was deleted" in err
+
+
+def test_both_exits_route_through_one_answer():
+    """The dry run and the write must not be able to disagree about whether an
+    unread desk is a failure — that is how one of them grows a green path."""
+    source = open(os.path.join(ROOT, "tools", "desk_ingest.py"), encoding="utf-8").read()
+    assert source.count("return _unreadable_exit(unreadable)") == 2
+    body = source.split("def main(")[1].split("\ndef ")[0]
+    assert "    return 0\n" not in body, (
+        "main() grew a bare `return 0` that bypasses the unreadable check")
