@@ -465,7 +465,7 @@ def test_every_planned_row_lands_in_exactly_one_bucket():
     result = ingest_tool.ingest(
         writes, seen=seen, create=lambda **kw: "cand",
         add_evidence=lambda *a: None, promote=promote)
-    assert sum(len(v) for v in result.values()) == len(writes)
+    assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes)
 
 
 # --------------------------------------------------------------------------
@@ -581,7 +581,7 @@ def test_a_row_whose_evidence_failed_is_not_promoted_on_a_partial_record():
         promote=lambda cid: promoted.append(cid) or "event")
     assert promoted == [], "a candidate with incomplete evidence must not publish"
     assert len(result["failed"]) == 2
-    assert sum(len(v) for v in result.values()) == len(writes), (
+    assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes), (
         "every planned row lands in exactly ONE bucket")
     assert "NOT promoted" in result["failed"][0][1]
 
@@ -695,7 +695,7 @@ def test_drift_records_the_desks_new_word_and_never_publishes_it():
     assert note["supersedes"]["event_id"] == "event-old"
     assert note["supersedes"]["changed"] == ["clocks"]
     assert "event-old" in result["changed"][0][1]
-    assert sum(len(v) for v in result.values()) == len(writes)
+    assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes)
 
 
 def test_an_unchanged_row_still_skips_and_writes_nothing():
@@ -747,7 +747,7 @@ def test_a_dispute_that_fails_is_reported_never_silent():
         promote=lambda cid: "never", dispute=boom)
     assert "COULD NOT DISPUTE" in result["changed"][0][1]
     assert "may still read as confirmed" in result["changed"][0][1]
-    assert sum(len(v) for v in result.values()) == len(writes)
+    assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes)
 
 
 # --------------------------------------------------------------------------
@@ -828,7 +828,7 @@ def test_a_held_row_is_written_but_never_promoted():
     assert promoted == [], "a held row must not publish"
     assert len(result["held"]) == 1
     assert "R-111" in result["held"][0][1]
-    assert sum(len(v) for v in result.values()) == len(writes)
+    assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes)
 
 
 def test_a_disputed_clock_publishes_and_is_flagged_in_one_step():
@@ -846,3 +846,63 @@ def test_a_disputed_clock_publishes_and_is_flagged_in_one_step():
     assert len(result["promoted"]) == 1
     assert disputed == ["event-new"], "the contested clock must be flagged"
     assert "DISPUTED" in result["promoted"][0][1]
+
+
+# --------------------------------------------------------------------------
+# A row left mislabelled fails the RUN (evaluator, PR #229 r4)
+# --------------------------------------------------------------------------
+
+def test_a_failed_dispute_on_a_superseded_row_is_recorded_as_a_run_failure():
+    """Reporting a failed dispute in the table is not enough. The published row
+    is live and reading `confirmed` while its own desk contradicts it, so the
+    RUN must not be able to report success over it.
+    """
+    writes = _writes(1)
+    stale = dict(writes[0].extracted[DESK_KEY]["statement"])
+    stale["clocks"] = ["2026-09-01T01:00:00-05:00"]
+
+    def boom(event_id):
+        raise RuntimeError("connection lost")
+
+    result = ingest_tool.ingest(
+        writes, seen={writes[0].ingest_key: ("c", "promoted", "event-old", stale)},
+        create=lambda **kw: "cand", add_evidence=lambda *a: None,
+        promote=lambda cid: "never", dispute=boom)
+    assert len(result["dispute_failures"]) == 1
+    event_id, why = result["dispute_failures"][0]
+    assert event_id == "event-old"
+    assert "COULD NOT DISPUTE" in why and "connection lost" in why
+    assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes), (
+        "the failure list is NOT a row bucket — cardinality is unchanged")
+
+
+def test_a_failed_dispute_on_a_contested_clock_is_recorded_as_a_run_failure():
+    """The worse case: the row is newly PUBLIC, with a NULL clock and
+    gate-derived `confirmed`, so a reader sees two desks' disagreement as a
+    settled "Date TBA".
+    """
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+
+    def boom(event_id):
+        raise RuntimeError("connection lost")
+
+    result = ingest_tool.ingest(
+        plan(one, REGS), seen={}, create=lambda **kw: "cand",
+        add_evidence=lambda *a: None, promote=lambda cid: "event-new",
+        dispute=boom)
+    assert len(result["promoted"]) == 1, "the row IS public — that is the problem"
+    assert result["dispute_failures"][0][0] == "event-new"
+
+
+def test_a_clean_run_records_no_dispute_failures():
+    writes = _writes(2)
+    result = ingest_tool.ingest(
+        writes, seen={}, create=lambda **kw: "cand",
+        add_evidence=lambda *a: None, promote=lambda cid: "event")
+    assert result["dispute_failures"] == []
+    assert len(result["promoted"]) == 2

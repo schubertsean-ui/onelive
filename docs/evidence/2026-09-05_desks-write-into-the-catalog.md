@@ -172,10 +172,21 @@ run), and it is master-only — so it can run once this branch is merged.
 * Re-running is safe. Every candidate carries the founder's de-dup key at
   `extracted._desk.key`; a key already in the store is skipped, so a second run
   adds what is new rather than a second copy of what is not.
-* Only a clock a desk STATED becomes a start time. A row dated to the day
-  publishes with a NULL start (the feed renders that as "Date TBA" and never
-  hides it); two desks stating different times publish with the same hole and
-  both claims recorded.
+* A hole reaches a reader as the hole it actually is — the evaluator panel's
+  r3 finding, and the reason this section was rewritten. `event` has ONE clock
+  column, so every unstated time becomes the same NULL and the feed renders
+  every NULL as "Date TBA". Three different truths were arriving as one
+  display, and they are separated before they collapse: a row NO desk dated
+  publishes ("Date TBA" is exactly true of it); two desks stating DIFFERENT
+  times publish and are marked `disputed` (shown, never hidden); a row whose
+  desk stated the NIGHT and no time is HELD as a candidate carrying that night,
+  because publishing it would say "date unknown" about a date we were given
+  (R-111 — it publishes when the public row can carry a date without a clock).
+* A desk that later changes its statement does not go unnoticed. Each candidate
+  stores what the desk said, a re-run compares it, and a superseded published
+  row is marked `disputed` so it stops reading `confirmed` (R-110). If that
+  flag cannot be written, the RUN FAILS rather than reporting success over a
+  live, mislabelled row.
 * Nothing is invented to fill a column: no artists derived from titles, no city
   asserted that no desk stated, no listing page relabelled as a ticket link.
 

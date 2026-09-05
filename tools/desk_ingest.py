@@ -51,7 +51,9 @@ Two guards worth knowing before you run it:
     seam's job (R-110); nothing goes stale silently, and nothing goes stale
     while still looking settled.
 
-Exit codes: 0 ran, 2 refused (bad door, bad locale, fixture write, no DSN).
+Exit codes: 0 ran clean, 1 ran but left a published row mislabelled (a dispute
+write failed — see section 5), 2 refused before writing anything (bad door, bad
+locale, a fixture union, no DSN).
 """
 from __future__ import annotations
 
@@ -235,6 +237,13 @@ def existing_keys(cur) -> Dict[str, Tuple[str, str, Optional[str], Optional[dict
     return {r[0]: (r[1], r[2], r[3], r[4]) for r in cur.fetchall() if r[0]}
 
 
+#: The buckets every planned row lands in, exactly one each. Named so the
+#: cardinality invariant is over a stated set rather than "whatever keys the
+#: dict happens to have" — `ingest` also returns a non-row key for rows whose
+#: public state it failed to correct.
+ROW_BUCKETS = ("promoted", "held", "changed", "skipped", "failed")
+
+
 def dispute_superseded(event_id: Optional[str]) -> str:
     """The published row now reads DISPUTED, and says why it does not.
 
@@ -292,8 +301,11 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
     swallowed: every row lands in exactly one bucket, and the buckets are
     printed.
     """
-    out: Dict[str, list] = {"promoted": [], "held": [], "changed": [],
-                            "skipped": [], "failed": []}
+    out: Dict[str, list] = {b: [] for b in ROW_BUCKETS}
+    # NOT a row bucket: rows already counted above whose PUBLIC state we failed
+    # to correct. Kept apart so the cardinality invariant over ROW_BUCKETS still
+    # holds, and read by main() to fail the run (evaluator PR #229 r4).
+    out["dispute_failures"] = []
     for w in writes:
         supersedes = None
         if w.ingest_key in seen:
@@ -367,10 +379,11 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
             # truth about our confidence in it is ours, now.
             try:
                 verdict = dispute(supersedes["event_id"])
-            except Exception as exc:  # noqa: BLE001 — a row we could not flag is reported, never silent
+            except Exception as exc:  # noqa: BLE001 — a row we could not flag fails the run
                 verdict = (f"COULD NOT DISPUTE published row "
                            f"{supersedes['event_id']} ({type(exc).__name__}: "
                            f"{exc}) — it may still read as confirmed")
+                out["dispute_failures"].append((supersedes["event_id"], verdict))
             out["changed"].append((
                 w, f"the desk has changed its statement since we published "
                    f"event {supersedes['event_id']} — "
@@ -394,10 +407,11 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                 # reader the clock is merely unknown when it is contested.
                 try:
                     verdict = dispute(event_id)
-                except Exception as exc:  # noqa: BLE001 — reported, never silent
+                except Exception as exc:  # noqa: BLE001 — fails the run, below
                     verdict = (f"COULD NOT DISPUTE {event_id} "
                                f"({type(exc).__name__}: {exc}) — it may read as "
                                f"confirmed while its desks disagree on the time")
+                    out["dispute_failures"].append((event_id, verdict))
                 out["promoted"].append((w, f"{event_id} ({w.clock_hole}; {verdict})"))
                 continue
             out["promoted"].append((w, event_id))
@@ -581,6 +595,29 @@ def main(argv=None) -> int:
           "database the API reads. `/tonight` shows only rows whose stated "
           "clock falls inside its window, which is why the week column moves "
           "further than the 12-hour one.")
+
+    # FAIL CLOSED ON A ROW LEFT MISLABELLED (evaluator PR #229 r4). Marking a
+    # row disputed is not decoration: it is what stops a listing from reading
+    # `confirmed` while the evidence contradicts it. If that write failed, a
+    # public row is live and wrong RIGHT NOW, and a run that printed its tables
+    # and exited 0 would report success over exactly the harm this tool exists
+    # to prevent. The rows cannot be un-published (no delete, and withdrawing a
+    # real happening is worse), so the honest signal is the run itself: exit
+    # non-zero, name the events, and say what a person has to do.
+    if result["dispute_failures"]:
+        print()
+        print("## 5. FAILED — published rows are live and mislabelled")
+        print()
+        for event_id, why in result["dispute_failures"]:
+            print(f"- `{event_id}` — {why}")
+        print()
+        print(f"{len(result['dispute_failures'])} published row(s) could not be "
+              f"marked disputed, so each may read `confirmed` while its own "
+              f"evidence contradicts it. Re-run this tool once the database is "
+              f"reachable (it is idempotent, and it will re-detect these), or "
+              f"set their confidence to `disputed` in the ops console.")
+        print("This run is a FAILURE despite the counts above.", file=sys.stderr)
+        return 1
     return 0
 
 
