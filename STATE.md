@@ -12,6 +12,64 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #67 (2026-09-05, founder — "kill the generic event-card parser", branch claude/remove-generic-event-card-a5l1mn) — OPEN
+
+STATUS: OPEN — building.
+WHAT: delete `_CARDISH_CLASS_RE` and the class-guess strategy from
+`worker/segment.py`; segmentation order becomes only (a) JSON-LD Event,
+(b) schema.org Event microdata, (c) desk-specific selectors committed in the
+kind map, (d) line-initial date anchors, (e) the whole page as one block. The
+generic `<article>` and bare `<li>` guesses go with it — they are not in (a)-(e).
+HOW: `listing_selectors` as committed per-desk DATA in `sources/kind_maps/*.json`
+(whole-token, all-tokens-must-match, tag-scoped), loaded+validated by
+`worker/locale/kind_map.py`, resolved by door or by source host and passed into
+`segment_events(..., desk_selectors=...)`, which stays pure (no data loading).
+WHY: "class contains card/show/event" is a guess, and a guess turns product
+tiles, nav rails and a `class="showcase"` into events.
+WHY-IT-MATTERS: those fabricated blocks each cost one certified extraction call
+and can each become a candidate row — the catalog gets noise from markup that
+never described a happening, which is the one direction the trust doctrine forbids.
+EXPECTED OUTCOMES: new tests fail on master and pass here (product/nav `card`
+tiles -> one block; showcase/listing-nav/eventual -> not cards); two schema.org
+Events still make two blocks; the Chronicle and Do512 fixture pages keep today's
+counts (19 and 18 blocks; desk-path rows unchanged) or the delta is printed and
+the session stops for the founder's word. Draft PR; no merge without "merge".
+
+SHIPPED — three things the founder must see, none of them silent:
+1. NO DELTA on the two walked desks: Chronicle 8/7/4 = 19 blocks and Do512
+   7/6/5 = 18, before and after, pinned by test. Desk-path rows
+   (`worker/locale/desk_read.py`) are untouched; that file keeps its own
+   `_EVENTISH_CLASS_RE`, which this ticket did not name — listed under Refused.
+2. ONE WIDENING past the literal (a)-(e), and it exists to keep a founder
+   ruling alive: the microdata step takes a SECOND pass over items of ANY
+   schema.org type when the Event-typed pass finds no confident set. A presenter
+   page types its cards `schema.org/Person` (founder ruling 2026-09-04: an
+   official presenter's own page is a trusted door whose per-item declaration is
+   usable identity), and those cards were captured by the very guess being
+   deleted. Without the second pass `tests/test_entity_vs_happening_id` and
+   `tests/test_block_identity` go red and a ratified behaviour dies silently.
+   Same dated-majority bar as before; still a page DECLARING items, never a
+   class name.
+3. ONE FOUNDER ASK, and the only red check: making (c) live on the crawl means
+   `worker/ai_extract.py` importing the resolver, which ADDS `worker/locale/`
+   (3 files) to the armed cron's runtime closure, so
+   `tests/test_arming_smoke_binding` is red until a fresh green smoke run is
+   recorded. That is a founder question by the Operating Law's own rule. The
+   alternative is a one-line revert of that import, which keeps (c) as a tested
+   capability and lets Do512 (a catalogued crawl source) lose its card split.
+   Chronicle's crawl row is `www.austinchronicle.com` while the walked door is
+   `calendar.austinchronicle.com` — different hosts, so the selector does NOT
+   reach the crawl row and no claim is made that it does.
+
+**construction_gate Stage 3 (founder-capped at 5 lines):**
+[S3:contract-scope-violation] [S3:status-narration-not-progress] [S3:governance-ambiguity] [S3:permission-for-ratified-work] [S3:hygiene-narrows-coverage] [S3:build-before-plan] [S3:featurability-dimension-missed] Scope is the founder's four Must-dos. Refused and listed in the PR body: Tonight redesign, new vendor, fixture titles into production, `--write`, Daily/Weekender, a new importer stack, and `worker/locale/desk_read.py`'s own `_EVENTISH_CLASS_RE` (the desk path, which the ticket did not name — its rows are unchanged and pinned). The ONE place this goes past the literal (a)-(e) is the microdata second pass, and it is there because the deletion would otherwise silently kill the founder's 2026-09-04 presenter ruling — a hygiene change narrowing coverage is the class, so it is named in the contract, in the code comment, and in the PR body rather than absorbed. The contract above was written before the first product file.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:untested-gate-branch] [S3:pushed-on-red] [S3:fail-open-on-custody-misconfig] [S3:weak-key-accepted-at-custody] [S3:deferred-trust-work] No gate, threshold, reviewer binding or model route is touched; this change makes segmentation STRICTER, never looser. Every new branch is pinned by its own test: the desk-selector path, the all-tokens rule, the whole-token rule, the wrong-tag refusal, the no-token refusal (raises), the second microdata pass, its dated-majority bar, and the page-level-item ordering. Misconfiguration fails LOUD on both sides of the seam — a selector naming no class token is refused at load AND refused again at the call, so a value handed in directly cannot do what the data file may not. Nothing is deferred, so no R id is taken and none can collide with a parallel session [S3:parallel-record-id-collision] [S3:records-sharing-one-trigger].
+[S3:semantic-claim-not-rederived] [S3:copy-outruns-registry] [S3:retyped-evidence] [S3:stale-redclass-count] [S3:stale-live-incident-state] [S3:founder-verbatim-corrected] Every number here was DERIVED this session and pasted, never remembered: the before counts (Chronicle 8/7/4, Do512 7/6/5) were measured on the parent commit before any edit, the after counts by the same script, and the three "fails on master" cases were re-run against `git show HEAD:worker/segment.py` loaded as a module. The committed selectors are graded `fixture_shape`, not `desk_observed`, because no live page of either desk has been read here (CONNECT 403, 2026-09-04) — the grade exists so a selector cannot imply a reading that did not happen. Founder text is quoted verbatim in the code and never corrected.
+[S3:env-dependent-hermetic-test] [S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:missing-cardinality-check] [S3:swallowed-corrupt-data] [S3:partial-write-whole-row] [S3:destructive-normalization] [S3:pagination-integrity-gap] [S3:nonfinite-numeric-accepted] [S3:deliverable-visual-qa] [S3:scripted-transform-order] [S3:volatile-safety-store] [S3:mutable-model-alias] [S3:workflow-tool-version-skew] [S3:rule-stronger-than-mechanism] No DB, network, clock, model, numeric parse, migration, workflow or visual surface is touched. The new tests read only committed fixtures. Cardinality is the SUBJECT of the change and is asserted both ways — the counts that must not move, and the counts without a selector, which are LOWER and pinned so deleting a selector can never look like a no-op. Nothing is swallowed: a malformed committed selector raises rather than degrading to "no selector", so a broken map cannot quietly narrow coverage. Every rule stated ships with its mechanism beside it.
+[S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:caller-suppliable-custody-inputs] [S3:self-weakenable-review-model] [S3:unusable-credential-tier] No copy, price, descriptor or user-facing string is generated or touched. A caller CAN supply selectors — that is the design, so the segmenter reads no file — and it is not a custody input: a selector decides only where a page is CUT, never what is published; every block still goes through the unchanged certified extractor, the gate and promote, and a supplied selector is validated at the call exactly as the committed one is at load. No reviewer model, review binding or credential tier is touched.
+[S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] [S3:nonfinite-decimal-accepted] Nothing here judges itself: the committed data is validated by code the PR also ships tests for, and both are read by the mandatory non-Claude review on this PR. No release, publish or promote path changes. No Decimal or float is parsed anywhere in this diff.
+[S3:green-on-stale-base] [S3:stale-base-widens-range] [S3:stalled-state-needs-active-diagnosis] Base is origin/master tip 8a4d1ffd576f at drift 0 (the gate's own freshness line, compared against ls-remote). The branch is not stalled and the one red check is diagnosed rather than waited on: `tests/test_arming_smoke_binding` is red because making step (c) live adds `worker/locale/` to the armed cron's runtime closure — proven by diffing `tools/arming_runtime.py` output between this head and the base worktree, not asserted — and a fresh smoke run is a founder question by the Operating Law's own rule. The five `test_trust_gate_certification` failures seen mid-session were a SHALLOW CLONE failing closed; after `git fetch --unshallow` they pass.
+
 ## Session Contract #66 (2026-09-05, founder — "fill Tonight from public desks that already parse", branch claude/tonight-event-catalog-gxmnx7) — OPEN
 
 STATUS: OPEN — built, pushed, PR #229 (draft). Panel r1-r9, all FIXED, each round one layer further out on ONE class: a hole reaching a reader as the wrong hole. r1 a re-run compares the desk's STATEMENT, not only the key; r2 a superseded row is marked DISPUTED; r3 the three shapes of a NULL clock are separated before they collapse into one display; r4 a failed dispute fails the RUN; r5 the contested clock is labelled by the PUBLISHER inside the insert's own transaction (and the armed-cron closure is left untouched — CI caught that, not local validate); r6 corroboration is no longer treated as contradiction, and the producer-supplied clock claims are bound to real evidence; r7 that binding is PER CLAIM — each contested instant names the desk that stated it and is kept only if that source has an evidence row; r8 the claims must actually CONFLICT (a source disagreeing with itself has not stated a clock) and every time is compared as an INSTANT, so one moment written two ways is one claim. R-110 and R-111 carry the two residuals, both with objective triggers. r9: dispute BEFORE recording (a failed dispute now records nothing, so the printed 'just re-run it' recovery works — it was dead); one desk stating two clocks is HELD, not published as a settled TBA; and the publisher refuses when every clock claim is unusable and the row has no clock of its own.

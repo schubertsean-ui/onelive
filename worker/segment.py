@@ -12,12 +12,23 @@ block — the same certified brain, run N times.
 Design rules (in priority order, matching CLAUDE.md's truth-first bar):
   1. NEVER fabricate or duplicate an event. A 1-event page yields exactly 1
      block; segmentation only ever partitions text that is already present.
-  2. Under-segment, don't over-segment. A wrong split that invents a garbage
+  2. ONLY A DECLARATION SPLITS A PAGE. A wrong split that invents a garbage
      "event" is far worse than leaving two real shows fused in one block (the
-     extractor then returns the first, which is exactly today's behavior). So a
-     split is only taken when it is STRUCTURALLY confident (repeated schema.org
-     Event containers or repeated dated items) or ANCHOR confident (repeated
-     independent date/time anchors). Anything less falls back to a single block.
+     extractor then returns the first). So a split is taken only when the page
+     DECLARED its events (JSON-LD Event objects, schema.org Event microdata), or
+     a selector COMMITTED for that desk matched, or the text carries repeated
+     line-initial date anchors. Anything less falls back to a single block.
+
+     Until 2026-09-05 there was a fourth path and it was a guess: any
+     `<div>`/`<li>`/`<section>` whose class CONTAINED "event", "card",
+     "listing", "show", "gig" or "happening" opened a block, plus a bare
+     `<article>` and a bare `<li>`. Substring, so `class="showcase"`,
+     `class="listing-nav"` and `class="eventual"` all read as listing cards;
+     a shop's product grid or a nav rail with a month name in it segmented into
+     N "events", each costing one certified extraction call and each able to
+     become a candidate row. The founder deleted it: "stop treating 'class
+     contains card/show/event' as a listing ... If a desk has no selector and no
+     JSON-LD, it uses (d) or (e). It does not get a guessed card."
   3. The single-block fallback returns the WHOLE ORIGINAL content unchanged, so
      the extractor receives byte-identical input to today — behavior on the
      pages we already handle is provably unchanged.
@@ -59,7 +70,7 @@ import json
 import logging
 import re
 from html.parser import HTMLParser
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from worker.identity import (
     ListingIdentity,
@@ -88,6 +99,15 @@ _MIN_BLOCK_CHARS = 8
 # /MusicEvent, /TheaterEvent). Matched case-insensitively on the attribute.
 _EVENT_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]*Event\b", re.I)
 
+# Any schema.org microdata type. Read only in the SECOND microdata pass, and
+# only because the founder ruled on 2026-09-04 that an official presenter's own
+# page is a trusted door whose PER-ITEM declaration is usable identity: such a
+# page types its cards after the presenter (`schema.org/Person`), not after the
+# night. `worker/identity.py` and `_note_attrs` below already refuse to check an
+# item's TYPE when reading its declaration — this is the same ruling applied to
+# CAPTURING the card, which until 2026-09-05 was done for it by the class guess.
+_SCHEMA_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]+\b", re.I)
+
 # A "date or time anchor": the textual cue that a new event listing begins.
 # Weekday / month names, numeric dates (8/1, 8/1/26, 2026-08-01), and clock
 # times (8pm, 8 PM, 8:00, 20:00, doors 8PM). Deliberately broad on RECOGNITION
@@ -112,10 +132,6 @@ _ANCHOR_LINE_RE = re.compile(
     re.I | re.X,
 )
 
-# class attribute values that mark a repeated event/card container. Substring,
-# case-insensitive — matches "event-card", "eventItem", "show", "listing", etc.
-_CARDISH_CLASS_RE = re.compile(r"event|card|listing|show|gig|happening", re.I)
-
 # Elements that cannot contain content, so an `itemscope` on one opens no
 # nested item worth tracking. Listed so a stray `<meta itemscope>` cannot leave
 # a scope permanently open (which would silently refuse every later
@@ -137,6 +153,41 @@ _BLOCK_LEVEL_TAGS = frozenset({
 def _ws(s: str) -> str:
     """Collapse runs of whitespace to single spaces and strip."""
     return " ".join(s.split())
+
+
+def _class_tokens(attrs: Dict[str, str]) -> frozenset:
+    """An element's class attribute as WHOLE, folded tokens.
+
+    Whole tokens are the entire difference between a declared selector and the
+    substring guess this file used to make: `class="eventual"` yields
+    `{"eventual"}`, which is not `{"event"}`, and `class="listing-nav"` yields
+    `{"listing-nav"}`, which is not `{"listing"}`.
+    """
+    return frozenset((attrs.get("class") or "").lower().split())
+
+
+def _desk_selector_starter(
+    selector: Tuple[str, Sequence[str]],
+) -> Callable[[str, Dict[str, str]], bool]:
+    """A capture test for ONE committed desk selector `(tag, class tokens)`.
+
+    Every token must be present, so a selector is a statement about one desk's
+    own card and not a word that appears in markup everywhere. A selector with
+    no tokens would match every element of its tag and is refused at load
+    (`worker.locale.kind_map._listing_selector_from`) — refused again here,
+    because a value handed in directly must not be able to do what the data
+    file may not (CLAUDE.md: fail loudly on misconfiguration).
+    """
+    tag, classes = selector
+    if not isinstance(tag, str) or not tag.strip():
+        raise ValueError(f"desk selector needs an element name, got {tag!r}")
+    wanted = frozenset(str(c).strip().lower() for c in classes if str(c).strip())
+    if not wanted:
+        raise ValueError(
+            f"desk selector for <{tag}> names no class token — it would match "
+            f"every <{tag}> on the page, which is the guess it replaces")
+    want_tag = tag.strip().lower()
+    return lambda t, attrs: t == want_tag and wanted <= _class_tokens(attrs)
 
 
 def _has_date_or_time(s: str) -> bool:
@@ -350,16 +401,16 @@ class _ElementTextCollector(HTMLParser):
         is a hole, not a contradiction.
 
         And it is read ONLY when the card is itself the LISTING's item, which
-        took two passes to state properly. Three of the four capture strategies
-        find cards STRUCTURALLY — `<article>`, a cardish class, `<li>` — and
-        those carry no microdata at all, so `self._scopes` is trivially 0
-        inside them and every `itemprop="url"` would look like a declaration.
+        took two passes to state properly. A card found by a COMMITTED DESK
+        SELECTOR carries no microdata at all, so `self._scopes` is trivially 0
+        inside it and every `itemprop="url"` would look like a declaration.
         But microdata gives an `itemprop` meaning only against its nearest
         enclosing item; with no item there is nothing it is a property OF. A
         venue that sprinkles `itemprop="url"` on the ARTIST link inside a plain
-        `<article class="event">` would otherwise hand us the artist's address
-        as the listing's identity, and the next occurrence by that artist would
-        answer SAME and license a write onto the wrong published row.
+        `<div class="event listing">` would otherwise hand us the artist's
+        address as the listing's identity, and the next occurrence by that
+        artist would answer SAME and license a write onto the wrong published
+        row.
 
         The item's TYPE is deliberately NOT checked, and that is a founder
         ruling (2026-09-04) that reversed a stricter rule this file carried for
@@ -644,33 +695,79 @@ def _majority_dated(blocks: List[str]) -> bool:
     return dated >= 2 and dated / len(blocks) >= 0.6
 
 
-def _segment_html(content: str) -> List[str]:
-    """Structural HTML segmentation. Returns >= 2 blocks only when confident,
-    else [] (caller falls back to anchor split, then to a single block)."""
-    # (1) JSON-LD Event objects — explicit, machine-declared events.
+def _segment_html(
+    content: str,
+    desk_selectors: Sequence[Tuple[str, Sequence[str]]] = (),
+) -> List[str]:
+    """Structural HTML segmentation. Returns >= 2 blocks only when the page or a
+    committed selector DECLARED them, else [] (the caller falls back to the
+    anchor split, then to a single block).
+
+    Only declarations split a page. Two of the three come from the page itself
+    and one comes from a desk walk; there is no fourth that comes from a guess.
+    """
+    # (a) JSON-LD Event objects — explicit, machine-declared events.
     blocks = _jsonld_event_blocks(content)
     if len(blocks) >= 2:
         return blocks
 
-    # (2) schema.org microdata Event containers.
+    # (b) schema.org microdata items. Still gated on a dated majority: an
+    # `itemtype` is the page's own word, but a template that stamps it on a
+    # "related events" rail states it about things this page is not listing, and
+    # a dated majority is the cheap check that they are listings.
+    #
+    # EVENT-TYPED ITEMS FIRST, unchanged. Only if they yield no confident set is
+    # the second pass taken, over items of ANY schema.org type. That second pass
+    # is not a widening for its own sake: an OFFICIAL PRESENTER's own page types
+    # its cards after the presenter — `<article itemscope
+    # itemtype="https://schema.org/Person">` — and the founder ruled on
+    # 2026-09-04 that such a page is a trusted door whose per-item declaration is
+    # usable identity ("Do not exclude those sites as sources"). Until
+    # 2026-09-05 those cards were captured by the class guess this file just
+    # deleted, so without the second pass the deletion would have silently
+    # dropped a ratified behaviour and taken `tests/test_entity_vs_happening_id`
+    # and `tests/test_block_identity` red with it.
+    #
+    # Order matters, and not only for tidiness: an Event card nested inside a
+    # page-level item (`<body itemscope itemtype=".../WebPage">`) is found by the
+    # first pass, while the second would capture the wrapper and nothing else.
+    # The residual the dated majority carries is stated rather than hidden: a
+    # shop whose product tiles are microdata items AND mention days of the week
+    # can still reach the bar. That is a page DECLARING items, not a class name
+    # being guessed at, and it is bounded by the same check that has bounded the
+    # microdata path all along.
     blocks = _collect(
         content,
         lambda tag, attrs: bool(_EVENT_ITEMTYPE_RE.search(attrs.get("itemtype", ""))),
     )
     if _majority_dated(blocks):
         return blocks
+    blocks = _collect(
+        content,
+        # `itemscope` is required here and not above, so the Event pass keeps
+        # behaving byte-identically to the day before this change. An item is an
+        # `itemscope` by definition, and the second pass reads a much wider set
+        # of types, so it takes the spec-exact test rather than the lenient one.
+        lambda tag, attrs: (
+            "itemscope" in attrs
+            and bool(_SCHEMA_ITEMTYPE_RE.search(attrs.get("itemtype", "")))
+        ),
+    )
+    if _majority_dated(blocks):
+        return blocks
 
-    # (3) Repeated structural items, each bearing a date/time. Tried in order of
-    # specificity; the first that yields a confident, dated set wins.
-    strategies: List[Callable[[str, Dict[str, str]], bool]] = [
-        lambda tag, attrs: tag == "article",
-        lambda tag, attrs: tag in ("div", "li", "section")
-        and bool(_CARDISH_CLASS_RE.search(attrs.get("class", ""))),
-        lambda tag, attrs: tag == "li",
-    ]
-    for should_start in strategies:
-        blocks = _collect(content, should_start)
-        if _majority_dated(blocks):
+    # (c) A card shape COMMITTED for this desk (`sources/kind_maps/*.json`,
+    # resolved by the caller). No dated majority is required here, and that is
+    # the one place this file trusts something other than the page: a selector
+    # is a per-desk statement a human wrote after walking that desk, so a card
+    # it matches is a listing even on a day the desk prints its dates in an
+    # attribute we do not read. Its bound is that it exists at all — a desk
+    # nobody walked has no selector and gets no cards, which is the founder's
+    # rule for this session, verbatim: "If a desk has no selector and no
+    # JSON-LD, it uses (d) or (e). It does not get a guessed card."
+    for selector in desk_selectors:
+        blocks = _collect(content, _desk_selector_starter(selector))
+        if len(blocks) >= 2:
             return blocks
     return []
 
@@ -764,17 +861,32 @@ def _cap(blocks: List[str]) -> List[str]:
     return blocks
 
 
-def segment_events(content: Optional[str], *, content_type: Optional[str] = None) -> List[str]:
+def segment_events(
+    content: Optional[str],
+    *,
+    content_type: Optional[str] = None,
+    desk_selectors: Sequence[Tuple[str, Sequence[str]]] = (),
+) -> List[str]:
     """Split a fetched page into per-event text blocks.
 
     Returns a list of text blocks, one per detected event; a block whose own
     markup stated an address or id is an `IdentifiedBlock` carrying it (a `str`
-    in every other respect). Heuristics, in order:
-      (a) if HTML carries repeated schema.org Event containers or repeated dated
-          structural items (<article>/<li>/event-card <div>), each is a block;
-      (b) else split plain text on repeated line-initial date/time anchors;
-      (c) else return a SINGLE block — the whole original content — so behavior
+    in every other respect). The order is fixed and there is nothing else in it:
+
+      (a) JSON-LD Event objects the page declares;
+      (b) schema.org Event microdata containers the page declares;
+      (c) a card shape COMMITTED for this desk and passed in as
+          `desk_selectors` — `(tag, class tokens)` pairs, every token required
+          and matched WHOLE. Resolve them from the committed data with
+          `worker.locale.kind_map.desk_selectors_for_url` (or `_for_door`);
+          this module reads no file and knows no desk;
+      (d) else split the page's text on repeated line-initial date/time anchors;
+      (e) else return a SINGLE block — the whole original content — so behavior
           is byte-identical to feeding the page straight to the extractor.
+
+    A desk with no selector and no declared events is segmented by (d) or (e).
+    It does not get a guessed card: there is no strategy that reads a class name
+    it was not told about.
 
     A 1-event page always yields exactly 1 block; nothing is ever fabricated or
     duplicated. Result length is bounded by ``MAX_BLOCKS`` (over-cap is logged).
@@ -785,7 +897,7 @@ def segment_events(content: Optional[str], *, content_type: Optional[str] = None
         return [content]
 
     if _looks_like_html(content, content_type):
-        blocks = _segment_html(content)
+        blocks = _segment_html(content, desk_selectors)
         if len(blocks) >= 2:
             return _cap(_drop_shared_identities(blocks))
         text = _strip_tags(content)

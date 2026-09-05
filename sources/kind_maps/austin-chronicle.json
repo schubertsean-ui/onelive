@@ -7,6 +7,14 @@
     "austin-chronicle-eventsearch",
     "austin-chronicle-arts"
   ],
+  "listing_selectors": [
+    {
+      "tag": "div",
+      "classes": ["event", "listing"],
+      "evidence": "fixture_shape",
+      "note": "one listing card on this desk. Read off our OWN committed shape fixture (tests/fixtures/desk_pages/austin-chronicle-eventsearch/), which is SYNTHETIC: egress to calendar.austinchronicle.com is denied from the build sandbox (CONNECT 403, 2026-09-04), so nobody here has loaded a live page of this desk and this row says so rather than implying a reading. It is CHECKED, not assumed, on the first authorized live run. Both tokens are required and both are matched WHOLE: this selector says nothing about any other desk, and 'eventual' or 'listing-nav' do not satisfy it."
+    }
+  ],
   "category_signals": [
     {
       "how": "href_param",

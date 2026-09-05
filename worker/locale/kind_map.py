@@ -63,6 +63,21 @@ EVIDENCE_GRADES: Tuple[str, ...] = ("desk_observed", "desk_id_cited", "language_
 #: every card as uncategorised.
 SIGNAL_KINDS: Tuple[str, ...] = ("label", "href_param", "href_path")
 
+#: What a LISTING SELECTOR may claim about itself. A selector says "on THIS
+#: desk, one listing card is this element" — a per-desk declaration, which is
+#: the only thing that may split a page into cards (`worker/segment.py` strategy
+#: (c); founder, this session: "It does not get a guessed card").
+#:
+#: `desk_observed` we read this markup off the desk's own live page.
+#: `fixture_shape` we read it off our own committed shape fixture under
+#:                 `tests/fixtures/desk_pages/<door>/`, which is SYNTHETIC —
+#:                 nobody here has loaded the live desk (egress to both desks is
+#:                 denied from this sandbox: CONNECT 403, 2026-09-04). The grade
+#:                 exists so a selector can never imply a reading that did not
+#:                 happen, and so the first authorized live run knows exactly
+#:                 which selectors are still unconfirmed against the real page.
+SELECTOR_EVIDENCE_GRADES: Tuple[str, ...] = ("desk_observed", "fixture_shape")
+
 _WS_RE = re.compile(r"\s+")
 _PUNCT_RE = re.compile(r"[^a-z0-9]+")
 
@@ -147,6 +162,40 @@ class Signal:
 
 
 @dataclass(frozen=True)
+class ListingSelector:
+    """One element shape that IS a listing card on this desk.
+
+    Deliberately not a CSS selector: a selector language invites `div div > a`
+    and with it a whole matching engine to review. What a desk walk actually
+    yields is "the card is a `<div>` carrying these class tokens", so that is
+    all this holds — a tag name plus the class tokens an element must carry,
+    ALL of them, as WHOLE tokens.
+
+    Whole tokens and all-of-them are the difference between this and the guess
+    it replaces. `_CARDISH_CLASS_RE` matched the substring `event` anywhere in
+    any class, so `class="eventual"`, `class="showcase"` and `class="listing-nav"`
+    all read as listing cards on any page in the world. `("div", ("ds-listing",
+    "event-card"))` is a statement about ONE desk, and `class="event-cards-off"`
+    does not satisfy it.
+    """
+
+    tag: str
+    classes: Tuple[str, ...]
+    evidence: str
+    note: Optional[str] = None
+
+    @property
+    def matcher(self) -> Tuple[str, Tuple[str, ...]]:
+        """The plain-data form `worker.segment.segment_events` consumes.
+
+        A tuple rather than this object, so the segmenter stays a pure text
+        module that imports no loader and reads no file: the caller resolves
+        the desk, the segmenter is handed a value.
+        """
+        return self.tag, self.classes
+
+
+@dataclass(frozen=True)
 class KindMap:
     """A whole committed mapping for one desk (or family of desk doors)."""
 
@@ -158,9 +207,19 @@ class KindMap:
     signals: Tuple[Signal, ...]
     label_rows: Mapping[str, MapRow]
     id_rows: Mapping[str, MapRow]
+    #: How a listing card is SHAPED on this desk, if we have walked it. Empty is
+    #: the normal answer and never an error: a desk we have not walked has no
+    #: selector, and its pages are segmented by their own JSON-LD, their own
+    #: microdata, or by date anchors — never by a guess at its class names.
+    listing_selectors: Tuple[ListingSelector, ...] = ()
 
     def applies_to(self, door_id: str) -> bool:
         return door_id in self.applies_to_doors
+
+    @property
+    def selector_matchers(self) -> Tuple[Tuple[str, Tuple[str, ...]], ...]:
+        """This desk's selectors as plain data for `worker.segment`."""
+        return tuple(s.matcher for s in self.listing_selectors)
 
     @property
     def rows(self) -> Tuple[MapRow, ...]:
@@ -304,6 +363,46 @@ def _signal_from(raw: Any, *, where: str) -> Signal:
                   prefix=(prefix.strip() if isinstance(prefix, str) else None))
 
 
+def _listing_selector_from(raw: Any, *, where: str) -> ListingSelector:
+    """One committed listing selector, or a loud refusal.
+
+    Every refusal here is the same refusal: a selector that is broader than one
+    desk's own card would put non-events into the catalog, which is the harm the
+    class-substring guess caused and this table exists to end.
+    """
+    if not isinstance(raw, dict):
+        raise KindMapError(
+            f"{where}: each listing selector must be an object, got "
+            f"{type(raw).__name__}")
+    tag = _require(raw, "tag", where)
+    if not isinstance(tag, str) or not tag.strip().isalnum():
+        raise KindMapError(
+            f"{where}: a listing selector's tag must be an element name, got {tag!r}")
+    tag = tag.strip().lower()
+    classes_raw = _require(raw, "classes", where)
+    where = f"{where} selector {tag!r}"
+    if (not isinstance(classes_raw, list) or not classes_raw
+            or any(not isinstance(c, str) or not c.strip() or c.split() != [c.strip()]
+                   for c in classes_raw)):
+        raise KindMapError(
+            f"{where}: classes must be a non-empty list of single class tokens, "
+            f"got {classes_raw!r}")
+    classes = tuple(sorted({c.strip().lower() for c in classes_raw}))
+    # A selector with no class token would match EVERY element of that tag —
+    # `("div",)` splits a page at every div, which is the guess with extra steps.
+    # Refused above by requiring a non-empty list; stated here because the reason
+    # is the whole point of the table.
+    evidence = _require(raw, "evidence", where)
+    if evidence not in SELECTOR_EVIDENCE_GRADES:
+        raise KindMapError(
+            f"{where}: evidence {evidence!r} is not one of "
+            f"{SELECTOR_EVIDENCE_GRADES}")
+    note = raw.get("note")
+    if note is not None and not isinstance(note, str):
+        raise KindMapError(f"{where}: note must be a string or null, got {note!r}")
+    return ListingSelector(tag=tag, classes=classes, evidence=evidence, note=note)
+
+
 def load_kind_map(map_id: str, *, maps_dir: Optional[str] = None,
                   packs_dir: Optional[str] = None) -> KindMap:
     """Read and validate one committed mapping. Raises on anything it cannot
@@ -392,6 +491,17 @@ def load_kind_map(map_id: str, *, maps_dir: Optional[str] = None,
             f"href_path signal says where to find one — those rows could never "
             f"match")
 
+    selectors_raw = raw.get("listing_selectors") or []
+    if not isinstance(selectors_raw, list):
+        raise KindMapError(f"{where}: listing_selectors must be a list")
+    selectors = tuple(_listing_selector_from(sel, where=where) for sel in selectors_raw)
+    seen_selectors = set()
+    for selector in selectors:
+        if selector.matcher in seen_selectors:
+            raise KindMapError(
+                f"{where}: duplicate listing selector {selector.matcher!r}")
+        seen_selectors.add(selector.matcher)
+
     return KindMap(
         map_id=map_id,
         kinds_from=kinds_from,
@@ -401,6 +511,7 @@ def load_kind_map(map_id: str, *, maps_dir: Optional[str] = None,
         signals=signals,
         label_rows=label_rows,
         id_rows=id_rows,
+        listing_selectors=selectors,
     )
 
 
@@ -430,3 +541,65 @@ def map_for_door(door_id: str, *, maps_dir: Optional[str] = None,
 
 def iter_map_ids(maps: Iterable[KindMap]) -> Tuple[str, ...]:
     return tuple(m.map_id for m in maps)
+
+
+def _host_of(url: Optional[str]) -> str:
+    """A URL's host, folded for comparison, or "" when there is none.
+
+    `www.` is stripped because a desk publishes the same door both ways; nothing
+    else is: `family.do512.com` is a DIFFERENT desk from `do512.com` and has its
+    own door, so a suffix match would hand one desk's card shape to another's
+    pages. Fold, never guess.
+    """
+    if not url:
+        return ""
+    try:
+        host = (urlsplit(str(url)).hostname or "").strip().lower()
+    except ValueError:
+        return ""
+    return host[4:] if host.startswith("www.") else host
+
+
+def desk_selectors_for_door(door_id: str, *, maps_dir: Optional[str] = None,
+                            packs_dir: Optional[str] = None
+                            ) -> Tuple[Tuple[str, Tuple[str, ...]], ...]:
+    """The committed card shapes for one door, as plain data for the segmenter.
+
+    `()` is the normal answer for a desk nobody has walked, and it is never an
+    error: an empty tuple means the page is segmented by what IT declares
+    (JSON-LD, microdata) or by its date anchors, which is exactly the founder's
+    rule — "If a desk has no selector and no JSON-LD, it uses (d) or (e). It
+    does not get a guessed card."
+    """
+    mapping = map_for_door(door_id, maps_dir=maps_dir, packs_dir=packs_dir)
+    return mapping.selector_matchers if mapping else ()
+
+
+def desk_selectors_for_url(url: Optional[str], *, maps_dir: Optional[str] = None,
+                           packs_dir: Optional[str] = None
+                           ) -> Tuple[Tuple[str, Tuple[str, ...]], ...]:
+    """The committed card shapes for the desk a fetched page came FROM, by host.
+
+    The crawl path knows a page's `source_url`, not a locale-pack `door_id`, so
+    this is the seam that makes strategy (c) reachable in production. It matches
+    on HOST — the one part of a URL that says which desk answered — because a
+    desk's card shape is a property of the desk, not of one path on it; a door
+    is committed per path, and `do512.com/events/live-music/today` must read the
+    same as `do512.com/events/today`.
+
+    `()` for any host no committed map claims, which is most of the catalog.
+    """
+    host = _host_of(url)
+    if not host:
+        return ()
+    for map_id in available_maps(maps_dir=maps_dir):
+        mapping = load_kind_map(map_id, maps_dir=maps_dir, packs_dir=packs_dir)
+        if not mapping.listing_selectors:
+            continue
+        pack = load_pack(mapping.kinds_from, packs_dir=packs_dir)
+        doors = {door.door_id: door for door in pack.doors}
+        for door_id in mapping.applies_to_doors:
+            door = doors.get(door_id)
+            if door is not None and _host_of(door.url) == host:
+                return mapping.selector_matchers
+    return ()

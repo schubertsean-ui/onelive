@@ -8,6 +8,14 @@
     "do512-live-music-today",
     "do512-family"
   ],
+  "listing_selectors": [
+    {
+      "tag": "div",
+      "classes": ["ds-listing", "event-card"],
+      "evidence": "fixture_shape",
+      "note": "one listing card on this desk. Read off our OWN committed shape fixture (tests/fixtures/desk_pages/do512-today/), which is SYNTHETIC: egress to do512.com is denied from the build sandbox (curl CONNECT 403, 2026-09-04), so no page of this desk has been read by anyone here and this row states that rather than implying a reading. It is CHECKED, not assumed, on the first authorized live run. Both tokens are required and both are matched WHOLE."
+    }
+  ],
   "category_signals": [
     {
       "how": "href_path",

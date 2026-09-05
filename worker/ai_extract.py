@@ -33,6 +33,7 @@ from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
 from worker.datetime_normalize import preserve_discarded_claims
 from worker.same_page_dates import normalize_extracted_datetimes_with_page
+from worker.locale.kind_map import desk_selectors_for_url
 from worker.segment import segment_events
 
 logger = logging.getLogger(__name__)
@@ -298,7 +299,12 @@ def extract_candidates(
     moved/changed signal AND still records one flagged empty candidate, so the
     source is never silently dropped.
     """
-    blocks = segment_events(text)
+    # A card shape is used only where a human COMMITTED one for that desk
+    # (`sources/kind_maps/*.json`), matched by the host that served this page.
+    # Every other source is segmented by what its own markup declares or by its
+    # date anchors — the class-name guess that used to stand here made events
+    # out of product tiles and nav rails (founder, 2026-09-05).
+    blocks = segment_events(text, desk_selectors=desk_selectors_for_url(source_url))
     # FinOps hard bound (R-043): one real extraction call per block, so cap the
     # calls PER PAGE. Overflow blocks are DEFERRED to a later run + LOGGED loudly,
     # never silently dropped — so a run's total AI spend stays max_sources x cap.
