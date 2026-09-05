@@ -54,9 +54,17 @@ SHIPPED — three things the founder must see, none of them silent:
    `worker/ai_extract.py` importing the resolver, which ADDS `worker/locale/`
    (3 files) to the armed cron's runtime closure, so
    `tests/test_arming_smoke_binding` is red until a fresh green smoke run is
-   recorded. That is a founder question by the Operating Law's own rule. The
-   alternative is a one-line revert of that import, which keeps (c) as a tested
-   capability and lets Do512 (a catalogued crawl source) lose its card split.
+   recorded. That is a founder question by the Operating Law's own rule.
+   CORRECTED at the first CI run on bcf59ab, and the correction matters: this
+   sentence first offered "revert that one import" as a way to avoid the smoke.
+   It is not. `tools/arming_runtime.py` on the BASE commit already lists
+   `worker/segment.py` and `worker/ai_extract.py` in the closure, so Must-do 1 —
+   editing `worker/segment.py` — requires the smoke by itself. The import adds
+   three more files; it does not create the requirement. Reverting it would only
+   turn `golden-exam` green (its refusal names `worker/ai_extract.py` alone, and
+   the classifier prints it NOT manifest-bound: CLAUDE.md's closed exception,
+   class (b), compensated by the adversarial review on this PR) while costing
+   Do512 its card split for nothing.
    Chronicle's crawl row is `www.austinchronicle.com` while the walked door is
    `calendar.austinchronicle.com` — different hosts, so the selector does NOT
    reach the crawl row and no claim is made that it does.
