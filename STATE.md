@@ -12,10 +12,9 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
-## Session Contract #65 (2026-09-05, founder — "union of Chronicle + Do512 only", branch claude/one-live-union-table-iek4dz) — OPEN
+## Session Contract #65 (2026-09-05, founder — "union of Chronicle + Do512 only", branch claude/one-live-union-table-iek4dz) — CLOSED
 
-STATUS: OPEN — built, pushed, PR #226 (draft) open; NOT merged (founder's word
-gates the merge). https://github.com/schubertsean-ui/onelive/pull/226
+STATUS: CLOSED — merged as PR #226 (master 2805bce). https://github.com/schubertsean-ui/onelive/pull/226
 WHAT: ONE happening table across the two desk dumps already on master
 (austin-chronicle-eventsearch + do512-today): unique key, via (Chronicle /
 Do512 / both), kind-or-other, dated-or-not; a board (Chronicle-only |
