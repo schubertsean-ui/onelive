@@ -111,6 +111,76 @@ def capture(door_ids: List[str], *, locale: str, out_dir: str, max_pages: int,
     return manifest
 
 
+
+# --------------------------------------------------------------------------
+# digest — what the captured bytes actually contain
+# --------------------------------------------------------------------------
+
+def digest_page(html: str, *, url: str, pattern: str, samples: int = 12) -> str:
+    """A structural read-out of one captured page.
+
+    This exists because the artifact is not readable from the machine that has
+    to write the parser, and because "I think the page looks like X" is exactly
+    the assumption that produced a reader which collapses 40 pages into one
+    row. Everything printed here is COUNTED from the bytes, never inferred.
+    """
+    from worker.locale.desk_read import _TreeBuilder, _select_rows  # noqa: PLC0415
+
+    rx = re.compile(pattern)
+    builder = _TreeBuilder()
+    builder.feed(html)
+    builder.close()
+    root = builder.root
+
+    def text_of(node) -> str:
+        out = []
+        for child in node.children:
+            if isinstance(child, str):
+                out.append(child)
+            else:
+                out.append(text_of(child))
+        return " ".join(" ".join(out).split())
+
+    anchors = [n for n in root.descendants() if n.tag == "a"]
+    matching = [n for n in anchors if rx.search(n.attrs.get("href") or "")]
+
+    lines = [f"### {url}",
+             f"- bytes: {len(html)}",
+             f"- anchors: {len(anchors)}; matching `{pattern}`: {len(matching)}"]
+
+    ld = html.count("schema.org")
+    lines.append(f"- 'schema.org' mentions in the raw bytes: {ld}")
+
+    rows, tier = _select_rows(html)
+    lines.append(f"- the CURRENT reader selects {len(rows)} row(s) via the "
+                 f"`{tier}` tier")
+
+    if matching:
+        lines.append(f"- first {min(samples, len(matching))} matching links "
+                     f"(href :: link text):")
+        for node in matching[:samples]:
+            lines.append(f"    - `{(node.attrs.get('href') or '')[:110]}` :: "
+                         f"{text_of(node)[:80]!r}")
+        # The ancestor chain of the FIRST match, with how many matching anchors
+        # each level contains. The smallest level containing exactly one is the
+        # listing; anything above it is a wrapper that would swallow the page.
+        lines.append("- ancestor chain of the first matching link "
+                     "(tag.class -> matching anchors contained):")
+        node = matching[0].parent
+        depth = 0
+        while node is not None and node.tag != "#root" and depth < 8:
+            contained = sum(1 for d in node.descendants()
+                            if d.tag == "a" and rx.search(d.attrs.get("href") or ""))
+            cls = (node.attrs.get("class") or "")[:60]
+            lines.append(f"    - `{node.tag}"
+                         f"{('.' + cls.replace(' ', '.')) if cls else ''}` -> {contained}")
+            node = node.parent
+            depth += 1
+    else:
+        lines.append("- NO link on this page matches the pattern. The pattern "
+                     "is wrong, or this desk states identity another way.")
+    return "\n".join(lines)
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--locale", default="us-tx-capcog")
@@ -122,10 +192,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                          "capture, not a crawl")
     ap.add_argument("--timeout", type=int, default=20)
     ap.add_argument("--min-interval", type=float, default=2.0)
+    ap.add_argument("--digest-pattern", default=r"/event/",
+                    help="link shape the digest counts as a listing door")
     args = ap.parse_args(argv)
-    capture(args.doors, locale=args.locale, out_dir=args.out,
-            max_pages=args.max_pages, timeout=args.timeout,
-            min_interval=args.min_interval)
+    manifest = capture(args.doors, locale=args.locale, out_dir=args.out,
+                       max_pages=args.max_pages, timeout=args.timeout,
+                       min_interval=args.min_interval)
+    print("\n## What the captured bytes contain\n")
+    for door_id, info in manifest["doors"].items():
+        print(f"\n## `{door_id}`\n")
+        if not info["pages"]:
+            print("No body was received — nothing to digest. The desk's own "
+                  "answer stands as the finding.")
+            continue
+        for url, name in info["pages"].items():
+            with open(os.path.join(args.out, door_id, name), encoding="utf-8") as fh:
+                print(digest_page(fh.read(), url=url,
+                                  pattern=args.digest_pattern))
+                print()
     return 0
 
 
