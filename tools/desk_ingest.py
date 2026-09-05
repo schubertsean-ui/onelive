@@ -34,7 +34,9 @@ Two guards worth knowing before you run it:
     every unstated time becomes the same NULL and the feed renders every NULL
     as "Date TBA". Three different truths would arrive as one display, so
     `desk_publish` separates them first: no date stated publishes (TBA is
-    true); desks disagreeing about the time publishes and is marked DISPUTED;
+    true); desks disagreeing about the time publishes DISPUTED, labelled by the
+    publisher inside the insert's own transaction rather than by a second write
+    from here;
     a desk that stated the NIGHT and no time is HELD, because saying "date
     unknown" about a date we were given is manufacturing an absence (R-111).
   * Re-running is safe, and it asks TWO questions rather than one. Every
@@ -401,18 +403,18 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
         try:
             event_id = promote(cid)
             if w.clock_disputed:
-                # The desks agree it is ON and disagree about WHEN. Published,
-                # because existence is not in doubt — and marked disputed,
-                # because a bare "Date TBA" beside a `confirmed` label tells a
-                # reader the clock is merely unknown when it is contested.
-                try:
-                    verdict = dispute(event_id)
-                except Exception as exc:  # noqa: BLE001 — fails the run, below
-                    verdict = (f"COULD NOT DISPUTE {event_id} "
-                               f"({type(exc).__name__}: {exc}) — it may read as "
-                               f"confirmed while its desks disagree on the time")
-                    out["dispute_failures"].append((event_id, verdict))
-                out["promoted"].append((w, f"{event_id} ({w.clock_hole}; {verdict})"))
+                # The desks agree it is ON and disagree about WHEN. It publishes
+                # — existence is not in doubt — and `promote_candidate` writes
+                # its confidence as `disputed` in the SAME transaction as the
+                # insert, from the gate's own field-hole finding.
+                #
+                # This tool deliberately does NOT mark it afterwards. A
+                # promote-then-flag pair leaves a window where a contested row
+                # is public and labelled confirmed, and a failure in between
+                # makes that window permanent (evaluator PR #229 r5). "Publish
+                # as disputed or do not publish" is an invariant only the
+                # publisher can hold, so it is held there and asserted here.
+                out["promoted"].append((w, f"{event_id} (disputed at publish: {w.clock_hole})"))
                 continue
             out["promoted"].append((w, event_id))
         except ValueError as exc:

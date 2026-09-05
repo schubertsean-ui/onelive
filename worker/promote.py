@@ -144,9 +144,33 @@ def promote_candidate(candidate_id: str) -> str:
                         "reason": clock_hole,
                         "claims": [str(t) for t in (evidence_signals.get("start_times") or [])],
                         "written_as": None,
+                        "confidence": "disputed",
                     })))
                 start_time = None
                 end_time = None
+                # AND THE ROW SAYS SO (evaluator, PR #229 r5). Nulling the clock
+                # is only half the truth: `web/lib/feed.ts` renders a NULL start
+                # as "Date TBA", which reads as "nobody stated a time" — and
+                # here two sources stated two. Beside a `confirmed` label that
+                # tells a reader the clock is merely unknown when it is
+                # CONTESTED, which is the one thing the four-state model has a
+                # state for. `disputed` is shown as disputed and never hidden
+                # (CLAUDE.md), so the listing keeps its place on the feed and
+                # only our claim about it changes.
+                #
+                # WRITTEN HERE, in the same transaction as the INSERT, because
+                # the alternative is not equivalent: a caller that promoted and
+                # THEN marked the row disputed would leave a window in which a
+                # contested row is public and labelled confirmed, and a failure
+                # in between makes that window permanent. Publish-as-disputed
+                # or do not publish is an invariant only the publisher can hold.
+                #
+                # This is a field-level finding from `evaluate_gate`, never a
+                # source count — `worker/confidence.derive_confidence` keeps its
+                # contract ("never returns 'disputed'") and is deliberately not
+                # touched: the count says how well corroborated the EVENT is,
+                # this says the evidence contradicts itself about a FIELD.
+                confidence = "disputed"
 
             # Identity is unsettled but existence is not (see trust_gate3):
             # record it so ops can see the collision, and publish.

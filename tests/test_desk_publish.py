@@ -831,7 +831,14 @@ def test_a_held_row_is_written_but_never_promoted():
     assert sum(len(result[b]) for b in ingest_tool.ROW_BUCKETS) == len(writes)
 
 
-def test_a_disputed_clock_publishes_and_is_flagged_in_one_step():
+def test_a_contested_clock_is_never_flagged_by_a_SECOND_write():
+    """Evaluator, PR #229 r5. Promoting and THEN marking the row disputed
+    leaves a window in which a contested listing is public and labelled
+    `confirmed`, and a failure in between makes that window permanent. The
+    publisher writes `disputed` inside the same transaction as the insert
+    (`worker/promote.py`), so this tool must NOT write it again — a second
+    answer to the same question is the race, not the fix.
+    """
     one = _union(
         _walk(CHRONICLE, "Austin Chronicle",
               [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="Room")]),
@@ -844,8 +851,10 @@ def test_a_disputed_clock_publishes_and_is_flagged_in_one_step():
         add_evidence=lambda *a: None, promote=lambda cid: "event-new",
         dispute=lambda eid: disputed.append(eid) or "DISPUTED")
     assert len(result["promoted"]) == 1
-    assert disputed == ["event-new"], "the contested clock must be flagged"
-    assert "DISPUTED" in result["promoted"][0][1]
+    assert disputed == [], (
+        "the contested clock is disputed AT PUBLISH; a post-hoc write here "
+        "would re-open the window this invariant exists to close")
+    assert "disputed at publish" in result["promoted"][0][1]
 
 
 # --------------------------------------------------------------------------
@@ -876,10 +885,10 @@ def test_a_failed_dispute_on_a_superseded_row_is_recorded_as_a_run_failure():
         "the failure list is NOT a row bucket — cardinality is unchanged")
 
 
-def test_a_failed_dispute_on_a_contested_clock_is_recorded_as_a_run_failure():
-    """The worse case: the row is newly PUBLIC, with a NULL clock and
-    gate-derived `confirmed`, so a reader sees two desks' disagreement as a
-    settled "Date TBA".
+def test_a_contested_clock_cannot_fail_a_dispute_because_it_never_makes_one():
+    """The r4 failure mode, deleted rather than reported at r5: with the
+    dispute written by the publisher, a dispute call that would fail is never
+    made for a contested clock, so no window and no failure list entry.
     """
     one = _union(
         _walk(CHRONICLE, "Austin Chronicle",
@@ -895,8 +904,10 @@ def test_a_failed_dispute_on_a_contested_clock_is_recorded_as_a_run_failure():
         plan(one, REGS), seen={}, create=lambda **kw: "cand",
         add_evidence=lambda *a: None, promote=lambda cid: "event-new",
         dispute=boom)
-    assert len(result["promoted"]) == 1, "the row IS public — that is the problem"
-    assert result["dispute_failures"][0][0] == "event-new"
+    assert len(result["promoted"]) == 1
+    assert result["dispute_failures"] == [], (
+        "nothing to fail: the contested clock is disputed inside the publish "
+        "transaction, not by a second write from here")
 
 
 def test_a_clean_run_records_no_dispute_failures():

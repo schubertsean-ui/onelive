@@ -514,7 +514,7 @@ def test_a_contested_clock_publishes_disputed_on_the_real_feed(pg, registrations
 
     _t, result = _run(writes, pg=pg)
     assert len(result["promoted"]) == 1, result
-    assert "DISPUTED" in result["promoted"][0][1]
+    assert "disputed at publish" in result["promoted"][0][1]
 
     with pg.cursor() as cur:
         cur.execute("select confidence, start_time, status from event where title=%s",
@@ -523,3 +523,48 @@ def test_a_contested_clock_publishes_disputed_on_the_real_feed(pg, registrations
     assert confidence == "disputed"
     assert start_time is None, "no desk's clock is picked as the winner"
     assert status == "scheduled", "shown as disputed, never withdrawn"
+
+
+def test_a_contested_clock_is_disputed_by_promote_itself_not_by_a_later_write(pg, registrations):
+    """Evaluator, PR #229 r5: "publish as disputed or do not publish" is an
+    invariant only the PUBLISHER can hold. Proven by calling `promote_candidate`
+    directly, with no ingest tool in the picture at all — if the label came
+    from a second write by the walker, this row would read `confirmed`.
+    """
+    import json as _json
+
+    from worker.promote import promote_candidate
+
+    tag = uuid.uuid4().hex[:8]
+    title = f"Publisher Disputes {tag}"
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            insert into event_candidate(
+              source_name, source_class, raw_text, extracted, title, start_time,
+              venue_name, city, status)
+            values (%s,'local_media','raw', %s::jsonb, %s,
+                    now() + interval '3 day', %s, 'Austin', 'needs_review')
+            returning candidate_id
+            """,
+            ("Do512",
+             # A SECOND, different instant in the payload: exactly the shape
+             # `evaluate_gate` reads as irreconcilable start-time claims.
+             _json.dumps({"start_time": "2027-01-01T20:00:00+00:00"}),
+             title, f"Publisher Room {tag}"))
+        cid = str(cur.fetchone()[0])
+        cur.execute(
+            "insert into candidate_evidence(candidate_id, source_class, source_name)"
+            " values (%s,'local_media','Do512')", (cid,))
+
+    event_id = promote_candidate(cid)
+
+    with pg.cursor() as cur:
+        cur.execute("select confidence, start_time, status from event where event_id=%s",
+                    (event_id,))
+        confidence, start_time, status = cur.fetchone()
+    assert confidence == "disputed", (
+        "the publisher must write the contested label itself — a promote that "
+        "returns `confirmed` re-opens the window a later write cannot close")
+    assert start_time is None
+    assert status == "scheduled"

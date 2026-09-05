@@ -50,10 +50,15 @@ it to what the desks actually printed:
     very different truths. So the three are separated HERE, before they
     collapse (evaluator PR #229 r3):
       - no desk stated a date -> publish with NULL. "Date TBA" is exactly true.
-      - desks state DIFFERENT times -> publish, and mark the row `disputed`.
-        The desks agree it is on; they disagree about when, and a reader shown
-        a bare TBA beside `confirmed` has been told the clock is merely unknown
-        when it is contested.
+      - desks state DIFFERENT times -> publish `disputed`. The desks agree it
+        is on; they disagree about when, and a reader shown a bare TBA beside
+        `confirmed` has been told the clock is merely unknown when it is
+        contested. Both instants are passed to the gate as `start_times`
+        EVIDENCE rather than resolved here, so `worker/promote.py` finds the
+        conflict itself and writes the label inside the same transaction as the
+        insert. That ordering is the point: a walker that promoted and then
+        marked the row would leave a window in which a contested listing is
+        public and labelled confirmed (evaluator PR #229 r5).
       - a desk stated the NIGHT and no time -> HOLD as a candidate. Publishing
         would say "we do not know the date" about a date we were given, under
         that desk's masthead; manufacturing an absence is the mirror of
@@ -451,6 +456,15 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         "private_access": {},
         DESK_KEY: desk_note,
     }
+    if clock_disputed:
+        # STATED AS EVIDENCE, NOT RESOLVED INTO A VALUE. `start_time` above is
+        # the hole we publish; this is what we were actually told, and it is
+        # what lets `evaluate_gate` find the conflict for itself and publish
+        # the row `disputed` inside the same transaction as the insert. Without
+        # it the walker would have to mark the row afterwards, which leaves a
+        # window where a contested listing is public and labelled `confirmed`
+        # (evaluator PR #229 r5).
+        extracted["start_times"] = list(clocks)
     if listing_url:
         # Read by worker/identity.py as this listing's own identity — the
         # strongest handle a later source can match against. Not a ticket link.

@@ -306,6 +306,20 @@ def _load_gate_signals(cur, candidate_id: str) -> Tuple[Dict[str, Any], Dict[str
     ex_start = extracted.get("start_time")
     if ex_start:
         start_times.append(str(ex_start))
+    # CLAIMS THE PRODUCER OBSERVED BUT COULD NOT RECONCILE (evaluator, PR #229
+    # r5). The two readings above are the candidate's own single value written
+    # two ways, so a producer that saw a REAL conflict — two sources stating
+    # two instants for one happening — had nowhere to put the second one and
+    # was forced to resolve it before writing. That silently disarmed the very
+    # check this function feeds: `worker/trust_gate3.start_time_claims` exists
+    # to notice exactly that disagreement, and it can only notice what reaches
+    # it. `extracted["start_times"]` is that seat: an optional list of every
+    # instant the producer was told, stated as evidence rather than settled
+    # into a value. Reading it can only ADD claims, so its worst case is the
+    # gate finding a hole it would otherwise have missed — never one fewer.
+    for claim in (extracted.get("start_times") or []):
+        if claim:
+            start_times.append(str(claim))
 
     # Dedupe hint from real stored data: another live candidate naming the same
     # venue at the same start_time is a genuine "two candidates, one slot"
