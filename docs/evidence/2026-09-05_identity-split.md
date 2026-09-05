@@ -209,7 +209,45 @@ Five tests pin this round. The repo's own brand guard
 name in the comment explaining the fix — that guard's remedy text was followed
 rather than the guard worked around.
 
-## 8. Gates
+## 8. Evaluator round 3 — the page's own plumbing
+
+Three of four lenses APPROVE. `attacker-smuggle` found the last one, and it is
+the mirror image of round 1: r1 bounded where a row GROWS, and that is no help
+when the link should never have been a row at all.
+
+```
+<nav><li><a href="/event/foo-1">tickets</a></li></nav>
+<footer><a href="/event/bar-2">Advertise with us</a></footer>
+<aside><a href="/event/baz-3">Sponsored</a></aside>
+```
+
+Reproduced: **three rows**, titled "tickets", "Advertise with us", "Sponsored".
+The `<li>` inside the `<nav>` is row-shaped and holds one identity, so the row
+stopped there — correctly — and published anyway. A same-host permalink in the
+page's plumbing is navigation, whatever it points at, so the LINK is now
+refused, counted (`furniture_skipped`) and reported.
+
+`<header>` and `<footer>` needed care rather than a blanket rule: HTML scopes
+both to their nearest sectioning ancestor, so `<article class="card"><header>`
+is a listing's own title bar. Treating them unconditionally as page structure
+refused real cards; the first cut of this fix did exactly that and dropped the
+venue printed as the header's sibling. Both the refusal and the row bound now
+use the scoped rule (`_is_page_structure`):
+
+```
+furniture only         rows=0 skipped=3
+card <header>          rows=1 skipped=0 -> [('Real Show', 'The Hall')]
+page header + card     rows=1 skipped=1 -> [('Real Show', 'The Hall')]
+```
+
+The NIT all three approving lenses raised was real too: a non-raw docstring
+holding `\d` emitted `SyntaxWarning` on every import (pytest warnings 2 -> 9).
+Fixed, swept across the package, and pinned by a test so the next regex in a
+docstring cannot re-bury the validate output. Warnings are back to 2.
+
+Five tests pin this round; both dry-ingest tables are unchanged.
+
+## 9. Gates
 
 ```
 $ bash tools/validate

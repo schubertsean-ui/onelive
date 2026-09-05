@@ -98,9 +98,18 @@ _VOID_TAGS = frozenset({
 #: Containers that can hold one listing. `time` is not here: it marks a row, it
 #: is not a row.
 _ROW_TAGS = ("li", "article", "tr", "div", "section")
-#: Elements whose meaning is PAGE-level by the HTML spec, not by anyone's CSS
-#: convention. They bound how far a row may grow — see `_has_page_level`.
-_PAGE_LEVEL_TAGS = frozenset({"body", "main", "nav", "header", "footer", "aside", "h1"})
+#: FURNITURE: a link inside one of these is the page's own plumbing, whatever it
+#: points at. `<nav>` and `<aside>` say so unconditionally.
+_FURNITURE_TAGS = frozenset({"nav", "aside"})
+#: `<header>` and `<footer>` are furniture only at PAGE scope. HTML scopes both
+#: to their nearest sectioning ancestor, so `<article class="card"><header>` is
+#: a CARD's header — a normal place for a listing's own title — while
+#: `<body><header>` is the masthead. Reading them unconditionally as furniture
+#: would drop real listings; reading them never would publish the masthead.
+_SCOPED_FURNITURE_TAGS = frozenset({"header", "footer"})
+#: HTML sectioning content, plus the two list/table row elements a card is
+#: built from in practice. What makes a `<header>` belong to a card.
+_SECTIONING_TAGS = frozenset({"article", "section", "aside", "nav", "li", "tr"})
 
 
 class DeskReadError(ValueError):
@@ -176,6 +185,11 @@ class DeskRead:
     #: the report beside the rows it produced, so no table can present a shape
     #: nobody has seen live as one that was observed.
     identity_evidence: List[str] = field(default_factory=list)
+    #: Links matching a committed pattern that sat in the page's own plumbing —
+    #: a nav, a page footer, a sponsored aside — and are therefore not listings
+    #: on this page. Counted, because declining to invent a row is a decision
+    #: and a silent decision is indistinguishable from a bug.
+    furniture_skipped: int = 0
     #: Rows whose stated address was the LIST's own URL (or the site root) and
     #: was therefore dropped to a hole. §2 Forbidden: "Using the list URL as
     #: `listing_url` of a single event." Counted, because zero is the claim this
@@ -265,6 +279,57 @@ def _is_event_itemscope(node: _Node) -> bool:
         _EVENT_ITEMTYPE_RE.search(node.attrs.get("itemtype") or ""))
 
 
+def _in_furniture(anchor: _Node) -> bool:
+    """True when this link sits in the page's own plumbing rather than in a
+    listing.
+
+    A same-host event permalink can appear in a nav ("tickets"), a footer
+    ("Advertise with us"), a sponsored aside — and each would otherwise become a
+    Happening titled from navigation text (evaluator finding, PR #234). Bounding
+    where a row GROWS does not help: the nearest `<li>` inside a `<nav>` is
+    row-shaped and holds one identity, so the row stops there and publishes
+    anyway. The link itself has to be refused.
+
+    Refusing costs a real listing only if a desk publishes one inside its nav or
+    a sponsored aside; that is a hole, and ONE-LIVE-ENTITY-SPLIT-LAW.md prefers a
+    hole to a fabricated row every time. The skip is counted and reported, never
+    silent.
+    """
+    node = anchor.parent
+    while node is not None and node.tag != "#root":
+        if node.tag in _FURNITURE_TAGS:
+            return True
+        if node.tag in _SCOPED_FURNITURE_TAGS and not _inside_sectioning(node):
+            return True
+        node = node.parent
+    return False
+
+
+def _inside_sectioning(node: _Node) -> bool:
+    """True when this element belongs to a card rather than to the page — HTML's
+    own scoping rule for `<header>`/`<footer>`."""
+    parent = node.parent
+    while parent is not None and parent.tag != "#root":
+        if parent.tag in _SECTIONING_TAGS:
+            return True
+        parent = parent.parent
+    return False
+
+
+def _is_page_structure(node: _Node) -> bool:
+    """True when this element IS page structure rather than part of a listing.
+
+    `<header>` and `<footer>` are scoped by HTML to their nearest sectioning
+    ancestor, so the same tag is the masthead in one place and a card's own
+    title bar in another. Reading them unconditionally as page structure stops a
+    row at `<article class="card"><header>` and loses the venue printed as the
+    header's sibling; reading them never lets a row grow through the masthead.
+    """
+    if node.tag in ("body", "main", "h1") or node.tag in _FURNITURE_TAGS:
+        return True
+    return node.tag in _SCOPED_FURNITURE_TAGS and not _inside_sectioning(node)
+
+
 def _has_page_level(node: _Node) -> bool:
     """True when this element contains something the page states as PAGE-level
     structure.
@@ -279,7 +344,7 @@ def _has_page_level(node: _Node) -> bool:
     the mash this module exists to remove, arriving on the pages nobody thinks
     to check.
     """
-    return any(n.tag in _PAGE_LEVEL_TAGS for n in node.descendants())
+    return any(_is_page_structure(n) for n in node.descendants())
 
 
 def _class_tokens(node: _Node) -> frozenset:
@@ -331,7 +396,7 @@ def _identity_of(url: str) -> str:
 
 
 def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPattern],
-                   ) -> List[Tuple[str, _Node, IdentityPattern]]:
+                   ) -> Tuple[List[Tuple[str, _Node, IdentityPattern]], int]:
     """Tier 2 — every link on the page that a COMMITTED pattern says is one
     happening, paired with the smallest element that holds it alone.
 
@@ -363,9 +428,11 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
     # identities when a page on that host is the door being read.
     patterns = patterns_for_url(base_url, patterns)
     if not patterns:
-        return []
+        return [], 0
+    furniture = 0
     anchors: List[Tuple[str, _Node, IdentityPattern]] = []
     beneath: Dict[int, frozenset] = {}
+    nonlocal_furniture = [0]
 
     def visit(node: _Node) -> frozenset:
         found: set = set()
@@ -375,8 +442,11 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
                 url = _identity_of(_absolutize(href, base_url))
                 hit = match_identity(url, patterns)
                 if hit is not None:
-                    found.add(url)
-                    anchors.append((url, node, hit))
+                    if _in_furniture(node):
+                        nonlocal_furniture[0] += 1
+                    else:
+                        found.add(url)
+                        anchors.append((url, node, hit))
         for child in node.children:
             if isinstance(child, _Node):
                 found |= visit(child)
@@ -392,7 +462,7 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
         row = anchor
         node = anchor.parent
         while node is not None and node.tag != "#root":
-            if node.tag in _PAGE_LEVEL_TAGS or beneath.get(id(node)) != alone:
+            if _is_page_structure(node) or beneath.get(id(node)) != alone:
                 # The page around the row, or an element holding a second
                 # identity. Either way the row ends below here.
                 break
@@ -401,7 +471,7 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
                 break
             node = node.parent
         out.append((url, row, hit))
-    return out
+    return out, nonlocal_furniture[0]
 
 
 def _matches_selector(node: _Node, selector: ListingSelector) -> bool:
@@ -879,7 +949,9 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
     html_rows: List[Tuple[Optional[str], _Node]] = []
     html_tier: Optional[str] = None
     if root is not None:
-        permalink_rows = _identity_rows(root, base_url=source_url, patterns=patterns)
+        permalink_rows, furniture_n = _identity_rows(
+            root, base_url=source_url, patterns=patterns)
+        result.furniture_skipped = furniture_n
         if permalink_rows:
             html_tier = "permalink"
             html_rows = [(url, node) for url, node, _ in permalink_rows]
@@ -959,6 +1031,12 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
         result.notes.append(
             f"{result.skipped_untitled} block(s) carried no title text and were "
             f"skipped — counted, never silently dropped")
+    if result.furniture_skipped:
+        result.notes.append(
+            f"{result.furniture_skipped} link(s) matching a committed identity "
+            f"pattern sat in the page's own plumbing (nav / page footer / aside) "
+            f"and are not listings on this page — a link there is navigation, "
+            f"whatever it points at")
     if result.mash_blocked:
         result.notes.append(
             f"{result.mash_blocked} row(s) stated the LIST's own URL as their "

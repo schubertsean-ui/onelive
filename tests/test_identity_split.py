@@ -357,6 +357,71 @@ def test_a_desk_the_table_does_not_cover_is_unsplit_not_mashed():
 
 # --- the committed table itself ----------------------------------------------
 
+# --- the page's own plumbing is not a listing --------------------------------
+
+FURNITURE_PAGE = ('<nav><ul><li><a href="/event/foo-1">tickets</a></li></ul></nav>'
+                  '<footer><a href="/event/bar-2">Advertise with us</a></footer>'
+                  '<aside><a href="/event/baz-3">Sponsored</a></aside>')
+
+
+def test_an_identity_link_in_the_pages_plumbing_is_not_a_happening():
+    """A same-host event permalink in a nav, a page footer or a sponsored aside
+    would otherwise publish a row titled from navigation text — "tickets",
+    "Advertise with us", "Sponsored" (evaluator finding, PR #234). Bounding
+    where a row GROWS does not help: the `<li>` inside the `<nav>` is row-shaped
+    and holds one identity, so the row stops there and publishes anyway."""
+    result = read(door(), FURNITURE_PAGE, patterns=EVENT_PATTERNS)
+    assert result.count == 0
+    assert result.furniture_skipped == 3
+    assert result.unsplit is True
+
+
+def test_the_refusal_is_counted_and_said_out_loud():
+    notes = " ".join(read(door(), FURNITURE_PAGE, patterns=EVENT_PATTERNS).notes)
+    assert "plumbing" in notes and "navigation" in notes
+
+
+def test_a_cards_own_header_is_not_the_pages_header():
+    """HTML scopes <header> to its nearest sectioning ancestor, so
+    `<article class="card"><header>` is a listing's own title bar. Treating it
+    as page structure would refuse the row, or stop it growing and lose the
+    venue printed as the header's sibling."""
+    html = ('<article class="card">'
+            '<header><h3><a href="/event/real-9">Real Show</a></h3></header>'
+            '<time datetime="2026-09-11">Sep 11</time>'
+            '<span class="venue">The Hall</span></article>')
+    result = read(door(), html, patterns=EVENT_PATTERNS)
+    assert result.count == 1
+    row = result.rows[0]
+    assert (row.title, row.place_text, row.when) == (
+        "Real Show", "The Hall", "2026-09-11")
+
+
+def test_the_masthead_is_refused_and_the_card_beside_it_is_kept():
+    html = ('<header><h1>The Desk</h1><a href="/event/mast-1">masthead</a></header>'
+            '<article class="card">'
+            '<header><h3><a href="/event/real-9">Real Show</a></h3></header>'
+            '<span class="venue">The Hall</span></article>')
+    result = read(door(), html, patterns=EVENT_PATTERNS)
+    assert [r.title for r in result.rows] == ["Real Show"]
+    assert result.rows[0].place_text == "The Hall"
+    assert result.furniture_skipped == 1
+
+
+def test_no_reader_module_leaves_an_invalid_escape_in_a_docstring():
+    """A regex in a docstring that is not raw emits SyntaxWarning on every
+    import, which buries real warnings in the validate output."""
+    import warnings
+    for name in ("desk_read.py", "desk_walk.py", "identity_patterns.py", "pack.py"):
+        path = os.path.join(REPO, "worker", "locale", name)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with open(path, encoding="utf-8") as fh:
+                compile(fh.read(), path, "exec")
+        assert [str(c.message) for c in caught
+                if "escape sequence" in str(c.message)] == [], name
+
+
 # --- an event's own subpages are not more events -----------------------------
 
 def test_a_subpage_of_a_permalink_is_not_a_second_happening():

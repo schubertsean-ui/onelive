@@ -84,7 +84,7 @@ class IdentityPattern:
         return host == family or host.endswith("." + family)
 
     def matches_path(self, path: str) -> bool:
-        """True when this pattern names the WHOLE path, not a prefix of it.
+        r"""True when this pattern names the WHOLE path, not a prefix of it.
 
         A committed pattern names a permalink. `/event/foo-123` is a happening;
         `/event/foo-123/comments`, `/events/2026/9/12/name/tickets` and
