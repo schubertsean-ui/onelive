@@ -14,6 +14,7 @@ If a ticket hard-codes Austin Chronicle, CSS class `event|card|listing`, or “o
 | Does the blob-split apply to every site and every search-result page, not just Chronicle? | **Yes.** Identity first, everywhere. |
 | Do we treat venue / artist / people / group / event as distinct objects, then hunt their owned site? | **Yes.** Search and licenses find *who exists*. Owned sites become doors. Happenings attach to those objects. |
 | Does that graph drive both ingestion and display? | **Yes.** Ingest writes nodes and edges. Display reads them. Strings on a card are a fallback, not the model. |
+| Is every input (aggregator or not) a candidate, all categories? | **Yes.** Same spine. Kind is a label. Missing a category is a defect. |
 
 ---
 
@@ -208,6 +209,60 @@ Not “music only.” Not “every category designed.”
 - Happenings on Tonight are **individual**, each with a real listing URL or a stated hole.  
 - Places and Actors in the universe grow from desks **and** licenses/search, bucketed (fetch / follow / claim / mail / blocked / unknown).  
 - Owned doors appear where public evidence supports them; desks still credit `via`.  
-- A friend opening Tonight can decide: who, where, when, via, next step — then leave.
+- A friend opening Tonight can decide: who, where, when, via, next step — then leave.  
+- A mixed Chronicle page (concert + market + lecture + kids) yields **all** of those Happenings, each labeled — not music-only and not one blob.
 
 Friends stay off until the list itself has moved (Vision). Ticket B is what moves the list.
+
+---
+
+## 8. Every input is a candidate — categories are labels, not filters
+
+**Every inbound page, feed, claim, mail, license row, civic list, and search-found URL is a candidate for this process.** Aggregator or not. Music venue or school board. Same spine.
+
+| Input | Role | What we extract |
+|---|---|---|
+| Local desk / aggregator (Chronicle, Do512, KUT, tourism) | Trusted door for Happenings | **All** listings the page declared, every kind |
+| Official Place/Actor site | Best door when proven owned | Their calendar, every activity they printed |
+| ICS / JSON-LD / licensed feed | Structured Happenings | Every Event/VEVENT node |
+| License / civic / search | Universe of Place/Actor | Who exists — not Tonight by itself |
+| Claim / forwarded mail | First-party Happenings | What they handed over |
+| Unofficial social | Hunt trigger only | Not a Happening until a trusted door or path (b) |
+
+There is no “music ingest” and “everything else later.” Music in CAPCOG proves the **pipes**. Coverage Law’s minimum set rides the same pipes, same tick, or fast-flex immediately behind a pipe that just worked (Vision: no category weighting).
+
+### Our kinds (minimum set — extend, do not collapse)
+
+From Coverage Law §7. Unknown stays **other**, a real bucket, never a trash can.
+
+- Live music  
+- Nightlife / DJ / dance  
+- Comedy / spoken word  
+- Theater / performance  
+- Sports / spectacle  
+- Markets / fairs  
+- Food / tasting / pop-up  
+- Outdoors / parks / trails events  
+- Family / kids  
+- Civic / government / school  
+- Lectures / ideas  
+- Faith / community  
+- Volunteer / mutual aid  
+- Classes / workshops  
+- Other  
+
+### How kind is set (never guessed)
+
+1. The **desk’s own category words**, mapped by committed kind_map (`Live Music` → live music). Unmapped words stay `other` and are reported so the map can be completed from *their* taxonomy.  
+2. Else the **door’s declared scope** (KUTX concert calendar → music for everything behind it).  
+3. Else **other**.  
+
+Forbidden: reading “Comedy Night” out of a title and weighting comedy. Forbidden: dropping church, kids, markets, lectures because the proving ground is music. Forbidden: a feed that groups by a closed domain list and silently omits unknown kinds (unknown must fold into Other so N of M still sums).
+
+Views may filter by kind. The catalog keeps every legally seen activity. Missing a category is a defect. “Not on brand” is not a reject.
+
+### What “all possible activities” means on one page
+
+The split ladder runs **once per page**, not once per kind. A Chronicle EventSearch page that mixes concerts, markets, lectures, and kids events yields **one Happening per identity**, each with its mapped kind (or other). We do not take only the music cards. We do not mash the rest.
+
+Same for a church `/events`, a parks calendar, a MeetUp public list, a restaurant’s “what’s on,” a university Localist, a license list that later gets an owned site: one process, all activities they declared.
