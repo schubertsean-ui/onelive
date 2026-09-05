@@ -593,8 +593,9 @@ def test_one_source_cannot_manufacture_a_contested_clock(pg, registrations):
                     now() + interval '4 day', %s, 'Austin', 'needs_review')
             returning candidate_id
             """,
-            (_json.dumps({"start_times": ["2027-01-01T20:00:00+00:00",
-                                          "2027-01-01T23:00:00+00:00"]}),
+            (_json.dumps({"start_times": [
+                {"source": "Do512", "at": "2027-01-01T20:00:00+00:00"},
+                {"source": "Do512", "at": "2027-01-01T23:00:00+00:00"}]}),
              title, f"Single Room {tag}"))
         cid = str(cur.fetchone()[0])
         # ONE evidence row: one source, however many instants it lists.
@@ -619,3 +620,59 @@ def test_one_source_cannot_manufacture_a_contested_clock(pg, registrations):
             "select count(*) from audit_log where entity_id=%s "
             "and action='promote_unsourced_clock_claims'", (cid,))
         assert cur.fetchone()[0] == 1, "the unsourced claim must be recorded"
+
+
+def test_a_clock_claim_from_a_source_with_no_evidence_row_is_not_counted(pg, registrations):
+    """Evaluator, PR #229 r7. Counting the candidate's evidence rows and then
+    trusting the whole list was too coarse: a candidate that happens to have
+    two rows could carry an instant attributed to nobody. Each claim must name
+    a source that has an evidence row HERE, and the conflict must span two
+    DISTINCT such sources.
+    """
+    import json as _json
+
+    from worker.promote import promote_candidate
+
+    tag = uuid.uuid4().hex[:8]
+    title = f"Unbound Claim {tag}"
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            insert into event_candidate(
+              source_name, source_class, raw_text, extracted, title, start_time,
+              venue_name, city, status)
+            values ('Do512','local_media','raw', %s::jsonb, %s,
+                    now() + interval '5 day', %s, 'Austin', 'needs_review')
+            returning candidate_id
+            """,
+            (_json.dumps({"start_times": [
+                {"source": "Do512", "at": "2027-02-02T20:00:00+00:00"},
+                # A source nobody recorded: no evidence row names it.
+                {"source": "Somebody Who Never Wrote Evidence",
+                 "at": "2027-02-02T23:00:00+00:00"}]}),
+             title, f"Unbound Room {tag}"))
+        cid = str(cur.fetchone()[0])
+        # TWO evidence rows, so the r6 count-based guard would have passed —
+        # but only ONE of them is named by a claim.
+        for name in ("Do512", "Austin Chronicle Events"):
+            cur.execute(
+                "insert into candidate_evidence(candidate_id, source_class, source_name)"
+                " values (%s,'local_media',%s)", (cid, name))
+
+    event_id = promote_candidate(cid)
+
+    with pg.cursor() as cur:
+        cur.execute("select confidence, start_time from event where event_id=%s",
+                    (event_id,))
+        confidence, start_time = cur.fetchone()
+    assert confidence == "confirmed", (
+        "an instant attributed to a source with no evidence row must not "
+        "contest anything")
+    assert start_time is not None
+    with pg.cursor() as cur:
+        cur.execute(
+            "select payload->>'bound_to_evidence' from audit_log where entity_id=%s "
+            "and action='promote_unsourced_clock_claims'", (cid,))
+        bound = cur.fetchone()
+    assert bound is not None, "the refusal is recorded, never silent"
+    assert "Do512" in bound[0] and "Never Wrote Evidence" not in bound[0]

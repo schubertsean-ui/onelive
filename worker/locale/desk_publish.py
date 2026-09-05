@@ -54,9 +54,11 @@ it to what the desks actually printed:
         is on; they disagree about when, and a reader shown a bare TBA beside
         `confirmed` has been told the clock is merely unknown when it is
         contested. Both instants are passed to the gate as `start_times`
-        EVIDENCE rather than resolved here, so `worker/promote.py` finds the
-        conflict itself and writes the label inside the same transaction as the
-        insert. That ordering is the point: a walker that promoted and then
+        EVIDENCE rather than resolved here — each ATTRIBUTED to the desk that
+        stated it, so the publisher can check every claim against a real
+        evidence row before letting it null a clock — and `worker/promote.py`
+        finds the conflict itself, writing the label inside the same
+        transaction as the insert. That ordering is the point: a walker that promoted and then
         marked the row would leave a window in which a contested listing is
         public and labelled confirmed (evaluator PR #229 r5).
       - a desk stated the NIGHT and no time -> HOLD as a candidate. Publishing
@@ -495,7 +497,20 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         # it the walker would have to mark the row afterwards, which leaves a
         # window where a contested listing is public and labelled `confirmed`
         # (evaluator PR #229 r5).
-        extracted["start_times"] = list(clocks)
+        #
+        # EACH CLAIM NAMES ITS SOURCE (evaluator PR #229 r6/r7). A bare list of
+        # instants says "these were claimed" and nothing about BY WHOM, so the
+        # publisher could only count evidence rows and hope the two matched. A
+        # claim is attributed here, to the registry name the evidence row is
+        # written under, and `worker/promote.py` keeps only the claims whose
+        # source actually has one — so a conflict has to be sourced twice over
+        # before it can null a real clock and stamp a row `disputed`.
+        extracted["start_times"] = [
+            {"source": registrations[m.via].source_name, "at": m.row.when}
+            for m in row.members
+            if m.row.when and m.row.when_precision == "datetime"
+            and m.via in registrations
+        ]
     if listing_url:
         # Read by worker/identity.py as this listing's own identity — the
         # strongest handle a later source can match against. Not a ticket link.

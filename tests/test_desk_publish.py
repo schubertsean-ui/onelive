@@ -977,3 +977,30 @@ def test_every_watched_field_is_classified_as_one_or_the_other():
     from worker.locale.desk_publish import CONTRADICTING, CORROBORATING, WATCHED
     assert set(CONTRADICTING) | set(CORROBORATING) == set(WATCHED)
     assert not (set(CONTRADICTING) & set(CORROBORATING))
+
+
+def test_each_contested_clock_claim_names_the_desk_that_stated_it():
+    """Evaluator, PR #229 r7. A bare list of instants says "these were claimed"
+    and nothing about BY WHOM, so the publisher could only count evidence rows
+    and hope they matched. Attribution is what lets it check each claim.
+    """
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+    claims = write_for(one.rows[0], REGS, mode="LIVE").extracted["start_times"]
+    assert claims == [
+        {"source": "Austin Chronicle Events", "at": "2026-09-12T20:00:00-05:00"},
+        {"source": "Do512", "at": "2026-09-12T21:30:00-05:00"},
+    ]
+    assert {c["source"] for c in claims} == {r.source_name for r in REGS.values()}, (
+        "every claim's source must be a REGISTRY name — the same string the "
+        "evidence row is written under, or the publisher cannot match them")
+
+
+def test_an_uncontested_row_states_no_clock_claims_at_all():
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Solo", when="2026-09-12T20:00:00-05:00")]))
+    assert "start_times" not in write_for(one.rows[0], REGS, mode="LIVE").extracted

@@ -137,16 +137,28 @@ def promote_candidate(candidate_id: str) -> str:
             # `add_evidence`, the same table this function already trusts for
             # `source_classes` — and one source cannot contest itself no matter
             # how many instants its payload lists.
-            stated = [str(c) for c in (extracted.get("start_times") or []) if c]
-            if stated:
+            claimed = [c for c in (extracted.get("start_times") or [])
+                       if isinstance(c, dict) and c.get("source") and c.get("at")]
+            if claimed:
+                # PER CLAIM, NOT PER CANDIDATE (evaluator PR #229 r7). Counting
+                # the candidate's evidence rows and then trusting the whole list
+                # was too coarse: any candidate that happened to have two rows
+                # could carry an unsourced instant into the gate. Each claim
+                # must name a source that actually has an evidence row HERE, and
+                # a conflict must then span two DISTINCT such sources — a source
+                # cannot contest itself, and a source nobody recorded cannot
+                # contest anyone.
                 cur.execute(
-                    "select count(distinct coalesce(source_name, source_class)) "
+                    "select distinct coalesce(source_name, source_class) "
                     "from candidate_evidence where candidate_id=%s", (candidate_id,))
-                independent = int(cur.fetchone()[0])
-                if independent >= 2:
+                evidenced = {r[0] for r in cur.fetchall() if r[0]}
+                bound = [c for c in claimed if c["source"] in evidenced]
+                sources = {c["source"] for c in bound}
+                if len(sources) >= 2:
                     evidence_signals = dict(evidence_signals)
                     evidence_signals["start_times"] = (
-                        list(evidence_signals.get("start_times") or []) + stated)
+                        list(evidence_signals.get("start_times") or [])
+                        + [str(c["at"]) for c in bound])
                 else:
                     # Recorded rather than dropped in silence: a producer that
                     # claims a conflict it cannot source is a defect worth
@@ -157,11 +169,15 @@ def promote_candidate(candidate_id: str) -> str:
                         values ('system','promote_unsourced_clock_claims','candidate',%s,%s::jsonb)
                         """,
                         (candidate_id, json.dumps({
-                            "claims": stated,
-                            "independent_evidence_sources": independent,
+                            "claims": claimed,
+                            "bound_to_evidence": [c["source"] for c in bound],
+                            "evidenced_sources": sorted(evidenced),
                             "ignored_because": (
-                                "a contested clock needs two or more sources to "
-                                "contest it; one source cannot contest itself"),
+                                "every clock claim must name a source with an "
+                                "evidence row on this candidate, and a contested "
+                                "clock needs two DISTINCT such sources; a source "
+                                "cannot contest itself and an unrecorded source "
+                                "cannot contest anyone"),
                         })))
 
             verdict = assert_promotable(
