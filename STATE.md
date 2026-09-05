@@ -14,7 +14,8 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #65 (2026-09-05, founder — "union of Chronicle + Do512 only", branch claude/one-live-union-table-iek4dz) — OPEN
 
-STATUS: OPEN — building.
+STATUS: OPEN — built, pushed, PR #226 (draft) open; NOT merged (founder's word
+gates the merge). https://github.com/schubertsean-ui/onelive/pull/226
 WHAT: ONE happening table across the two desk dumps already on master
 (austin-chronicle-eventsearch + do512-today): unique key, via (Chronicle /
 Do512 / both), kind-or-other, dated-or-not; a board (Chronicle-only |
