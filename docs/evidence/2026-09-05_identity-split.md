@@ -124,7 +124,41 @@ full error text at the fetcher, before truncation
 (`tools/desk_coverage.py::live_fetcher`, `PageFetch.walled`), with a test that
 only passes while the displayed reason IS truncated.
 
-## 6. Gates
+## 6. Evaluator round 1 — a real defect, in my own fix
+
+`adversarial-review` (GPT-5.5, `attacker-smuggle` lens) returned REQUEST-CHANGES
+on `worker/locale/desk_read.py:343`: the permalink rung climbed past the card to
+the OUTERMOST row-shaped ancestor holding that identity alone. On a page
+declaring ONE identity — a filtered page, a last page — no second identity is
+there to stop the climb, so the row grew to the page wrapper.
+
+Reproduced before fixing, on one such page:
+
+```
+rows: 1
+  title:       'Promoted Events The Only Event'      <- the page heading, concatenated
+  place_text:  'The Hall'
+  listing_url: https://desk.test/event/only-one-1
+```
+
+That is this law's own mash, arriving on the pages nobody thinks to check. The
+row is now the NEAREST row-shaped ancestor that declares this identity alone and
+holds no page-level structure (`main`, `nav`, `header`, `footer`, `aside`, `h1`
+— HTML's own page-level elements, not anyone's CSS convention); when none
+qualifies, the anchor itself is the row, with honest holes. Same page after:
+
+```
+title: 'The Only Event' | place: 'The Hall' | when: 2026-09-11T20:00
+```
+
+Pinned by `test_a_page_declaring_ONE_identity_is_read_from_its_card_not_its_wrapper`
+and `test_a_row_never_grows_to_hold_page_level_structure`. The dry-ingest tables
+are unchanged by the fix — it touches only where a permalink row ENDS.
+
+The other three panel lenses (`absence-only`, `dataflow-taint`,
+`spec-vs-contract`) returned APPROVE on the same head.
+
+## 7. Gates
 
 ```
 $ bash tools/validate

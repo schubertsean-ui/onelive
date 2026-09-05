@@ -97,6 +97,9 @@ _VOID_TAGS = frozenset({
 #: Containers that can hold one listing. `time` is not here: it marks a row, it
 #: is not a row.
 _ROW_TAGS = ("li", "article", "tr", "div", "section")
+#: Elements whose meaning is PAGE-level by the HTML spec, not by anyone's CSS
+#: convention. They bound how far a row may grow — see `_has_page_level`.
+_PAGE_LEVEL_TAGS = frozenset({"body", "main", "nav", "header", "footer", "aside", "h1"})
 
 
 class DeskReadError(ValueError):
@@ -261,6 +264,23 @@ def _is_event_itemscope(node: _Node) -> bool:
         _EVENT_ITEMTYPE_RE.search(node.attrs.get("itemtype") or ""))
 
 
+def _has_page_level(node: _Node) -> bool:
+    """True when this element contains something the page states as PAGE-level
+    structure.
+
+    A listing card never contains a `<main>`, a `<nav>`, a page `<header>` or
+    `<footer>`, or the page's `<h1>`. An element that does is the page AROUND
+    the row, not the row. This is the bound that holds when the page declares
+    only ONE identity and there is no second identity to stop the walk upward
+    (evaluator finding, PR #234): without it a filtered page or a last page —
+    one event link, one wrapper — is read from the wrapper, and `_row_fields`
+    publishes the page heading concatenated onto the event's own title. That is
+    the mash this module exists to remove, arriving on the pages nobody thinks
+    to check.
+    """
+    return any(n.tag in _PAGE_LEVEL_TAGS for n in node.descendants())
+
+
 def _class_tokens(node: _Node) -> frozenset:
     """The element's class attribute as WHOLE tokens.
 
@@ -308,10 +328,18 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
 
     The pairing is what makes this a split rather than a link list: a card's
     title, its date, its venue and its category are siblings of the permalink,
-    so the row is the nearest ancestor whose whole subtree declares this
-    identity and no other. When there is no such ancestor (a bare list of
-    links), the anchor itself is the row — a title and a listing URL and honest
-    holes everywhere else, which is a row this pipeline is built to carry.
+    so the row is the NEAREST row-shaped ancestor that declares this identity
+    and no other and holds no page-level structure. Nearest, and only one, is
+    the point: growing the row to the outermost such ancestor reads a
+    single-identity page from its own wrapper and concatenates the page heading
+    onto the event's title (evaluator finding, PR #234).
+
+    When no ancestor qualifies — a bare list of links, a card built from tags
+    this module does not treat as row-shaped — the anchor itself is the row: a
+    title, a listing URL, and honest holes everywhere else. That is a row this
+    pipeline is built to carry, and it is the direction to be wrong in: a hole
+    is a hole, while a too-large row publishes somebody else's words as this
+    happening's.
     """
     if not patterns:
         return []
@@ -343,10 +371,13 @@ def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPat
         row = anchor
         node = anchor.parent
         while node is not None and node.tag != "#root":
-            if beneath.get(id(node)) != alone:
+            if node.tag in _PAGE_LEVEL_TAGS or beneath.get(id(node)) != alone:
+                # The page around the row, or an element holding a second
+                # identity. Either way the row ends below here.
                 break
-            if node.tag in _ROW_TAGS:
+            if node.tag in _ROW_TAGS and not _has_page_level(node):
                 row = node
+                break
             node = node.parent
         out.append((url, row, hit))
     return out

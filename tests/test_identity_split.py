@@ -290,6 +290,44 @@ def test_a_container_scoped_selector_leaves_the_site_navigation_alone():
         "Republic Square Market", "Trailside Market"]
 
 
+SINGLE_IDENTITY_PAGE = """<!doctype html><html><body>
+<header><h1>The Desk — Events</h1><nav><a href="/">Home</a></nav></header>
+<div class="content">
+  <h2>Promoted Events</h2>
+  Back To The Ranch Sat 8pm ~ Late Set Sun 10pm ~ Kids Story Hour Sun 10am
+  <div class="card"><h3><a href="/event/only-one-1">The Only Event</a></h3>
+    <time datetime="2026-09-11T20:00">Fri Sep 11</time>
+    <span class="venue">The Hall</span></div>
+</div></body></html>"""
+
+
+def test_a_page_declaring_ONE_identity_is_read_from_its_card_not_its_wrapper():
+    """A filtered page or a last page states one event link. With no second
+    identity to bound the row, growing it to the outermost wrapper reads the
+    page heading as part of the event's title — the mash, arriving on the pages
+    nobody thinks to check (evaluator finding, PR #234). Before the fix this
+    row's title was 'Promoted Events The Only Event'.
+    """
+    result = read(door(), SINGLE_IDENTITY_PAGE, patterns=EVENT_PATTERNS)
+    assert result.count == 1
+    row = result.rows[0]
+    assert row.title == "The Only Event"
+    assert row.place_text == "The Hall"
+    assert row.when == "2026-09-11T20:00"
+    assert row.listing_url == "https://desk.test/event/only-one-1"
+
+
+def test_a_row_never_grows_to_hold_page_level_structure():
+    """The bound is HTML's own page-level elements, not anyone's CSS: a card
+    never contains a <main>, a <nav>, a page <header>/<footer>, or the <h1>."""
+    html = ('<div class="wrap"><nav><a href="/x">nav</a></nav>'
+            '<h2>Section heading</h2>'
+            '<a href="/event/bare-7">Bare Link Event</a></div>')
+    row = read(door(), html, patterns=EVENT_PATTERNS).rows[0]
+    assert row.title == "Bare Link Event"
+    assert "Section heading" not in (row.title or "")
+
+
 def test_one_identity_stated_by_two_anchors_in_one_card_is_one_row():
     html = ('<div class="row"><a href="/event/foo-1"><img></a>'
             '<h3><a href="/event/foo-1">Foo at the Hall</a></h3>'
