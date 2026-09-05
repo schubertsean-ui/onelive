@@ -14,7 +14,16 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 
 ## Session Contract #67 (2026-09-05, founder — "live publish path that does not need the founder", branch claude/desk-catalog-scheduled-publish-r23us2) — OPEN
 
-STATUS: OPEN — built; PR open, NOT merged (the founder's word gates the merge).
+STATUS: OPEN — built; PR #232 (draft) open, NOT merged (the founder's word gates
+the merge). https://github.com/schubertsean-ui/onelive/pull/232
+TWO FOUNDER DECISIONS ARE IN THE PR BODY and nothing proceeds without them:
+(1) the write=true run is HELD — master lacks the front-door guard, so the only
+row it would publish is the fabricated composite the runner printed; (2) Do512
+refuses the runner, so the armed check is red every 6h until (a) leave it red,
+(b) drop the door from the schedule [recommended], or (c) authorise the fetch
+worker. Arming also needs the `onelive-desk-ingest` healthchecks check and the
+`DESK_INGEST_PING_URL` secret; until they exist every SCHEDULED run fails closed
+at the dead-man assertion and manual dispatch is untouched.
 Ground truth at open: master tip `8a4d1ff` — PR #229 (the desks write) is MERGED,
 so `tools/desk_ingest.py` is the live write seam and this contract arms it.
 WHAT: desks reach the catalog on a schedule from infrastructure allowed to fetch:
