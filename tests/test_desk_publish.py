@@ -12,6 +12,7 @@ constructed here; the three DB seams are injected as plain functions.
 """
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import os
 
@@ -1123,6 +1124,29 @@ def test_a_front_door_row_is_still_written_as_a_candidate():
     write = _front_door_write("https://www.austinchronicle.com")
     assert write.ingest_key and write.evidence
     assert write.source_name == "Austin Chronicle Events"
+
+
+def test_the_door_the_walk_started_at_is_held():
+    """The Chronicle's calendar lives on its own subdomain, so the door the
+    walk enters by is neither the bare origin nor the catalog's base_url — a
+    row keyed at it would have slipped both other tests."""
+    door = "https://calendar.austinchronicle.com/austin/EventSearch?sortType=date&v=g"
+    regs = dict(REGS)
+    regs["Austin Chronicle"] = dataclasses.replace(regs["Austin Chronicle"],
+                                                   door_url=door)
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Everything On This Page",
+             listing_url="https://calendar.austinchronicle.com/austin/EventSearch")]))
+    write = write_for(one.rows[0], regs, mode="LIVE")
+    assert write.hold_reason and "door this walk started at" in write.hold_reason
+
+
+def test_the_real_door_url_is_carried_from_the_pack_not_typed_here(doors, catalog):
+    """The door_url must come from the locale pack the walk actually uses, or
+    the check above compares against a string nobody walks."""
+    reg = registration_for(doors[CHRONICLE], catalog)
+    assert reg.door_url == doors[CHRONICLE].url
+    assert reg.door_url.startswith("https://")
 
 
 def test_the_events_index_itself_is_held():

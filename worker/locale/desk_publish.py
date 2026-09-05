@@ -132,6 +132,12 @@ class DeskRegistration:
     source_class: str
     base_url: str
     catalog_id: str
+    #: The door the walk actually started at — the desk's list page. Carried so
+    #: `front_door_reason` can recognise it: a happening's own address is never
+    #: the door we walked in through. Defaulted so the many places that build a
+    #: registration by hand (tests, fixtures) keep working, and an empty one
+    #: simply matches nothing rather than matching everything.
+    door_url: str = ""
 
 
 def _host(url: str) -> str:
@@ -198,6 +204,7 @@ def registration_for(door: Door, catalog: Sequence[Mapping[str, Any]]) -> DeskRe
         source_class=source_class,
         base_url=str(row.get("base_url") or ""),
         catalog_id=str(row.get("id") or ""),
+        door_url=str(door.url or ""),
     )
 
 
@@ -464,6 +471,15 @@ def front_door_reason(listing_url: Optional[str],
     are HELD, not dropped: the candidate and its evidence are written, so the
     row is in the store and in the ops queue where a person can see what the
     walk actually read. Nothing is deleted and nothing publishes.
+
+    WHAT THIS DOES NOT CATCH, stated so nobody reads it as more than it is:
+    three identities are recognised — the bare origin, the catalog's own
+    `base_url`, and the door the walk started at. A composite row keyed at some
+    OTHER page of the same pagination would still pass. Closing that needs the
+    walk's visited-page URLs threaded down to here, which is a change to a
+    shared structure and its own ticket; the reader that produces composites at
+    all is R-114. This function narrows the hole to the shape that was actually
+    observed, and it fails in the safe direction on every shape it does see.
     """
     url = (listing_url or "").strip()
     if not url:
@@ -479,12 +495,14 @@ def front_door_reason(listing_url: Optional[str],
                 f"publish a happening nobody is holding. Held as a candidate: "
                 f"the desk needs a reader that keys each listing")
     if registration is not None:
-        base = _document_key(registration.base_url)
-        if base is not None and base == key:
-            return (f"this row's identity is {url}, which IS the desk's own "
-                    f"events index in the catalog ({registration.base_url}) — "
-                    f"the list, not anything on it. Held as a candidate rather "
-                    f"than published as a happening")
+        for label, other in (("events index in the catalog", registration.base_url),
+                             ("door this walk started at", registration.door_url)):
+            if not other:
+                continue
+            if _document_key(other) == key:
+                return (f"this row's identity is {url}, which IS the desk's own "
+                        f"{label} ({other}) — the list, not anything on it. Held "
+                        f"as a candidate rather than published as a happening")
     return None
 
 
