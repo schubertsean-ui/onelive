@@ -80,6 +80,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt
 
+      - name: Walk the desks dry on THIS ref's reader
+        if: ${{ github.event_name == 'pull_request' || inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
+        env:
+          IN_DOORS: ${{ inputs.doors || 'austin-chronicle-eventsearch do512-today' }}
+          # Small on purpose: this proves what the reader DOES with real pages,
+          # and it is a live third-party request on every run.
+          IN_MAX_PAGES: ${{ inputs.max_pages || '3' }}
+        run: |
+          set -euo pipefail
+          : "${IN_DOORS:?dispatch input 'doors' is empty}"
+          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
+          args=(--real --dry-run --city Austin --hours 168 --max-pages "$IN_MAX_PAGES")
+          for door in $IN_DOORS; do
+            args+=(--door "$door")
+          done
+          python3 tools/desk_ingest.py "${args[@]}" | tee dry-walk-report.md
+
       - name: Capture the bytes the desks serve
         if: ${{ github.event_name == 'pull_request' || inputs.mode == 'capture' || inputs.mode == 'both' }}
         env:
@@ -97,23 +114,6 @@ jobs:
             args+=(--door "$door")
           done
           python3 tools/desk_capture.py "${args[@]}" | tee capture-report.md
-
-      - name: Walk the desks dry on THIS ref's reader
-        if: ${{ github.event_name == 'pull_request' || inputs.mode == 'dry-walk' || inputs.mode == 'both' }}
-        env:
-          IN_DOORS: ${{ inputs.doors || 'austin-chronicle-eventsearch do512-today' }}
-          # Small on purpose: this proves what the reader DOES with real pages,
-          # and it is a live third-party request on every run.
-          IN_MAX_PAGES: ${{ inputs.max_pages || '3' }}
-        run: |
-          set -euo pipefail
-          : "${IN_DOORS:?dispatch input 'doors' is empty}"
-          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
-          args=(--real --dry-run --city Austin --hours 168 --max-pages "$IN_MAX_PAGES")
-          for door in $IN_DOORS; do
-            args+=(--door "$door")
-          done
-          python3 tools/desk_ingest.py "${args[@]}" | tee dry-walk-report.md
 
       - name: Put the reports in the run summary
         if: always()
