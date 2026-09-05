@@ -15,6 +15,7 @@ If a ticket hard-codes Austin Chronicle, CSS class `event|card|listing`, or “o
 | Do we treat venue / artist / people / group / event as distinct objects, then hunt their owned site? | **Yes.** Search and licenses find *who exists*. Owned sites become doors. Happenings attach to those objects. |
 | Does that graph drive both ingestion and display? | **Yes.** Ingest writes nodes and edges. Display reads them. Strings on a card are a fallback, not the model. |
 | Is every input (aggregator or not) a candidate, all categories? | **Yes.** Same spine. Kind is a label. Missing a category is a defect. |
+| Must ingest/display feed Heartbeat and diagnostics? | **Yes.** Graph writes are feedstock. Metrics never rank. No PII. No vendor until you say. |
 
 ---
 
@@ -168,7 +169,7 @@ A mashed blob cannot do any of this. That is why split is a display requirement,
 
 Trust copy: ordinary rows presumed listed by a trusted door — no per-row “verified” stamp. Path (b) only (independent people, no official word) wears the at-a-glance warning on card **and** detail. Disputed stays shown.
 
-Privacy: Place/Actor/Happening are catalog. Night-out plans stay on device. Heartbeat is aggregates on locale × period × category, never itineraries.
+Privacy: Place/Actor/Happening are catalog. Night-out plans stay on device. Heartbeat is aggregates on locale × period × category, never itineraries. **The ingest graph is the feedstock** — see §9.
 
 ---
 
@@ -185,6 +186,7 @@ Bar: WORLD_CLASS.md §0–§5 + this file. Small CLs. Tests that can fail. Disk 
 | **C — Place/Actor from listings** | Happening rows attach Place/Actor ids from **stated** names; fail-closed resolve. Display can show Place as a link even if hunt has not run. | No owned-site HTTP yet. No merge on name-only. |
 | **D — owned-site hunt** | Finder job, budgeted, one knock, owned-door evidence rules §3.4. | No login. No publishing from search snippets. No telling a venue “we have your calendar.” |
 | **E — display consumes graph** | Card/detail/adjacent from Place/Actor, not concatenated list text. | No Tonight redesign-as-scope-creep; only what the graph already enables. |
+| **F — pulse snapshot** | Nightly locale × kind × supply_n × unresolved_n from the graph. Mash/unsplit counters on every list tick. | No analytics vendor. No PII. No ranking. |
 
 ### Operating rules for agents
 
@@ -266,3 +268,92 @@ Views may filter by kind. The catalog keeps every legally seen activity. Missing
 The split ladder runs **once per page**, not once per kind. A Chronicle EventSearch page that mixes concerts, markets, lectures, and kids events yields **one Happening per identity**, each with its mapped kind (or other). We do not take only the music cards. We do not mash the rest.
 
 Same for a church `/events`, a parks calendar, a MeetUp public list, a restaurant’s “what’s on,” a university Localist, a license list that later gets an owned site: one process, all activities they declared.
+
+---
+
+## 9. Heartbeat + diagnostics — the graph is the feedstock
+
+**Code that writes Happenings, Places, Actors, or Doors must also write the facts Heartbeat and ops diagnostics need.** Analytics is not a later bolt-on. A mashed blob cannot be sliced. That is another reason split is law.
+
+One measurement engine, two faces (`docs/strategy/ONE_LIVE_ANALYTICS_METRICS_v1.md`):
+
+| Face | Who it serves | What it answers |
+|---|---|---|
+| **Internal** | Us — rebuilds, repairs, Kaizen, cost, coverage holes | Did this door mash? Did extract invent a date? Is the tick over budget? Which kind is empty in this locale? |
+| **External (Heartbeat)** | Cities, orgs, artists — **aggregates only** | What is on in this locale × period × kind? How is supply moving (ITR 3/12, 6/12, 12/12)? |
+
+Same spine. Same honesty floor. Metrics **never rank** the feed.
+
+### 9.1 Grain we must be able to roll up (Vision pulse, preserved)
+
+Every published Happening carries keys so a nightly (or per-tick) rollup can emit:
+
+- `locale_id` × `period` × `kind` (and optional sub-kind)  
+- `supply_n` — Happenings in catalog for that slice  
+- `view_n` — anonymous impressions (usage face; needs tracking plan)  
+- `exit_n` — clicks out to a specialist  
+- `sample_n` — sample opens  
+- `unresolved_n` — dateless or no-door (quality of the map)  
+- **no** `user_id`, message body, companion list, or itinerary on pulse rows  
+
+Anonymous counters may exist without an account. Linking a counter to a person is explicit-OK, later. Do not block ingest for privacy. Do not lift plans off the device for revenue.
+
+### 9.2 Conformed dimensions (from our four objects)
+
+Heartbeat slices are the graph, not free-text:
+
+| Dimension | Source object |
+|---|---|
+| `dim_happening` | Happening |
+| `dim_place` | Place |
+| `dim_actor` | Actor |
+| `dim_door` | Door (via, owned vs desk vs claim) |
+| `dim_kind` | Coverage Law minimum set + other |
+| `dim_locale` | locale_id (CAPCOG is a test locale, not the universe) |
+| `dim_date` | stated when, or `date_unknown` |
+| `dim_confidence` | 4-state; disputed stays counted and shown |
+
+If a field is a hole, the dimension is `unknown`, never invented. Unknown is countable. That is how we diagnose “46% dateless” instead of hiding it.
+
+### 9.3 Internal diagnostics (must fire even before external Heartbeat ships)
+
+Every list tick / ingest run records, as data not chat:
+
+| Signal | Why |
+|---|---|
+| pages_fetched, rows_split, **mash_n** (1 listing_url = list URL) | Ticket B acceptance |
+| unsplit_n, walled_403_n, skipped_unchanged_n | coverage vs our failure vs their wall |
+| happenings_by_kind | starving a category is a defect |
+| places_without_owned_door, actors_without_owned_door | hunt backlog |
+| field_holes (when, place, actor) | depth |
+| tick_seconds, extract_calls, $ | cost ceiling |
+| escaped vs caught defects | Kaizen |
+
+A silent drop in happenings/night for a door that used to produce is a **broken source**, not an empty city (Barr Moses volume pillar). Dead-man ping stays.
+
+### 9.4 Pipeline facts (accumulating snapshot)
+
+One row per candidate/happening identity as it moves: seen → split → extracted → gated → labeled → shown. Stage latency and conversion are how we know **where to repair**. Do not delete identities when unsplit; count them.
+
+Capture–recapture for the universe denominator needs **which doors independently stated the same Happening**. That is the same corroboration overlap Trust already wants. Log it.
+
+### 9.5 Hard rules
+
+- Metrics never feed ranking or pay-to-rank.  
+- No PII in the analytics store. Night-out / messaging stay on device.  
+- Never guess a number; print `not yet instrumented (trigger: …)`.  
+- ITR 3/12, 6/12, 12/12 only when enough months exist; otherwise say so.  
+- Analytics **vendor** (PostHog, warehouse) = founder-crucial new service. First implementation is **our DB snapshots + existing KPI/Kaizen ledgers**.  
+- Insights never mix tastemaker/opinion with the happening pipeline.
+
+### 9.6 Ticket binding
+
+| Ticket | Heartbeat obligation in the **same** PR |
+|---|---|
+| **B split** | mash_n / rows_split / unsplit_n on the dry-ingest report (already a table — keep it as data) |
+| **C Place/Actor** | happenings attach ids; pulse can group by Place/Actor not by string |
+| **D hunt** | places_without_owned_door as a counted backlog |
+| **E display** | anonymous view_n / exit_n only after privacy policy ratification; until then supply_n and unresolved_n from catalog are enough |
+| **F pulse** (after B+C) | nightly `snapshot_market_coverage` from the graph: locale × kind × supply_n × unresolved_n. No vendor. |
+
+F is its own small CL. Do not wait for a warehouse. Do not ship B without the mash counter — that is the diagnostic that told us Chronicle was one blob.
