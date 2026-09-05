@@ -47,7 +47,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from worker.locale.desk_read import Happening  # noqa: E402
 from worker.locale.desk_walk import (  # noqa: E402
-    DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, PageFetch, walk, walk_table,
+    _WALL_CODE_RE, DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, PageFetch, walk,
+    walk_table,
 )
 from worker.locale.kind_map import (  # noqa: E402
     KindMap, KindMapError, load_kind_map, map_for_door, normalize_label,
@@ -110,7 +111,14 @@ def live_fetcher(*, timeout_s: int, min_interval_s: float):
             resp = requests.get(url, headers={"User-Agent": USER_AGENT},
                                 timeout=timeout_s)
         except Exception as exc:  # noqa: BLE001 — a failed page is a row, not a crash
-            return PageFetch(url=url, error=f"{type(exc).__name__}: {exc}"[:200])
+            detail = f"{type(exc).__name__}: {exc}"
+            # Classify the FULL text before truncating it for display. A proxy
+            # CONNECT denial ("Tunnel connection failed: 403 Forbidden") is a
+            # wall, and whether those three digits survive a 200-char cut
+            # depends on the length of the URL — which must not decide whether
+            # a walled desk is counted as walled.
+            return PageFetch(url=url, error=detail[:200],
+                             walled=bool(_WALL_CODE_RE.search(detail)))
         return PageFetch(url=url, status=resp.status_code, body=resp.text,
                          final_url=str(resp.url))
 

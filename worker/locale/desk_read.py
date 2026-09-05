@@ -51,8 +51,13 @@ from html.parser import HTMLParser
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from worker.importers.structured_feed import parse_jsonld
+from worker.locale.identity_patterns import (
+    IdentityPattern,
+    load_patterns,
+    match as match_identity,
+)
 from worker.locale.kind_map import KindMap
-from worker.locale.pack import KIND_OTHER, Door
+from worker.locale.pack import KIND_OTHER, Door, ListingSelector
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +71,13 @@ MAX_ROWS = 500
 
 _WS_RE = re.compile(r"\s+")
 _EVENT_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]*Event\b", re.I)
-_EVENTISH_CLASS_RE = re.compile(r"\b(?:event|listing|card|show|gig|happening)", re.I)
+# There is deliberately NO "class contains event|listing|card|show|gig|happening"
+# regex here. ONE-LIVE-ENTITY-SPLIT-LAW.md §2 names it in Forbidden, and it is
+# what read 40 Chronicle pages into ONE row on 2026-09-05: a substring rule
+# matches the page's own wrapper (`class="eventList"`) as readily as a card, and
+# the wrapper's text is every listing concatenated. Identity is DECLARED by the
+# page (structured data, or a permalink in the committed identity table) or, at
+# tier 3, by a selector committed for that one door. Nothing is guessed.
 _PLACEISH_RE = re.compile(r"venue|location|place|where", re.I)
 #: Where a card may STATE its own category. Every one of these is a DECLARATION
 #: — a `rel` the page wrote, a schema.org property, a class the page named after
@@ -146,6 +157,33 @@ class DeskRead:
     #: Printed by the tools so the table is completed from the desk's own words
     #: rather than from anyone's memory of its taxonomy.
     unmapped_categories: List[str] = field(default_factory=list)
+    #: Which rung of the ONE-LIVE-ENTITY-SPLIT-LAW.md §2 ladder split this page:
+    #: `structured`, `permalink`, `structured+permalink`, `desk_selector`, or
+    #: `unsplit`. On the result, never inferred from the row count, so a table
+    #: can always say HOW a page became rows.
+    identity_tier: Optional[str] = None
+    #: Distinct happening identities the page declared (structured urls +
+    #: permalinks matching the committed table). A page declaring more than one
+    #: is a LIST (§2), and a list that produced one row would be the mash.
+    identities_declared: int = 0
+    #: What the winning HTML rung matched on, each with its GRADE: pattern ids
+    #: for the permalink rung, committed selectors for the desk-selector rung. A
+    #: `fixture_shape` reading is a real reading — it splits — but it rides in
+    #: the report beside the rows it produced, so no table can present a shape
+    #: nobody has seen live as one that was observed.
+    identity_evidence: List[str] = field(default_factory=list)
+    #: Rows whose stated address was the LIST's own URL (or the site root) and
+    #: was therefore dropped to a hole. §2 Forbidden: "Using the list URL as
+    #: `listing_url` of a single event." Counted, because zero is the claim this
+    #: ticket has to be able to make.
+    mash_blocked: int = 0
+
+    @property
+    def unsplit(self) -> bool:
+        """True when the page declared no identity we could commit to. Zero
+        rows, and a coverage defect on that DOOR (§4) — never a reason to emit
+        one mashed row, and never 'this desk had nothing on'."""
+        return self.identity_tier == "unsplit"
 
     @property
     def count(self) -> int:
@@ -181,9 +219,6 @@ class _Node:
             if isinstance(child, _Node):
                 yield child
                 yield from child.descendants()
-
-    def has_tag(self, tag: str) -> bool:
-        return any(n.tag == tag for n in self.descendants())
 
 
 class _TreeBuilder(HTMLParser):
@@ -226,9 +261,14 @@ def _is_event_itemscope(node: _Node) -> bool:
         _EVENT_ITEMTYPE_RE.search(node.attrs.get("itemtype") or ""))
 
 
-def _is_eventish(node: _Node) -> bool:
-    return node.tag in _ROW_TAGS and bool(
-        _EVENTISH_CLASS_RE.search(node.attrs.get("class") or ""))
+def _class_tokens(node: _Node) -> frozenset:
+    """The element's class attribute as WHOLE tokens.
+
+    Whitespace-split, never substring-searched: this is the one place a class
+    could be read, and reading it as tokens is what makes `card` unable to match
+    `card-grid` (ONE-LIVE-ENTITY-SPLIT-LAW.md §2).
+    """
+    return frozenset((node.attrs.get("class") or "").split())
 
 
 def _topmost(root: _Node, predicate) -> List[_Node]:
@@ -249,55 +289,107 @@ def _topmost(root: _Node, predicate) -> List[_Node]:
     return out
 
 
-def _innermost_dated(root: _Node) -> List[_Node]:
-    """Row-shaped nodes containing a `<time>`, INNERMOST-wins.
+def _identity_of(url: str) -> str:
+    """The address a row IS, with the fragment dropped.
 
-    The opposite rule to `_topmost`, deliberately: tier 3 matches any row-shaped
-    tag, so its outermost match is usually a page wrapper. The smallest
-    row-shaped element that still contains a date is the listing.
+    A fragment addresses a position inside a page, never a different happening,
+    so `/event/foo-1#tickets` and `/event/foo-1` are one identity. The query is
+    KEPT: two desks do use `?date=` to address two instances of one series, and
+    collapsing those would delete a night.
     """
-    out: List[_Node] = []
+    from urllib.parse import urldefrag
+    return urldefrag(url)[0]
 
-    def walk(node: _Node) -> bool:
-        """True when this subtree already claimed a row."""
-        claimed = False
+
+def _identity_rows(root: _Node, *, base_url: str, patterns: Sequence[IdentityPattern],
+                   ) -> List[Tuple[str, _Node, IdentityPattern]]:
+    """Tier 2 — every link on the page that a COMMITTED pattern says is one
+    happening, paired with the smallest element that holds it alone.
+
+    The pairing is what makes this a split rather than a link list: a card's
+    title, its date, its venue and its category are siblings of the permalink,
+    so the row is the nearest ancestor whose whole subtree declares this
+    identity and no other. When there is no such ancestor (a bare list of
+    links), the anchor itself is the row — a title and a listing URL and honest
+    holes everywhere else, which is a row this pipeline is built to carry.
+    """
+    if not patterns:
+        return []
+    anchors: List[Tuple[str, _Node, IdentityPattern]] = []
+    beneath: Dict[int, frozenset] = {}
+
+    def visit(node: _Node) -> frozenset:
+        found: set = set()
+        if node.tag == "a":
+            href = _ws(node.attrs.get("href") or "")
+            if href and not href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                url = _identity_of(_absolutize(href, base_url))
+                hit = match_identity(url, patterns)
+                if hit is not None:
+                    found.add(url)
+                    anchors.append((url, node, hit))
         for child in node.children:
-            if isinstance(child, _Node) and walk(child):
-                claimed = True
-        if claimed:
-            return True
-        if node.tag in _ROW_TAGS and node.has_tag("time"):
-            out.append(node)
-            return True
-        return False
+            if isinstance(child, _Node):
+                found |= visit(child)
+        frozen = frozenset(found)
+        beneath[id(node)] = frozen
+        return frozen
 
-    for child in root.children:
-        if isinstance(child, _Node):
-            walk(child)
+    visit(root)
+
+    out: List[Tuple[str, _Node, IdentityPattern]] = []
+    for url, anchor, hit in anchors:
+        alone = frozenset({url})
+        row = anchor
+        node = anchor.parent
+        while node is not None and node.tag != "#root":
+            if beneath.get(id(node)) != alone:
+                break
+            if node.tag in _ROW_TAGS:
+                row = node
+            node = node.parent
+        out.append((url, row, hit))
     return out
 
 
-def _select_rows(html: str) -> Tuple[List[_Node], Optional[str]]:
-    """The rows one page states, and which tier found them.
+def _matches_selector(node: _Node, selector: ListingSelector) -> bool:
+    if node.tag != selector.tag:
+        return False
+    if not set(selector.class_tokens) <= _class_tokens(node):
+        return False
+    if selector.container_tag is None:
+        return True
+    wanted = set(selector.container_class_tokens)
+    parent = node.parent
+    while parent is not None and parent.tag != "#root":
+        if parent.tag == selector.container_tag and wanted <= _class_tokens(parent):
+            return True
+        parent = parent.parent
+    return False
 
-    Three tiers of decreasing confidence; the FIRST that yields anything wins,
-    and the tiers are never mixed. Mixing them is how one listing becomes two
-    rows — the card and the `<li>` wrapping it — and a duplicated public row is
-    a worse failure than a missed one (the same under-segment-don't-over-segment
-    discipline as `worker/segment.py`).
+
+def _selector_rows(root: _Node,
+                   selectors: Sequence[ListingSelector]) -> List[_Node]:
+    """Tier 3 — rows a selector committed FOR THIS DOOR names. Empty when the
+    door committed none, which is the normal case and lands the page on
+    `unsplit` rather than on a guess.
+
+    A match that CONTAINS another match is a wrapper, not a row, and is dropped.
+    That is the opposite of the outermost-wins rule the structured tier uses,
+    and deliberately so: the two mistakes are not symmetrical. Taking the outer
+    element of `<div class="event"><div class="event">…` yields ONE row holding
+    every listing's text — the mash this law exists to remove. Taking the inner
+    ones yields rows that may be missing a field a sibling stated: a hole, which
+    this pipeline carries honestly.
     """
-    builder = _TreeBuilder()
-    builder.feed(html)
-    builder.close()
-    root = builder.root
-    for name, rows in (
-        ("microdata", _topmost(root, _is_event_itemscope)),
-        ("class", _topmost(root, _is_eventish)),
-        ("time", _innermost_dated(root)),
-    ):
-        if rows:
-            return rows, name
-    return [], None
+    if not selectors:
+        return []
+
+    def matches(node: _Node) -> bool:
+        return any(_matches_selector(node, sel) for sel in selectors)
+
+    hits: List[_Node] = [n for n in root.descendants() if matches(n)]
+    return [n for n in hits if not any(matches(d) for d in n.descendants())]
 
 
 def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
@@ -463,6 +555,44 @@ def _absolutize(href: str, base_url: str) -> str:
         return href
 
 
+_PATTERN_CACHE: List[Tuple[IdentityPattern, ...]] = []
+
+
+def _committed_patterns() -> Tuple[IdentityPattern, ...]:
+    """The committed identity table, read once per process.
+
+    Raises (via `load_patterns`) when the table is missing or malformed rather
+    than falling back to an empty tuple: an empty table silently demotes every
+    permalink page to `unsplit`, which would read as "these desks declare
+    nothing" when the truth is that we lost our own data file.
+    """
+    if not _PATTERN_CACHE:
+        _PATTERN_CACHE.append(load_patterns())
+    return _PATTERN_CACHE[0]
+
+
+def _is_list_url(candidate: str, source_url: str) -> bool:
+    """True when this address is the LIST we read, not a row on it.
+
+    Two shapes, both from the 2026-09-05 live run that mashed 40 Chronicle pages
+    into one row keyed `url:https://www.austinchronicle.com`:
+
+      * A SITE ROOT (`/` with no query) is never one happening — it is the
+        masthead link every page prints.
+      * The SAME host and path as the page being read is the list itself. The
+        query is ignored on purpose: `?page=3` addresses another page OF the
+        list, not an event on it.
+    """
+    from urllib.parse import urlsplit
+    c, src = urlsplit(candidate or ""), urlsplit(source_url or "")
+    cpath = (c.path or "/").rstrip("/") or "/"
+    spath = (src.path or "/").rstrip("/") or "/"
+    if cpath == "/" and not c.query:
+        return True
+    return ((c.hostname or "").lower() == (src.hostname or "").lower()
+            and cpath == spath)
+
+
 def _precision(when: Optional[str]) -> Optional[str]:
     if not when:
         return None
@@ -521,8 +651,44 @@ def _dedupe_key(title: str, when: Optional[str], when_text: Optional[str]) -> Tu
 
 
 def read(door: Door, html: str, *, base_url: Optional[str] = None,
-         kind_map: Optional[KindMap] = None) -> DeskRead:
-    """Read one public desk page into happening rows.
+         kind_map: Optional[KindMap] = None,
+         patterns: Optional[Sequence[IdentityPattern]] = None) -> DeskRead:
+    """Read one public desk page into happening rows, by the SPLIT LADDER.
+
+    ONE-LIVE-ENTITY-SPLIT-LAW.md §2: a page that declares more than one
+    happening identity is a LIST, and a list is never one happening. Identity is
+    declared by the page; we do not guess it from CSS. Four rungs:
+
+      1. `structured`   — schema.org Event the page publishes as data: JSON-LD
+                          (array or graph) and Event microdata.
+      2. `permalink`    — an href matching a committed row of
+                          `sources/identity_patterns.json` for that host family.
+      3. `desk_selector`— `(tag, whole class tokens)` committed for THIS door in
+                          its locale pack (`Door.listing_selectors`).
+      4. `unsplit`      — stop. ZERO rows, `unsplit` in the notes. A coverage
+                          defect on that door, to be answered by a pattern or a
+                          claim — never by one mashed row.
+
+    WHERE THE LADDER APPLIES, stated exactly because it is the one judgement
+    call in this module. Rung 1 is not a splitter: a structured Event node IS
+    one happening, so there is no splitting decision to make and no way for that
+    rung to mash a page. The SPLITTING decision is over the page's printed HTML,
+    and there the ladder is strict — permalink, else committed desk selector,
+    else unsplit; first rung that yields an identity wins and the rungs are
+    never mixed with each other, so no weaker reading can add rows on top of a
+    declared split. The structured rung is then merged onto that split by
+    ADDRESS (`row_key`), which is a de-duplication, not a second splitter: a
+    node and the card linking to the same address are one row, and a node the
+    HTML never printed is still its own row.
+
+    Reading it any other way fails the ticket's own acceptance bar — "rows ≈
+    events on the page". A desk that publishes one promoted JSON-LD Event above
+    thirty printed cards would otherwise become ONE row: the same mash this law
+    exists to stop, arriving through the top rung instead of the bottom one.
+
+    `patterns` defaults to the committed table. Passing a table is how a test
+    states the shapes of ITS pages; there is no way to pass a bare regex, which
+    is what keeps host knowledge in data.
 
     `kind_map`, when given, is a committed mapping of THIS desk's own category
     labels onto our kinds (`worker.locale.kind_map`). A card that states a
@@ -535,10 +701,9 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
     a door fact, not a fact about any row. A wall or a copy farm raises here
     rather than being quietly fetched-and-dropped somewhere downstream.
 
-    Rows come from two readers over the SAME page, because a real desk uses
-    both: the page's schema.org Event JSON-LD (parsed by the repo's one JSON-LD
-    authority) and its own HTML listing rows. They are merged and de-duplicated
-    on (title, when) so a page that states an event twice yields it once.
+    Two readings of the SAME card (its structured statement and its printed
+    HTML) are merged on the card's own address, so a page that states an event
+    twice yields it once and both readings' facts land on one row.
     """
     if not isinstance(door, Door):
         raise DeskReadError(f"read() takes a Door, got {type(door).__name__}")
@@ -579,6 +744,15 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
         if not title:
             result.skipped_untitled += 1
             return
+        if listing_url and _is_list_url(listing_url, source_url):
+            # §2 Forbidden: "Using the list URL (`/EventSearch`, `/today`, a
+            # Google SERP) as `listing_url` of a single event." The address of
+            # the page a row was READ FROM is not the address of the row, and a
+            # row carrying it keys every listing on the desk to one identity —
+            # which is exactly how 40 Chronicle pages became one row. The hole
+            # is the honest answer; `source_url` still records where we read it.
+            listing_url = None
+            result.mash_blocked += 1
         kind, kind_source, category_text = door_kind, door_kind_source, None
         if kind_map is not None:
             mapped, matched = kind_map.resolve(labels=labels, hrefs=hrefs)
@@ -615,32 +789,89 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
         at[key] = len(rows)
         rows.append(row)
 
-    # 1. The page's own structured statement. parse_jsonld keeps every Event
-    #    node whatever fields it lacks; we deliberately do NOT continue into
-    #    normalize_structured, whose "no stable id or no title -> None" is the
-    #    identity-gated existence test this path replaces.
+    # ---------------------------------------------------------------
+    # The split ladder (ONE-LIVE-ENTITY-SPLIT-LAW.md §2)
+    # ---------------------------------------------------------------
+    if patterns is None:
+        patterns = _committed_patterns()
+
+    # Rung 1 — the page's own STRUCTURED statement: schema.org Event published
+    # as data (JSON-LD array/graph, or Event microdata). Each node is one event
+    # by construction, so there is no splitting decision to make here and no way
+    # for this rung to mash. parse_jsonld keeps every Event node whatever fields
+    # it lacks; we deliberately do NOT continue into normalize_structured, whose
+    # "no stable id or no title -> None" is the identity-gated existence test
+    # this path replaces.
     try:
         ld_events = parse_jsonld(html)
     except Exception as exc:  # noqa: BLE001 — a pathological page must not lose the HTML rows
         ld_events = []
         result.notes.append(f"JSON-LD parse raised ({exc}); HTML rows still read")
+
+    try:
+        builder = _TreeBuilder()
+        builder.feed(html)
+        builder.close()
+        root = builder.root
+    except Exception as exc:  # noqa: BLE001 — a pathological page must not lose the JSON-LD rows
+        root = None
+        result.notes.append(f"HTML parse raised ({exc}); JSON-LD rows still read")
+
+    microdata_rows = _topmost(root, _is_event_itemscope) if root is not None else []
+    structured_n = len(ld_events) + len(microdata_rows)
+
+    # Rungs 2, 3, 4 — the ladder over the page's PRINTED HTML, where the
+    # splitting decision actually lives. First rung that yields an identity
+    # wins; the rungs are never mixed with each other, which is what stops a
+    # weaker reading from adding rows on top of a declared split.
+    html_rows: List[Tuple[Optional[str], _Node]] = []
+    html_tier: Optional[str] = None
+    if root is not None:
+        permalink_rows = _identity_rows(root, base_url=source_url, patterns=patterns)
+        if permalink_rows:
+            html_tier = "permalink"
+            html_rows = [(url, node) for url, node, _ in permalink_rows]
+            for _, _, hit in permalink_rows:
+                stamp = f"{hit.pattern_id} ({hit.grade})"
+                if stamp not in result.identity_evidence:
+                    result.identity_evidence.append(stamp)
+        else:
+            selector_rows = _selector_rows(root, door.listing_selectors)
+            if selector_rows:
+                html_tier = "desk_selector"
+                html_rows = [(None, node) for node in selector_rows]
+                for sel in door.listing_selectors:
+                    stamp = (f"{sel.tag}{''.join('.' + t for t in sel.class_tokens)} "
+                             f"({sel.grade})")
+                    if stamp not in result.identity_evidence:
+                        result.identity_evidence.append(stamp)
+
+    if structured_n and html_tier:
+        result.identity_tier = f"structured+{html_tier}"
+    elif html_tier:
+        result.identity_tier = html_tier
+    elif structured_n:
+        result.identity_tier = "structured"
+    else:
+        result.identity_tier = "unsplit"
+
     for ev in ld_events:
         place = ev.get("venue_name") or ev.get("venue_address") or ev.get("venue_city")
         _add(ev.get("title"), ev.get("start_time"), None, place, ev.get("url"),
              hrefs=tuple(u for u in (ev.get("url"),) if u))
-
-    # 2. The page's own HTML listing rows.
-    try:
-        html_rows, tier = _select_rows(html)
-    except Exception as exc:  # noqa: BLE001 — a pathological page must not lose the JSON-LD rows
-        html_rows, tier = [], None
-        result.notes.append(f"HTML parse raised ({exc}); JSON-LD rows still read")
-    if tier:
-        result.notes.append(f"HTML rows selected by the {tier} tier")
-    for row_node in html_rows:
+    for row_node in microdata_rows:
         fields = _row_fields(row_node, base_url=source_url)
         _add(fields["title"], fields["when"], fields["when_text"],
              fields["place_text"], fields["listing_url"],
+             labels=tuple(fields.get("category_labels") or ()),
+             hrefs=tuple(fields.get("hrefs") or ()))
+    for identity, row_node in html_rows:
+        fields = _row_fields(row_node, base_url=source_url)
+        # On the permalink rung the row's address is the IDENTITY the committed
+        # pattern matched, never whichever anchor `_row_fields` read first (a
+        # card's ticket link, its venue link, its category link).
+        _add(fields["title"], fields["when"], fields["when_text"],
+             fields["place_text"], identity or fields["listing_url"],
              labels=tuple(fields.get("category_labels") or ()),
              hrefs=tuple(fields.get("hrefs") or ()))
 
@@ -650,10 +881,37 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
             f"page yielded {len(rows)} rows; truncated to {MAX_ROWS} (cap, not an empty desk)")
         rows = rows[:MAX_ROWS]
     result.rows = rows
+    # Derived from the rows this read actually RETURNED — the same derivation
+    # `tools/desk_ingest.py`'s table makes, so one idea never prints as two
+    # different numbers, and a truncated page never claims identities it did
+    # not hand back.
+    result.identities_declared = len({r.listing_url for r in rows if r.listing_url})
+    if result.unsplit:
+        result.notes.append(
+            "unsplit — this page declared no happening identity we hold: no "
+            "schema.org Event, no href matching a committed identity pattern for "
+            f"this host, and door {door.door_id!r} commits "
+            f"{len(door.listing_selectors)} listing selector(s) that matched "
+            "nothing. ZERO rows, and a coverage defect on this DOOR — the answer "
+            "is a pattern or a claim, never one mashed row "
+            "(ONE-LIVE-ENTITY-SPLIT-LAW.md §2/§4)")
+    else:
+        evidence = (" on " + ", ".join(result.identity_evidence)
+                    if result.identity_evidence else "")
+        result.notes.append(
+            f"split by the {result.identity_tier} rung{evidence} — "
+            f"{result.identities_declared} identity/identities declared, "
+            f"{structured_n} structured node(s)")
+
     if result.skipped_untitled:
         result.notes.append(
             f"{result.skipped_untitled} block(s) carried no title text and were "
             f"skipped — counted, never silently dropped")
+    if result.mash_blocked:
+        result.notes.append(
+            f"{result.mash_blocked} row(s) stated the LIST's own URL as their "
+            f"address; dropped to a hole rather than keying a whole desk to one "
+            f"identity (§2 Forbidden)")
     if result.unmapped_categories:
         result.notes.append(
             f"{len(result.unmapped_categories)} category/categories this page "

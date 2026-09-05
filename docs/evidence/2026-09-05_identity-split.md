@@ -1,0 +1,137 @@
+# Ticket B — identity split: what changed, and how it was proven
+
+Date: 2026-09-05 · Branch `claude/identity-split-patterns-ppi4uk` · Law:
+`ONE-LIVE-ENTITY-SPLIT-LAW.md` §2 (split) and §6 (ticket B) · No `--write`,
+no merge.
+
+Every number below was printed by a command that is named beside it. Nothing
+here is retyped from memory.
+
+## 1. The defect, reproduced against the code on master
+
+One list page: a text blob with no identity anywhere on it, two links (the
+masthead and a "More" pagination link), and four events run together in prose —
+the shape of the live Chronicle run this law was written from.
+
+```
+$ git show origin/master:worker/locale/desk_read.py > /tmp/desk_read_master.py
+$ python /tmp/mash_repro.py      # reads that ONE page with master's reader
+rows: 1
+  title:       'Promoted Events'
+  listing_url: https://desk.test/
+notes: ['HTML rows selected by the class tier']
+```
+
+One row. Titled a heading with the events concatenated behind it. Addressed to
+the SITE ROOT. That is the mash the law names (§2 live evidence: Chronicle
+opened 40 pages and emitted 1 row keyed `url:https://www.austinchronicle.com`),
+and "the class tier" is the splitter §2 lists under Forbidden.
+
+## 2. What the split ladder does with the same page
+
+`worker/locale/desk_read.py` now runs §2's ladder. On that page: no schema.org
+Event, no href matching a committed identity pattern, no listing selector
+committed for that door — so **zero rows** and `unsplit` in the notes, with the
+note saying it is a coverage defect on that DOOR, to be answered by a pattern or
+a claim.
+
+`tests/test_identity_split.py` holds the three cases the ticket names and 28
+more:
+
+| ticket case | test |
+|---|---|
+| (a) two `/event/foo-1` + `/event/bar-2` -> two rows, those listing_urls | `test_two_permalinks_become_two_happenings_with_those_listing_urls` |
+| (b) list page, no identity, giant blob -> zero rows, `unsplit` | `test_a_blob_with_no_identity_yields_zero_happenings_and_says_unsplit` |
+| (c) a test accepting the blob as one row must go red | see §3 |
+
+## 3. The tests that accepted the blob, and what happened to them
+
+Two committed tests passed on master BECAUSE the guessing splitters existed.
+Both went red the moment the ladder landed, before any test was touched:
+
+```
+FAILED tests/test_desk_read.py::test_a_non_iso_datetime_attribute_is_not_coerced
+    read(doors["visit-austin-events"], '<ul><li><time datetime="next friday">…')
+    IndexError: list index out of range        # zero rows: the page declares no identity
+
+FAILED tests/test_desk_read.py::test_a_single_kind_door_states_that_kind_for_its_rows
+    read(doors["kutx-concert-calendar"], desk_listing.html)
+    AssertionError: assert set() == {'music'}  # that door commits no selector
+```
+
+Neither test was about splitting, so both were rewritten to state their own
+subject on a page that declares an identity — the date rule on a `<ul
+class="calendar">` (that door's committed selector), the door-scope kind rule on
+a JSON-LD page. The mash itself is now pinned by
+`test_the_blob_is_not_accepted_as_one_row`, which asserts `count != 1` directly,
+so it cannot come back green.
+
+## 4. Dry ingest — FIXTURE run
+
+`$ python tools/desk_ingest.py --dry-run`
+
+| desk | rows_n | identities | unsplit_n | mash_n | mash_blocked | 403_n | unread_n | pages read | split by |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| `austin-chronicle-eventsearch` | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 3 | `structured+desk_selector`, `desk_selector` |
+| `do512-today` | 16 | 15 | 0 | 0 | 0 | 0 | 0 | 3 | `structured+desk_selector`, `desk_selector` |
+
+Both desks split on rung 3, on a selector committed for that door and graded
+`fixture_shape` — and every read says so in its own note ("split by the
+`structured+desk_selector` rung on `div.event` (fixture_shape)"). A
+`fixture_shape` reading still splits, because refusing to split until somebody
+has fetched a page would make the FIRST read of every new desk a mash; what it
+never does is arrive looking like a shape somebody has seen live.
+
+These are FIXTURE counts over committed shape fixtures, and the fixtures'
+manifests say every title, venue and date in them is invented. What they prove
+is the SHAPE: 33 pages-worth of cards become 33 rows, not 6, and `mash_n` is 0.
+Do512's `identities` (15) is one short of its `rows_n` (16) because one fixture
+card states no address of its own — a row that exists without an identity, which
+is Trust doctrine, not a miss.
+
+## 5. Dry ingest — LIVE run from this sandbox
+
+`$ python tools/desk_ingest.py --real --dry-run`
+
+| desk | rows_n | identities | unsplit_n | mash_n | mash_blocked | 403_n | unread_n | pages read | split by |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| `austin-chronicle-eventsearch` | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | — |
+| `do512-today` | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | — |
+
+**No page was read.** The sandbox's egress proxy answers 403 to CONNECT for both
+hosts:
+
+```
+$ curl -sS "$HTTPS_PROXY/__agentproxy/status"
+"recentRelayFailures": [{"kind": "connect_rejected",
+  "detail": "gateway answered 403 to CONNECT (policy denial or upstream failure)",
+  "host": "calendar.austinchronicle.com:443"}]
+```
+
+So this table is NOT evidence that Chronicle splits and NOT evidence that either
+desk is empty. Both doors stay queued. The founder's acceptance numbers —
+Chronicle rows ≈ events on the page, every `listing_url` a `/event/…`, `mash_n`
+= 0 — need a runner with egress, and `.github/workflows/desk-split-dryrun.yml`
+(added by this PR: manual dispatch, any branch, no secrets, cannot write) is the
+one command that produces them.
+
+Note the `403_n` column was 0 for Chronicle on the first run of this table and
+1 for Do512, from the same wall. The reason: the transport error is truncated
+for display at 200 characters, and Chronicle's URL is longer, so the digits
+"403" fell off the end. A wall that reads as `0` is exactly how a walled desk
+gets reported as an empty calendar, so the classification now happens on the
+full error text at the fetcher, before truncation
+(`tools/desk_coverage.py::live_fetcher`, `PageFetch.walled`), with a test that
+only passes while the displayed reason IS truncated.
+
+## 6. Gates
+
+```
+$ bash tools/validate
+check: trust_gate = PASS      check: lint = PASS
+check: deferral_scan = PASS   check: pytest (full suite) = PASS   (2978 passed, 55 skipped)
+check: staleness_check = FAIL (STATE.md not yet committed on this branch; see the PR body)
+```
+
+The full evidence block is in the PR body, pasted verbatim from
+`.validate-evidence.txt`.

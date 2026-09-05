@@ -99,6 +99,61 @@ CATALOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 # Counting what the site shows — the SAME predicates as api/public.py
 # --------------------------------------------------------------------------
 
+def split_table(walks: Sequence[DeskWalk]) -> str:
+    """The founder's Ticket B table: did the list become MANY happenings?
+
+    ONE-LIVE-ENTITY-SPLIT-LAW.md §9.6 binds this ticket to these counters, and
+    §2 to what they must read. Every number is derived from the walk's own rows
+    and pages here, never carried in from the reader's internal counters — the
+    one exception is `mash_blocked`, which is printed BESIDE `mash_n` precisely
+    so a zero there reads as a refusal rather than as an absence.
+
+      rows_n       happenings this desk yielded
+      identities   distinct addresses the pages declared
+      unsplit_n    pages read that declared no identity we hold (ZERO rows,
+                   never one blob) — a coverage defect on THAT door
+      mash_n       rows whose `listing_url` is a LIST url (must be 0)
+      403_n        pages walled — by the desk, or by a proxy between us and it;
+                   their rows are UNKNOWN, never zero, and the door stays queued
+      unread_n     pages we could not read for ANY reason (403_n is a subset)
+      split by     which rung(s) of the ladder read this desk's pages
+    """
+    lines = ["| desk | rows_n | identities | unsplit_n | mash_n | mash_blocked | "
+             "403_n | unread_n | pages read | split by |",
+             "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+    for one in walks:
+        identities = len({r.listing_url for r in one.rows if r.listing_url})
+        tiers = ", ".join(f"`{t}`" for t in one.identity_tiers) or "—"
+        lines.append(
+            f"| `{one.door_id}` | {one.count} | {identities} | {one.unsplit_n} | "
+            f"{one.mash_n} | {one.mash_blocked} | {one.walled_n} | "
+            f"{one.unread_n} | {one.pages_read} | {tiers} |")
+    total_mash = sum(w.mash_n for w in walks)
+    total_unsplit = sum(w.unsplit_n for w in walks)
+    total_walled = sum(w.walled_n for w in walks)
+    read_any = [w for w in walks if w.pages_read]
+    lines.append("")
+    lines.append(
+        f"`mash_n` totals **{total_mash}** across these desks — a row whose "
+        f"address is the list's own URL keys a whole desk to one identity, which "
+        f"is the defect this ticket exists to remove (§2 Forbidden). "
+        f"`unsplit_n` totals **{total_unsplit}**: pages we could not split are "
+        f"ZERO rows and a named coverage defect on that door, answered by a "
+        f"pattern or a claim — never by a mashed row and never printed as an "
+        f"empty desk. `403_n` totals **{total_walled}**: a walled page has an "
+        f"UNKNOWN list, not an empty calendar, and the door stays queued for a "
+        f"claim.")
+    if not read_any:
+        lines.append("")
+        lines.append(
+            "**No page was read on this run**, so every count above is 0 for the "
+            "same reason: nothing to count. That is NOT evidence the split "
+            "works and NOT evidence these desks are empty — the split is proven "
+            "by `tests/test_identity_split.py` and by the FIXTURE run of this "
+            "same command, and these desks stay queued.")
+    return "\n".join(lines)
+
+
 def count_events(cur) -> int:
     """`GET /events`'s population: every scheduled event, no confidence filter
     (api/public.py returns disputed rows too — shown as disputed, never
@@ -562,7 +617,11 @@ def main(argv=None) -> int:
             + " — an unread desk has an UNKNOWN list, never an empty one. Nothing "
               "is written for it and nothing is deleted because of it.")
     print()
-    print("## 2. The write plan")
+    print("## 2. The split — did the list become many happenings?")
+    print()
+    print(split_table(walks))
+    print()
+    print("## 3. The write plan")
     print()
     print(plan_table(writes))
     print()
@@ -582,7 +641,7 @@ def main(argv=None) -> int:
     print()
 
     if not args.write:
-        print("## 3. Nothing was written")
+        print("## 4. Nothing was written")
         print()
         print("This was a dry run" + ("" if args.real else " over COMMITTED FIXTURES")
               + ". Re-run with `--real --write` on a machine that can reach the "
@@ -611,7 +670,7 @@ def main(argv=None) -> int:
         with conn.cursor() as cur:
             after = snapshot(cur, city=args.city, hours=args.hours)
 
-    print("## 3. What happened to each row")
+    print("## 5. What happened to each row")
     print()
     print(outcome_table(result))
     for bucket in ("changed", "held", "failed"):
@@ -622,7 +681,7 @@ def main(argv=None) -> int:
             for w, why in result[bucket]:
                 print(f"- `{w.ingest_key}` — {w.title}: {why}")
     print()
-    print("## 4. Before / after — what the site serves")
+    print("## 6. Before / after — what the site serves")
     print()
     print(counts_table(before, after, city=args.city, hours=args.hours))
     print()
@@ -641,7 +700,7 @@ def main(argv=None) -> int:
     # non-zero, name the events, and say what a person has to do.
     if result["dispute_failures"]:
         print()
-        print("## 5. FAILED — published rows are live and mislabelled")
+        print("## 7. FAILED — published rows are live and mislabelled")
         print()
         for event_id, why in result["dispute_failures"]:
             print(f"- `{event_id}` — {why}")

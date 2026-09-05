@@ -69,7 +69,17 @@
       "kind_scope": ["any"],
       "covers": ["Travis"],
       "blocked_reason": null,
-      "evidence": "founder_named"
+      "evidence": "founder_named",
+      "listing_selectors": [
+        {
+          "tag": "div",
+          "class_tokens": [
+            "event"
+          ],
+          "grade": "fixture_shape",
+          "note": "Tier 3 of the split ladder (ONE-LIVE-ENTITY-SPLIT-LAW.md §2), used ONLY when a page declares no schema.org Event and no href matching sources/identity_patterns.json for this host. WHOLE token 'event', so this desk's own list wrapper class 'eventList' does not match, and scoped to this one door — not the global class-substring splitter the law forbids. Committed from the shape fixtures at tests/fixtures/desk_pages/austin-chronicle-eventsearch/ and tests/fixtures/locale_desks/desk_listing.html; NO live page has been read (proxy 403 to calendar.austinchronicle.com, 2026-09-05), so the grade stays fixture_shape until one is read and recorded in docs/evidence/."
+        }
+      ]
     },
     {
       "door_id": "austin-chronicle-arts",
@@ -82,7 +92,17 @@
       "kind_scope": ["art"],
       "covers": ["Travis"],
       "blocked_reason": null,
-      "evidence": "found_unverified"
+      "evidence": "found_unverified",
+      "listing_selectors": [
+        {
+          "tag": "div",
+          "class_tokens": [
+            "event"
+          ],
+          "grade": "fixture_shape",
+          "note": "Same desk and same committed shape as austin-chronicle-eventsearch. A selector is per-door data, so the sibling door states it rather than inheriting it invisibly."
+        }
+      ]
     },
     {
       "door_id": "kutx-concert-calendar",
@@ -238,7 +258,18 @@
       "kind_scope": ["any"],
       "covers": ["Travis"],
       "blocked_reason": null,
-      "evidence": "catalogued"
+      "evidence": "catalogued",
+      "listing_selectors": [
+        {
+          "tag": "li",
+          "container_tag": "ul",
+          "container_class_tokens": [
+            "calendar"
+          ],
+          "grade": "fixture_shape",
+          "note": "A dated <li> list with no class of its own: the CONTAINER is what says these are listings and the site nav's <li> are not. Committed from tests/fixtures/locale_desks/official_list.html; no live page has been read."
+        }
+      ]
     },
     {
       "door_id": "downtown-austin-alliance-events",
@@ -316,7 +347,17 @@
       "kind_scope": ["any"],
       "covers": ["Travis"],
       "blocked_reason": null,
-      "evidence": "catalogued"
+      "evidence": "catalogued",
+      "listing_selectors": [
+        {
+          "tag": "div",
+          "class_tokens": [
+            "ds-listing"
+          ],
+          "grade": "fixture_shape",
+          "note": "Tier 3 fallback for a path-routed desk. WHOLE token 'ds-listing' — the desk's own token — rather than 'event-card', which keeps the banned words out of the selector entirely. Committed from tests/fixtures/desk_pages/do512-today/; do512.com 403s this sandbox and has walled the runner too, so no live page has been read here."
+        }
+      ]
     },
     {
       "door_id": "do512-live-music-today",
@@ -329,7 +370,17 @@
       "kind_scope": ["music"],
       "covers": ["Travis"],
       "blocked_reason": null,
-      "evidence": "found_unverified"
+      "evidence": "found_unverified",
+      "listing_selectors": [
+        {
+          "tag": "div",
+          "class_tokens": [
+            "ds-listing"
+          ],
+          "grade": "fixture_shape",
+          "note": "Same desk and same committed shape as do512-today."
+        }
+      ]
     },
     {
       "door_id": "do512-family",
@@ -342,7 +393,17 @@
       "kind_scope": ["family"],
       "covers": ["Travis"],
       "blocked_reason": null,
-      "evidence": "found_unverified"
+      "evidence": "found_unverified",
+      "listing_selectors": [
+        {
+          "tag": "div",
+          "class_tokens": [
+            "ds-listing"
+          ],
+          "grade": "fixture_shape",
+          "note": "Same desk and same committed shape as do512-today."
+        }
+      ]
     },
     {
       "door_id": "eventbrite-austin-today",

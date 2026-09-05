@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "_comment": "IDENTITY PATTERNS — how a page DECLARES that a link is one happening. ONE-LIVE-ENTITY-SPLIT-LAW.md §2, tier 2 of the split ladder. Each row is data, never a function: a new desk is a new ROW here, never a new branch in worker/locale/desk_read.py, and there is no Chronicle-only (or any-host-only) code path anywhere on the read side. Matching is against the URL PATH only, with re.search, after the href is resolved against the page it was printed on; a query string never confers identity, because a list page and its own filter links share one path with different queries. `grade` is provenance, not permission: `desk_observed` may be written ONLY after a live page carrying this shape was actually read and the reading is recorded in docs/evidence/; anything else is `fixture_shape`, which still splits pages and still says out loud that no live page has confirmed it. `owned` is true only when the host IS the Place's or Actor's own site (Entity Split Law §3.4) — a desk or an aggregator is false, and marking a desk `owned` would let a later ticket call somebody else's listing their own door.",
+  "_grades": {
+    "desk_observed": "a live page carrying this path shape was read, and the read is recorded in docs/evidence/",
+    "fixture_shape": "the shape is committed (fixture, founder statement, or another repo artifact) but no live page has been read here yet"
+  },
+  "patterns": [
+    {
+      "pattern_id": "austin-chronicle-event",
+      "host_family": "calendar.austinchronicle.com",
+      "path_re": "/event/[^/]+-\\d+",
+      "grade": "fixture_shape",
+      "owned": false,
+      "note": "Founder-stated shape for Chronicle event permalinks, /event/{slug}-{id} (Ticket B, 2026-09-05). NOT desk_observed: egress to calendar.austinchronicle.com is denied from the build sandbox (CONNECT 403 at the proxy, re-confirmed 2026-09-05), so no live page has been read here. Upgrade to desk_observed on the first live read that shows it, and cite the evidence file."
+    },
+    {
+      "pattern_id": "do512-dated-event",
+      "host_family": "do512.com",
+      "path_re": "/events/\\d{4}/\\d{1,2}/\\d{1,2}/[^/]+",
+      "grade": "fixture_shape",
+      "owned": false,
+      "note": "Dated permalink shape committed at tests/test_do512_coverage.py (https://do512.com/events/2026/9/12/bright-room-quartet). do512.com 403s this sandbox AND the runner has seen the wall too, so the door stays queued class D — the pattern is here so the FIRST readable page splits, rather than waiting for a code change. host_family matches subdomains, which is how family.do512.com rides the same row."
+    },
+    {
+      "pattern_id": "eventbrite-event-id",
+      "host_family": "eventbrite.com",
+      "path_re": "/e/(?:[^/?#]*-)?\\d{4,}",
+      "grade": "fixture_shape",
+      "owned": false,
+      "note": "Both committed Eventbrite shapes in this repo: the bare id (/e/1234567890, tests/test_eventbrite_importer.py) and the slug-with-id (/e/spoon-live-tickets-987654321012, tests/test_eventbrite_discovery_tools.py). The importer's own id allow-list (sources/eventbrite_provenance.json) is unchanged and still governs what may be FETCHED; this row only says which link on a list page is one happening."
+    }
+  ]
+}
