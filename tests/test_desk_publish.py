@@ -23,6 +23,7 @@ from worker.locale import pack as lp
 from worker.locale.desk_read import Happening
 from worker.locale.desk_publish import (
     DESK_KEY,
+    list_page_index,
     DeskPublishError,
     DeskRegistration,
     contradicts,
@@ -1193,6 +1194,76 @@ def test_the_front_door_hold_outranks_a_clock_hold():
     write = write_for(one.rows[0], REGS, mode="LIVE")
     assert "front door" in (write.hold_reason or "")
     assert "R-111" not in (write.hold_reason or "")
+
+
+# The evaluator's blocking finding on PR #232 (absence-only lens): the three
+# identities above are special cases, and a composite keyed at some OTHER page
+# of the same pagination still published. These pin the general invariant — a
+# row's identity is never any URL the walk itself read as a list.
+
+def _paginated_walk(rows, *, pages=("https://desk.example/list?p=1",
+                                    "https://desk.example/list?p=2",
+                                    "https://desk.example/list?p=3")):
+    visits = [PageVisit(n=i, url=u, status=200, rows_seen=len(rows),
+                        new_rows=len(rows),
+                        next_url=(pages[i] if i < len(pages) else None))
+              for i, u in enumerate(pages, start=1)]
+    return DeskWalk(door_id=CHRONICLE, door_type="local_desk",
+                    via="Austin Chronicle", start_url=pages[0], pages=visits,
+                    rows=list(rows), stopped_because="no_next_link")
+
+
+def test_a_row_keyed_at_a_middle_page_of_the_pagination_is_held():
+    """Page 2 is neither the origin, nor the catalog index, nor the door."""
+    one = _union(_paginated_walk([
+        _row("Everything On Page Two",
+             listing_url="https://desk.example/list?p=2")]))
+    write = plan(one, REGS)[0]
+    assert write.hold_reason, "a list page published as a happening"
+    assert "READ AS A LIST" in write.hold_reason
+
+
+def test_the_query_string_cannot_dodge_the_list_page_hold():
+    """`?p=2` and `?p=2&v=g` are the same document; identity is host+path."""
+    one = _union(_paginated_walk([
+        _row("Everything On Page Two",
+             listing_url="https://desk.example/list?p=2&v=g")]))
+    assert plan(one, REGS)[0].hold_reason
+
+
+def test_a_next_link_the_walk_followed_counts_as_a_list_page():
+    one = _union(_paginated_walk([
+        _row("Everything On Page Three",
+             listing_url="https://desk.example/list?p=3")]))
+    assert plan(one, REGS)[0].hold_reason
+
+
+def test_a_real_listing_on_a_paginated_desk_still_publishes():
+    """The invariant must not cost a single real row (Coverage Law)."""
+    one = _union(_paginated_walk([
+        _row("Quartet at the Shape Hall", when="2026-09-14T20:00:00",
+             listing_url="https://desk.example/event/12345")]))
+    write = plan(one, REGS)[0]
+    assert write.hold_reason is None
+    assert write.start_time
+
+
+def test_the_product_path_supplies_the_list_pages_not_just_a_careful_caller():
+    """`plan()` is the only path `tools/desk_ingest.py` writes through. If it
+    stopped passing the index, `write_for`'s default would silently reopen the
+    hole — so the coupling is pinned, not trusted."""
+    one = _union(_paginated_walk([
+        _row("Everything On Page Two",
+             listing_url="https://desk.example/list?p=2")]))
+    assert plan(one, REGS)[0].hold_reason
+    # ...and the index really is derived from the walk, not from the row.
+    index = list_page_index(one)
+    assert ("desk.example", "/list") in index
+
+
+def test_a_desk_that_read_nothing_contributes_no_list_pages_and_no_rows():
+    one = _union(_walk(DO512, "Do512", [], blocked="403", stopped="wall"))
+    assert plan(one, REGS) == []
 
 
 def test_a_row_with_no_listing_url_is_judged_on_its_other_facts():

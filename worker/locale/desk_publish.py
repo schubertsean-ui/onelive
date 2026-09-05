@@ -450,7 +450,9 @@ def _document_key(url: str) -> Optional[Tuple[str, str]]:
 
 
 def front_door_reason(listing_url: Optional[str],
-                      registration: Optional[DeskRegistration]) -> Optional[str]:
+                      registration: Optional[DeskRegistration],
+                      list_pages: Optional[Mapping[Tuple[str, str], str]] = None
+                      ) -> Optional[str]:
     """Why this row is a PAGE and not a happening — or None if it is a row.
 
     A desk's walk can come back with a row whose only identity is the desk's
@@ -472,14 +474,18 @@ def front_door_reason(listing_url: Optional[str],
     row is in the store and in the ops queue where a person can see what the
     walk actually read. Nothing is deleted and nothing publishes.
 
-    WHAT THIS DOES NOT CATCH, stated so nobody reads it as more than it is:
-    three identities are recognised — the bare origin, the catalog's own
-    `base_url`, and the door the walk started at. A composite row keyed at some
-    OTHER page of the same pagination would still pass. Closing that needs the
-    walk's visited-page URLs threaded down to here, which is a change to a
-    shared structure and its own ticket; the reader that produces composites at
-    all is R-114. This function narrows the hole to the shape that was actually
-    observed, and it fails in the safe direction on every shape it does see.
+    FOUR identities are refused, and the fourth is the general one: the bare
+    origin, the catalog row's own `base_url`, the door the walk started at, and
+    ANY URL THE WALK USED AS A LIST — every page it paginated through and every
+    `next` link it followed, carried here on `DeskState.list_page_urls` (the
+    walk's own record; nothing is inferred from a row). The first three are
+    special cases of the fourth that hold even when a caller supplies no walk.
+
+    That fourth one is the invariant the evaluator demanded on PR #232, and it
+    is the one that closes the CLASS rather than the instance: whatever page a
+    collapsing reader glues into a single row, that page is a page WE ASKED FOR
+    as a list, so its URL is in the set and the row cannot publish. A happening
+    on a desk we paginate is never itself one of the pages we paginated.
     """
     url = (listing_url or "").strip()
     if not url:
@@ -503,11 +509,39 @@ def front_door_reason(listing_url: Optional[str],
                 return (f"this row's identity is {url}, which IS the desk's own "
                         f"{label} ({other}) — the list, not anything on it. Held "
                         f"as a candidate rather than published as a happening")
+    if list_pages:
+        listed = list_pages.get(key)
+        if listed is not None:
+            return (f"this row's identity is {url}, which is a page THIS WALK "
+                    f"READ AS A LIST ({listed}) — so the row is the page, not "
+                    f"anything on it. A reader that collapses a list into one "
+                    f"row would otherwise publish the page as a happening under "
+                    f"the desk's masthead. Held as a candidate")
     return None
 
 
+def list_page_index(one: "DeskUnion") -> Dict[Tuple[str, str], str]:
+    """Every URL the walks used as a LIST, keyed the way a row's identity is.
+
+    Built once per plan rather than per row, and from every desk in the walk
+    rather than only the row's own: a happening is never one of the pages we
+    paginated, on any desk, so a wider set is strictly safer here and cannot
+    cost a real listing. A desk that read nothing contributes nothing, which is
+    correct — it also wrote nothing.
+    """
+    out: Dict[Tuple[str, str], str] = {}
+    for state in getattr(one, "desks", ()) or ():
+        for raw in getattr(state, "list_page_urls", ()) or ():
+            key = _document_key(raw)
+            if key is not None:
+                out.setdefault(key, raw)
+    return out
+
+
 def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
-              *, mode: str) -> CandidateWrite:
+              *, mode: str,
+              list_pages: Optional[Mapping[Tuple[str, str], str]] = None
+              ) -> CandidateWrite:
     """One union row as a candidate write.
 
     The candidate's own `source_name`/`source_class` are the FIRST desk that
@@ -583,7 +617,7 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
     # THIS ONE OUTRANKS EVERY CLOCK REASON ABOVE. A clock hole is a hole in a
     # real listing; a front-door row is not a listing at all, so "what time?"
     # is the wrong question to hold it on and the right hold has to say so.
-    front_door = front_door_reason(listing_url, first)
+    front_door = front_door_reason(listing_url, first, list_pages)
     if front_door:
         hold_reason = front_door
     desk_note = {
@@ -707,7 +741,13 @@ def plan(one: DeskUnion, registrations: Mapping[str, DeskRegistration]) -> List[
     one — nothing in this module ever turns an unread list into a deletion,
     because nothing in this module deletes.
     """
-    return [write_for(row, registrations, mode=one.mode) for row in one.rows]
+    # The walks' own list pages, built ONCE and passed to every row. `plan` is
+    # the only path `tools/desk_ingest.py` writes through, so supplying it here
+    # is what makes the invariant hold on the product path rather than only
+    # where a caller remembers to ask for it (pinned by test).
+    listed = list_page_index(one)
+    return [write_for(row, registrations, mode=one.mode, list_pages=listed)
+            for row in one.rows]
 
 
 def plan_digest(writes: Sequence[CandidateWrite]) -> Dict[str, Any]:
