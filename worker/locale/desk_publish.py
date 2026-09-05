@@ -277,6 +277,54 @@ def ingest_key(row: UnionRow) -> str:
     return f"desk:{member.via}~{member.place}~{member.title_key}"
 
 
+#: The fields of a desk's statement a re-run compares. Named as data rather
+#: than compared field-by-field in a function body, so a field added to the
+#: statement without a decision about what its CHANGING means is a visible
+#: omission rather than a silently unwatched value.
+WATCHED = ("title", "place", "night", "clocks", "listing_url", "vias")
+
+
+def _statement(row: UnionRow, clocks: List[str], listing_url: Optional[str]) -> Dict[str, Any]:
+    """What the desk said about this happening, in comparable form.
+
+    The founder's key answers "is this the same happening?". It deliberately
+    cannot answer "is the desk still saying the same THING about it?" — a desk
+    that corrects 8pm to 9:30pm on the same night keys identically, which is
+    correct for de-duplication and wrong for a re-run that skips on the key
+    alone. This is the second question's evidence, stored beside the first.
+    """
+    return {
+        "title": row.title,
+        "place": row.place_text,
+        "night": row.night,
+        "clocks": list(clocks),
+        "listing_url": listing_url,
+        "vias": list(row.vias),
+    }
+
+
+def drift(stored: Optional[Mapping[str, Any]], fresh: Mapping[str, Any]) -> List[str]:
+    """Which watched fields the desk has changed since we published, in order.
+
+    An ABSENT stored statement returns no drift, and that is deliberate rather
+    than lenient: rows written before this field existed have nothing to
+    compare against, and inventing a difference from a hole would report every
+    one of them as changed on the next run. They are reported as ordinary
+    skips, exactly as they were, and acquire a statement the first time the
+    desk actually changes something about them.
+    """
+    if not stored:
+        return []
+    return [field for field in WATCHED if stored.get(field) != fresh.get(field)]
+
+
+def describe_drift(stored: Mapping[str, Any], fresh: Mapping[str, Any],
+                   fields: Sequence[str]) -> str:
+    """The change in the desk's own values, for a report a person reads."""
+    return "; ".join(
+        f"{f}: {stored.get(f)!r} -> {fresh.get(f)!r}" for f in fields)
+
+
 def _quote(row: UnionRow, member) -> str:
     """What this desk printed, in its own words. Stored as the evidence quote so
     an audit reads the desk's line, not our summary of it.
@@ -336,6 +384,11 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         "clocks_stated": clocks,
         "clock_hole": clock_hole,
         "walk_mode": mode,
+        # What the desk SAID, kept so a later walk can tell "we already have
+        # this" from "we already have this and the desk has since changed its
+        # mind". Without it the key alone answers only the first question —
+        # see `statement()`.
+        "statement": _statement(row, clocks, listing_url),
     }
     extracted: Dict[str, Any] = {
         "title": row.title,

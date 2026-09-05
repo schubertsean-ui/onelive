@@ -24,6 +24,7 @@ from worker.locale.desk_publish import (
     DESK_KEY,
     DeskPublishError,
     DeskRegistration,
+    drift,
     ingest_key,
     plan,
     plan_digest,
@@ -397,7 +398,11 @@ def _writes(n=3):
 
 def test_a_key_already_in_the_store_is_skipped_not_written_again():
     writes = _writes(2)
-    seen = {writes[0].ingest_key: ("cand-1", "promoted", "event-1")}
+    # The 4th element is the desk's stored statement — same as the fresh one
+    # here, so this is a true re-run and not drift.
+    seen = {writes[0].ingest_key: (
+        "cand-1", "promoted", "event-1",
+        writes[0].extracted[DESK_KEY]["statement"])}
     calls = []
     result = ingest_tool.ingest(
         writes, seen=seen,
@@ -446,7 +451,9 @@ def test_every_planned_row_lands_in_exactly_one_bucket():
     be a listing we believe we published and did not.
     """
     writes = _writes(4)
-    seen = {writes[3].ingest_key: ("c", "needs_review", None)}
+    seen = {writes[3].ingest_key: (
+        "c", "needs_review", None,
+        writes[3].extracted[DESK_KEY]["statement"])}
     n = [0]
 
     def promote(cid):
@@ -566,3 +573,128 @@ def test_a_row_whose_evidence_failed_is_not_promoted_on_a_partial_record():
     assert sum(len(v) for v in result.values()) == len(writes), (
         "every planned row lands in exactly ONE bucket")
     assert "NOT promoted" in result["failed"][0][1]
+
+
+# --------------------------------------------------------------------------
+# A re-run asks TWO questions (evaluator, PR #229 r1 — openai/absence-only)
+# --------------------------------------------------------------------------
+
+def _stmt(title="Brass Union", when="2026-09-12T20:00:00-05:00", place="The Mercury",
+          via="Austin Chronicle", door_id=CHRONICLE, url=None):
+    one = _union(_walk(door_id, via, [
+        _row(title, when=when, place=place, via=via, door_id=door_id,
+             listing_url=url)]))
+    return write_for(one.rows[0], REGS, mode="LIVE").extracted[DESK_KEY]["statement"]
+
+
+def test_every_write_records_what_the_desk_said_not_only_that_it_said_it():
+    """The key answers "is this the same happening?" and nothing else. The
+    statement is what lets a re-run ask the second question.
+    """
+    s = _stmt()
+    assert s["title"] == "Brass Union"
+    assert s["place"] == "The Mercury"
+    assert s["night"] == "2026-09-12"
+    assert s["clocks"] == ["2026-09-12T20:00:00-05:00"]
+    assert s["vias"] == ["Austin Chronicle"]
+
+
+def test_a_desk_correcting_the_time_on_the_same_night_is_drift_not_a_re_run():
+    """THE BLOCKING FINDING, as a test. A corrected time keys IDENTICALLY —
+    same night, same place, same title — so a re-run that skips on the key
+    alone leaves 8pm published under this desk's name after the desk moved the
+    show to 9:30pm. That is a false detail shown to a reader under a trusted
+    label, which is the one thing this pipeline exists not to do.
+    """
+    published = _stmt(when="2026-09-12T20:00:00-05:00")
+    corrected = _stmt(when="2026-09-12T21:30:00-05:00")
+
+    one = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Brass Union", when="2026-09-12T20:00:00-05:00", place="The Mercury")]))
+    two = _union(_walk(CHRONICLE, "Austin Chronicle", [
+        _row("Brass Union", when="2026-09-12T21:30:00-05:00", place="The Mercury")]))
+    assert ingest_key(one.rows[0]) == ingest_key(two.rows[0]), (
+        "the premise: a re-time on the same night is the SAME key")
+    assert drift(published, corrected) == ["clocks"]
+
+
+def test_a_moved_venue_and_a_renamed_show_are_drift():
+    assert drift(_stmt(), _stmt(place="Some Other Room")) == ["place"]
+    assert drift(_stmt(), _stmt(title="Brass Union (moved)")) == ["title"]
+
+
+def test_a_changed_listing_address_is_drift():
+    assert drift(_stmt(url="https://d.example/a"),
+                 _stmt(url="https://d.example/b")) == ["listing_url"]
+
+
+def test_a_second_desk_picking_up_a_published_row_is_drift():
+    """Not a correction, but not nothing either: the row now has corroboration
+    it did not have when it published, and an operator should see that.
+    """
+    one_desk = _stmt()
+    both = _union(
+        _walk(CHRONICLE, "Austin Chronicle", [
+            _row("Brass Union", when="2026-09-12T20:00:00-05:00", place="The Mercury")]),
+        _walk(DO512, "Do512", [
+            _row("Brass Union", when="2026-09-12T20:00:00-05:00", place="The Mercury",
+                 via="Do512", door_id=DO512)]))
+    two_desks = write_for(both.rows[0], REGS, mode="LIVE").extracted[DESK_KEY]["statement"]
+    assert drift(one_desk, two_desks) == ["vias"]
+
+
+def test_an_unchanged_desk_is_not_drift():
+    assert drift(_stmt(), _stmt()) == []
+
+
+def test_a_row_written_before_statements_existed_is_not_reported_as_changed():
+    """Fail-safe direction. Rows already in the store have no statement to
+    compare against; inventing a difference from a hole would report EVERY one
+    of them as changed on the first run after this ships, which is a false
+    alarm on the whole catalog.
+    """
+    assert drift(None, _stmt()) == []
+    assert drift({}, _stmt()) == []
+
+
+def test_drift_records_the_desks_new_word_and_never_publishes_it():
+    """A second listing beside the first is strictly worse for a reader than
+    the stale field this row exists to report, so the drift candidate is
+    written and NOT promoted. Rewriting the published row is a MUTATION and
+    belongs to worker/listing_update.py, the one reviewed seam for it (R-105).
+    """
+    writes = _writes(1)
+    key = writes[0].ingest_key
+    stale = dict(writes[0].extracted[DESK_KEY]["statement"])
+    stale["clocks"] = ["2026-09-01T01:00:00-05:00"]  # what we published earlier
+    seen = {key: ("cand-old", "promoted", "event-old", stale)}
+    created, promoted = [], []
+
+    result = ingest_tool.ingest(
+        writes, seen=seen,
+        create=lambda **kw: created.append(kw) or "cand-new",
+        add_evidence=lambda *a: None,
+        promote=lambda cid: promoted.append(cid) or "event-new")
+
+    assert len(result["changed"]) == 1, result
+    assert not result["skipped"] and not result["promoted"]
+    assert promoted == [], "a drift row must never publish a second listing"
+    assert len(created) == 1, "the desk's new word is recorded as a candidate"
+    note = created[0]["extracted"][DESK_KEY]
+    assert note["supersedes"]["event_id"] == "event-old"
+    assert note["supersedes"]["changed"] == ["clocks"]
+    assert "event-old" in result["changed"][0][1]
+    assert sum(len(v) for v in result.values()) == len(writes)
+
+
+def test_an_unchanged_row_still_skips_and_writes_nothing():
+    writes = _writes(1)
+    key = writes[0].ingest_key
+    same = writes[0].extracted[DESK_KEY]["statement"]
+    created = []
+    result = ingest_tool.ingest(
+        writes, seen={key: ("cand-old", "promoted", "event-old", same)},
+        create=lambda **kw: created.append(kw) or "c",
+        add_evidence=lambda *a: None, promote=lambda cid: "e")
+    assert len(result["skipped"]) == 1
+    assert created == []

@@ -321,3 +321,64 @@ def test_the_before_after_counts_are_the_apis_own_predicates(pg, registrations):
     # The row is 8 hours out, so the 12-hour window moves too — and the wide
     # window can never be smaller than the narrow one.
     assert after["tonight_168h"] >= after["tonight_12h"]
+
+
+def test_a_desk_that_corrects_a_time_is_recorded_and_the_row_is_not_duplicated(pg, registrations):
+    """The evaluator's blocking finding (PR #229 r1), against real SQL.
+
+    A desk correcting 8pm to 9:30pm on the same night keys IDENTICALLY, so the
+    key alone says "already have it" and the published 8pm stays live under
+    that desk's name. Here the drift is detected from the stored statement,
+    recorded as a new candidate, and — critically — NOT published: a second
+    listing beside the first is worse for a reader than the stale field.
+
+    This runs against a real database because the detection turns on a
+    `distinct on … order by created_at desc` read of a jsonb path, which no
+    fake cursor can prove.
+    """
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    first = datetime.now(timezone.utc) + timedelta(hours=4)
+    place = f"Correction Room {tag}"
+    title = f"Retimed Show {tag}"
+
+    rows = [_happening(title, when=first, place=place, via="Do512", door_id=DO512_DOOR)]
+    _t, published = _run(plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations), pg=pg)
+    assert len(published["promoted"]) == 1, published
+
+    # The desk re-prints the same night, same place, same title — later clock.
+    corrected = [_happening(title, when=first + timedelta(minutes=90), place=place,
+                            via="Do512", door_id=DO512_DOOR)]
+    writes = plan(_live_union(_walk(DO512_DOOR, "Do512", corrected)), registrations)
+    _t, second = _run(writes, pg=pg)
+
+    assert len(second["changed"]) == 1, second
+    assert not second["skipped"] and not second["promoted"]
+    assert "clocks" in second["changed"][0][1]
+
+    with pg.cursor() as cur:
+        cur.execute("select count(*) from event where title=%s", (title,))
+        assert cur.fetchone()[0] == 1, (
+            "the drift must not publish a second listing for one happening")
+        cur.execute(
+            "select count(*) from event_candidate where title=%s and status='needs_review'",
+            (title,))
+        assert cur.fetchone()[0] == 1, "the desk's new word must be on the record"
+        cur.execute(
+            """
+            select extracted->'_desk'->'supersedes'->>'event_id'
+            from event_candidate
+            where title=%s and extracted->'_desk' ? 'supersedes'
+            """, (title,))
+        superseded = cur.fetchone()[0]
+        cur.execute("select event_id::text from event where title=%s", (title,))
+        assert superseded == cur.fetchone()[0], (
+            "the drift candidate must name the published row it disagrees with")
+
+    # A THIRD run sees the desk's latest word, not its first: no second alarm.
+    _t, third = _run(
+        plan(_live_union(_walk(DO512_DOOR, "Do512", corrected)), registrations), pg=pg)
+    assert len(third["skipped"]) == 1, third
+    assert not third["changed"], (
+        "the same correction must not re-alarm on every subsequent run")

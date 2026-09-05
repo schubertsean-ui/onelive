@@ -30,9 +30,16 @@ Two guards worth knowing before you run it:
   * `--write` requires `--real`. A FIXTURE union is refused at the write seam
     itself (`desk_publish.refuse_fixture_write`), because "Fixture Quartet at
     the Shape Hall" in the live catalog is worse than an empty catalog.
-  * Re-running is safe. Every candidate carries the founder's de-dup key at
-    `extracted._desk.key`; a key already in the store is SKIPPED, so a nightly
-    run adds what is new instead of a second copy of what is not.
+  * Re-running is safe, and it asks TWO questions rather than one. Every
+    candidate carries the founder's de-dup key at `extracted._desk.key`, so a
+    happening already in the store is not written twice. But a key answers only
+    "is this the same happening?" — a desk that corrects 8pm to 9:30pm on the
+    same night keys identically — so each candidate also carries the desk's
+    STATEMENT (`extracted._desk.statement`). A row is skipped only when the
+    desk still says the same thing about it; when the desk has changed its
+    word, the new statement is recorded as a candidate, the published row is
+    left for the reviewed update seam, and the divergence is REPORTED under
+    `changed`. Nothing goes stale silently (R-110).
 
 Exit codes: 0 ran, 2 refused (bad door, bad locale, fixture write, no DSN).
 """
@@ -49,9 +56,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
 from worker.locale.desk_publish import (  # noqa: E402
+    DESK_KEY,
     CandidateWrite,
     DeskPublishError,
     DeskRegistration,
+    describe_drift,
+    drift,
     plan,
     plan_digest,
     refuse_fixture_write,
@@ -191,20 +201,28 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
 # The write
 # --------------------------------------------------------------------------
 
-def existing_keys(cur) -> Dict[str, Tuple[str, str, Optional[str]]]:
-    """Every desk key already in the candidate store -> (id, status, event id).
+def existing_keys(cur) -> Dict[str, Tuple[str, str, Optional[str], Optional[dict]]]:
+    """Every desk key already in the store -> (id, status, event id, statement).
 
     ONE scan, not one query per row: the whole point of the key is that a
     re-run is cheap, and 33 sequential scans of a growing table is not cheap.
+
+    The STATEMENT comes back with the key because the key alone cannot answer
+    the question a re-run actually has to ask (see `ingest`). The most RECENT
+    row for a key wins: a drift row is written as a new candidate carrying the
+    desk's newer statement, so ordering by `created_at` is what makes the next
+    run compare against the desk's latest word rather than its first.
     """
     cur.execute(
         """
-        select extracted->'_desk'->>'key', candidate_id::text, status,
-               promoted_event_id::text
+        select distinct on (extracted->'_desk'->>'key')
+               extracted->'_desk'->>'key', candidate_id::text, status,
+               promoted_event_id::text, extracted->'_desk'->'statement'
         from event_candidate
         where extracted ? '_desk'
+        order by extracted->'_desk'->>'key', created_at desc
         """)
-    return {row[0]: (row[1], row[2], row[3]) for row in cur.fetchall() if row[0]}
+    return {r[0]: (r[1], r[2], r[3], r[4]) for r in cur.fetchall() if r[0]}
 
 
 def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
@@ -216,12 +234,35 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
     swallowed: every row lands in exactly one bucket, and the buckets are
     printed.
     """
-    out: Dict[str, list] = {"promoted": [], "held": [], "skipped": [], "failed": []}
+    out: Dict[str, list] = {"promoted": [], "held": [], "changed": [],
+                            "skipped": [], "failed": []}
     for w in writes:
+        supersedes = None
         if w.ingest_key in seen:
-            cid, status, event_id = seen[w.ingest_key]
-            out["skipped"].append((w, f"already in the store as {status} ({cid})"))
-            continue
+            cid, status, event_id, stored = seen[w.ingest_key]
+            fresh = w.extracted[DESK_KEY]["statement"]
+            moved = drift(stored, fresh)
+            if not moved:
+                out["skipped"].append((w, f"already in the store as {status} ({cid})"))
+                continue
+            # THE DESK HAS CHANGED ITS MIND, so this is not a re-run of a row
+            # we already have — it is a new statement about it, and skipping on
+            # the key alone would leave a listing published under this desk's
+            # name that the desk itself no longer supports (evaluator, PR #229
+            # r1: "users can be shown false event details").
+            #
+            # It is RECORDED, never applied. Rewriting a published row is a
+            # MUTATION, and this repository has one reviewed seam for that
+            # (`worker/listing_update.py`, founder-ruled 2026-09-02: same-page
+            # evidence, four enumerated columns, never a delete). A walker that
+            # grew its own update path beside it would be a second, unreviewed
+            # answer to the same question. So the desk's new word becomes a
+            # candidate — evidence, auditable, in the ops queue — the published
+            # row is left alone, and the divergence is REPORTED rather than
+            # silently absorbed. The residual is R-110, with its trigger.
+            supersedes = {"candidate_id": cid, "event_id": event_id,
+                          "was": stored, "changed": moved}
+            w.extracted[DESK_KEY]["supersedes"] = supersedes
         try:
             cid = create(
                 source_id=None,
@@ -254,6 +295,18 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                 w, f"{evidence_failure} — candidate {cid} was written but NOT "
                    f"promoted: its evidence is incomplete, and the gate reads "
                    f"the evidence"))
+            continue
+        if supersedes is not None:
+            # Recorded, not published. Promoting would put a SECOND listing for
+            # this happening on the feed beside the one that is already there —
+            # strictly worse for a reader than the stale field this row exists
+            # to report.
+            out["changed"].append((
+                w, f"the desk has changed its statement since we published "
+                   f"event {supersedes['event_id']} — "
+                   f"{describe_drift(supersedes['was'], w.extracted[DESK_KEY]['statement'], supersedes['changed'])}"
+                   f" — recorded as candidate {cid}, NOT published (the "
+                   f"published row is left for worker/listing_update.py; R-110)"))
             continue
         try:
             event_id = promote(cid)
@@ -293,10 +346,11 @@ def outcome_table(result: Mapping[str, list]) -> str:
     meaning = {
         "promoted": "written and published — visible on `/events`, and on `/tonight` when the clock falls in the window",
         "held": "written as a candidate, not published — the gate or the duplicate guard said so (reason below)",
-        "skipped": "this happening was already in the store under the same key — a re-run, not a loss",
+        "changed": "the desk has CHANGED its statement about a happening we already published — recorded as a new candidate, the published row untouched (reason below)",
+        "skipped": "this happening was already in the store, and the desk still says the same thing about it — a re-run, not a loss",
         "failed": "not written — the reason is printed, never swallowed",
     }
-    for bucket in ("promoted", "held", "skipped", "failed"):
+    for bucket in ("promoted", "held", "changed", "skipped", "failed"):
         out.append(f"| {bucket} | {len(result[bucket])} | {meaning[bucket]} |")
     return "\n".join(out)
 
@@ -414,7 +468,7 @@ def main(argv=None) -> int:
     print("## 3. What happened to each row")
     print()
     print(outcome_table(result))
-    for bucket in ("held", "failed"):
+    for bucket in ("changed", "held", "failed"):
         if result[bucket]:
             print()
             print(f"### {bucket}")
