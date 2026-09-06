@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-143 passed in 0.59s
+144 passed in 0.59s
 ```
 
 | ticket case | test | result |
@@ -2229,6 +2229,66 @@ every fixture in this file declares none, so the suite could not see the rule at
 all — it went green on 140 tests while carrying a locale penalty. The habit to
 add: when a rule keys on an attribute, grep the fixtures for that attribute
 before believing the suite.
+
+### 13ab. Round 26 — a record is not a fix, twice in a row
+
+Both openai seats block; both gemini APPROVE. **No new defect was named.** Both
+seats reopened the two residuals written down last round, and both made the same
+objection R-115 drew at r21: *"the RECORD row preserves the residual, but it is
+not arming-gated ... the code does not fail closed for this shape."*
+
+That is correct on this repo's own rule, and it is now the twelfth time in this
+ticket that recording a bound has been treated as doing the work.
+
+**R-116 — checked for a close, and there is none.** Every discriminator this
+module owns is structural: a heading (r20), a link the committed identity table
+classifies (r4/r16), a sectioning element (r5/r6), a structured node naming its
+address (r2/r19). An unheaded, unlinked `<div>` carries none of them, and HTML
+marks it in no way at all — that is the whole difficulty. The alternatives:
+
+* an English class-name list ("promo", "related", "also") — refused on the
+  record at r1 and again at r23, because the enumeration looks complete until
+  the next desk uses a different noun;
+* refusing every prose-stated date — which is the founder's own acceptance case
+  (a), MEASURED at r22 as 33 of 136 tests;
+* a block-nesting-depth rule — rejected because its strictness varies with
+  markup style, which r12 already recorded as "not a default, a coin flip".
+
+**So R-116 gets what r22 gave R-115: its size, printed every run.** A field read
+from the page's own prose is tied to this happening by one thing — the page is
+about it. That is correct for a card stating its own date, and it is the same
+tie an unheaded promotional block would ride in on; nothing in HTML separates
+them, so they are counted together:
+
+> **N of M** opened page(s) filled a field from the page's own PROSE, tied to
+> this happening only by the page being about it.
+
+**Two record corrections, and the second is the one worth reading.** R-116 now
+covers PLACE as well as date — R-112 is RESOLVED only for a place OUTSIDE the
+sectioning element holding the page's heading, and this shape sits inside it, so
+the identical block publishes both fields. R-112's row said none of that, and
+read as if it closed the class. **A record that claims more than its mechanism
+is the deferred-trust-work defect wearing a RESOLVED label.**
+
+**And the correction itself was caught by a gate, not by me.** Appending the
+scope note merged it into R-112's status cell, and `kpi_report` refused to guess:
+
+```
+kpi_report: COMPUTE ERROR — could not read the status cell of R-112
+            — refusing to guess an open-row count.
+7 failed, 3134 passed
+```
+
+A checker that fails closed on a malformed row rather than counting around it is
+worth more than the row it protects — and it is the reason this ticket's records
+can be trusted at all.
+
+**R-115's Latin-script tail stands, and this is the third round of saying so.**
+A Polish or Turkish card printing a word clock we do not carry still publishes
+the markup's precise time. Catching it needs the word; catching all of them needs
+every word; the armed parser is the home for both and the founder's Must-do 1
+names it imported-never-edited. There is no third option, and I have now looked
+for one in four separate rounds.
 
 ## 14. What this ticket did NOT do
 

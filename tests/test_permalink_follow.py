@@ -2507,6 +2507,45 @@ def test_the_bound_on_an_unheaded_unlinked_block_r116():
                 '<p>December 25, 2026 8:00PM</p></section>').when is None
 
 
+def test_the_report_counts_the_rows_r116_could_reach():
+    """Evaluator, PR #235 r26, BOTH openai seats — they reopened R-116 the round
+    it was written, with the same objection R-115 got at r21: "the RECORD row
+    preserves the residual, but it is not arming-gated ... the code does not fail
+    closed for this shape." That is right, and it is also true that no close is
+    available: every discriminator this module has is structural, an unheaded and
+    unlinked `<div>` carries none of them, and the alternatives are an English
+    class-name list (refused at r1) or refusing every prose-stated date, which is
+    the founder's own acceptance case (a) and was measured at r22 as 33 of 136
+    tests.
+
+    So this round gives R-116 what r22 gave R-115: its SIZE, printed on every
+    run. A field read from the page's own prose is tied to this happening by one
+    thing — the page is about it. That is correct for a card stating its own
+    date, and it is the same tie an unheaded promotional block would ride in on.
+    Nothing in HTML separates them, so they are counted together and the count is
+    the residual's exposure on real desks."""
+    tool = _tool()
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            '"name":"Dominic Fike","url":"https://desk.test/event/show-0",'
+            '"startDate":"2026-09-18T19:30:00-05:00"}</script>')
+    # Tied: the node names this address, so nothing rides on the page's prose.
+    tied = (f"<html><head>{node}</head><body><article><h1>Dominic Fike</h1>"
+            f"<p>An evening of songs.</p></article></body></html>")
+    # Untied: the same field, stated only in the page's own words.
+    untied = ("<html><body><article><h1>Dominic Fike</h1>"
+              "<p>Friday, September 18, 2026 8:00PM</p>"
+              "</article></body></html>")
+    one = _walk([row("Dominic Fike", listing_url="https://desk.test/event/show-0"),
+                 row("Dominic Fike", listing_url="https://desk.test/event/show-1")])
+    follows = tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/show-0": tied,
+        "https://desk.test/event/show-1": untied})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    table = tool.what_the_pages_said(follows)
+    assert "**1 of 2**" in table, table
+    assert "R-116" in table
+
+
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
     """Evaluator, PR #235 r20, openai/attacker-smuggle — r18's sub-card rule
     excluded nested SECTIONING elements, and `<div>` is a block boundary and not

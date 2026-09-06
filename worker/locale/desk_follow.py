@@ -930,6 +930,18 @@ class FieldRead:
     #: on every run so the residual is a MEASURED quantity on real desks rather
     #: than an argument in a record (r22).
     clock_uncorroborated: bool = False
+    #: True when the only thing tying this page's date or place to this
+    #: happening is that the page is ABOUT it — no structured node naming the
+    #: address, no heading, no classified link, nothing but the block sitting in
+    #: the subject's region. That is the correct read on a page whose card
+    #: states its own date in its own prose, and it is also the exposure surface
+    #: of R-116: an unheaded, unlinked promotional block is indistinguishable
+    #: from the card's own text by every structural signal HTML offers, so the
+    #: two shapes are counted TOGETHER and the count is printed. Same answer
+    #: this ticket already gave R-115 at r22 — a residual with no available
+    #: close becomes a measured quantity on real desks instead of an argument in
+    #: a record (evaluator, PR #235 r26, both openai seats).
+    untied_statement: bool = False
     #: What this page calls ITSELF — the visible subject, or `<title>` where it
     #: prints none. Carried so `apply_read` can ask whether the page is about
     #: the row it is being applied to WITHOUT computing the headings a second
@@ -2402,6 +2414,13 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         place_carrier=place_carrier, refusals=tuple(refusals),
         codes=tuple(codes), headings=tuple(headings),
         clock_uncorroborated=clock_uncorroborated,
+        # R-116's exposure: a field whose ONLY tie to this happening is that the
+        # page is about it. Structured carriers name the address they speak for
+        # and are tied; visible prose is not, and no signal in HTML separates
+        # the card's own paragraph from an unheaded promotional block beside it.
+        untied_statement=bool(
+            (when and (when_carrier or "").startswith("visible"))
+            or (place_text and place_carrier == "labelled")),
     )
 
 
