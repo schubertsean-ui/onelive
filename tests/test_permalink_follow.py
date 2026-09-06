@@ -689,7 +689,9 @@ SIDEBAR_EVENT = """<html><head><script type="application/ld+json">
 
 
 def test_a_structured_node_naming_another_address_speaks_for_nobody_here():
-    read = df.field_read(SIDEBAR_EVENT, url=HERE, as_of=AS_OF)
+    """The address it names is one the COMMITTED table calls a happening — so it
+    is another row's statement, not this one's."""
+    read = df.field_read(SIDEBAR_EVENT, url=HERE, as_of=AS_OF, patterns=PATTERNS)
     assert read.when is None
     assert read.place_text is None
     assert "structured-not-bound" in read.codes
@@ -719,8 +721,9 @@ def test_an_unbound_node_does_not_even_get_the_event_scope_exemption():
     """The first cut of this fix stopped the unbound node from WINNING its tier
     and left it holding the exemption from the plumbing/locality rules — so it
     still dated the row. A statement about another event gets neither."""
-    assert df.speaks_for([{"url": "https://desk.test/event/other-99"}], HERE) == []
-    read = df.field_read(SIDEBAR_EVENT, url=HERE, as_of=AS_OF)
+    assert df.speaks_for([{"url": "https://desk.test/event/other-99"}], HERE,
+                         PATTERNS) == []
+    read = df.field_read(SIDEBAR_EVENT, url=HERE, as_of=AS_OF, patterns=PATTERNS)
     assert read.when is None and read.when_carrier is None
 
 
@@ -1033,3 +1036,55 @@ def test_a_negative_budget_is_refused_before_anything_is_walked(capsys):
     tool = _tool()
     assert tool.main(["--dry-run", "--follow-budget", "-1"]) == 2
     assert "must be zero or more" in capsys.readouterr().err
+
+
+def test_a_vanity_url_for_the_same_happening_is_not_another_event():
+    """The live run's own finding. Requiring the node to name the followed
+    permalink refused 29 of 40 real pages, and the addresses they named were the
+    desk's own vanity and submitter links for the SAME happening:
+
+        /backtotheranch     on  /event/back-to-the-ranch-...-14329073
+        /texarts_26_BB_ac   on  /event/boeing-boeing-14285657
+        /events/269428      on  /event/prodigal-sun-14267156
+
+    None of those is an address the identity table calls a happening, which is
+    exactly what separates them from a sidebar's link to another PERMALINK.
+    """
+    def page(url_value):
+        return f"""<html><head><script type="application/ld+json">
+        {{"@type":"Event","name":"X","url":"{url_value}",
+          "startDate":"2026-12-25T20:00:00-06:00",
+          "location":{{"@type":"Place","name":"The Room"}}}}</script></head>
+        <body><article><h1>Dominic Fike</h1></article></body></html>"""
+
+    for vanity in ("https://desk.test/backtotheranch",
+                   "https://desk.test/events/269428"):
+        read = df.field_read(page(vanity), url=HERE, as_of=AS_OF, patterns=PATTERNS)
+        assert read.when == "2026-12-25T20:00:00-06:00", vanity
+        assert read.place_text == "The Room", vanity
+
+    # And the sidebar case the evaluator found stays closed.
+    read = df.field_read(page("https://desk.test/event/other-99"), url=HERE,
+                         as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None
+    assert "structured-not-bound" in read.codes
+
+
+def test_forgetting_the_pattern_table_gets_the_STRICT_answer():
+    """Without a table nothing looks like another happening's address, so every
+    sidebar node would speak for the row beside it. `None` therefore means the
+    COMMITTED table; `()` means "no table" on purpose."""
+    import inspect
+    assert inspect.signature(df.field_read).parameters["patterns"].default is None
+
+
+def test_a_dropdown_inside_a_venue_block_is_not_a_second_place():
+    """The live run read a restaurant-category `<select>` as one of a page's two
+    places, which is how those pages went `places-ambiguous`. A picker offers
+    choices; it does not say where a happening is."""
+    page = ('<html><body><article>'
+            '<div class="venue">The Hall'
+            '<select><option>Cafe</option><option>Bakery</option></select></div>'
+            '<time datetime="2026-09-06T21:00">Sun</time></article></body></html>')
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text == "The Hall"

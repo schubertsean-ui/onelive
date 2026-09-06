@@ -445,7 +445,8 @@ def _addresses_named(event: Dict[str, object]) -> set:
     return out
 
 
-def speaks_for(events: Sequence[Dict[str, object]], url: str
+def speaks_for(events: Sequence[Dict[str, object]], url: str,
+               patterns: Sequence[IdentityPattern] = ()
                ) -> List[Dict[str, object]]:
     """The structured nodes on this page that are about THIS happening.
 
@@ -462,8 +463,24 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str
 
       * it names THIS address (`url` or `@id` resolving to the followed
         permalink) — the strong bind, and the common case;
-      * or it is the page's only Event node and names no address at all, which
-        is a permalink page publishing an Event about itself.
+      * or it is the page's only Event node and the address it names is not
+        ANOTHER HAPPENING'S. A node naming no address at all is a permalink page
+        publishing an Event about itself; so is one naming an address that no
+        committed identity pattern calls a happening.
+
+    That last arm is the committed identity table doing the work, and the live
+    run is why it exists. Requiring the node to name the followed permalink
+    refused 29 of 40 real pages, and the addresses they named say what they are:
+
+        /backtotheranch     on  /event/back-to-the-ranch-the-lbj-bbq-returns-14329073
+        /texarts_26_BB_ac   on  /event/boeing-boeing-14285657
+        /events/269428      on  /event/prodigal-sun-14267156
+
+    Those are the desk's own vanity and submitter links for the SAME happening,
+    not other events — and none of them is an address the identity table calls a
+    happening. A sidebar or related-events node is the opposite: it links to
+    another happening's PERMALINK, which is exactly what the table matches, so
+    it is still refused (evaluator, PR #235 r2 — that case stays closed).
 
     Anything else returns nothing, and the caller falls back to the page's
     printed text — where the plumbing and same-statement rules apply. That is
@@ -473,9 +490,15 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str
     bound = [ev for ev in events if here in _addresses_named(ev)]
     if bound:
         return bound
-    if len(events) == 1 and not _addresses_named(events[0]):
-        return list(events)
-    return []
+    if len(events) != 1:
+        return []
+    named = {raw for raw in (str(events[0].get(k) or "").strip()
+                             for k in ("url", "uid"))
+             if raw.lower().startswith(("http://", "https://"))}
+    if any(match_identity(one, patterns) is not None for one in named):
+        # It names another happening. That is a different row's statement.
+        return []
+    return list(events)
 
 
 def _labelled_places(html: str) -> List[str]:
@@ -515,7 +538,9 @@ def _clock_claim(html: str) -> Tuple[Optional[str], Optional[str]]:
     return found[0], None
 
 
-def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRead:
+def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
+               patterns: Optional[Sequence[IdentityPattern]] = None
+               ) -> FieldRead:
     """Read ONE event page into the fields it states about itself.
 
     The ladder is R-030's trust order, and it runs over THIS page's text only:
@@ -547,6 +572,12 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
         return FieldRead(url=url, codes=("empty-body",),
                          refusals=("empty page body — nothing read "
                                    "(not 'nothing stated')",))
+    # None means the COMMITTED table, so a caller that forgets to pass one gets
+    # the strict answer rather than the permissive one: without patterns nothing
+    # looks like another happening's address, and every sidebar node would speak
+    # for the row it is sitting beside. Pass `()` to mean "no table" on purpose.
+    if patterns is None:
+        patterns = load_patterns()
     refusals: List[str] = []
     codes: List[str] = []
 
@@ -571,7 +602,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
         ld_events = []
         refuse("jsonld-raised", f"JSON-LD parse raised ({exc}); the page's other "
                                 f"statements were still read")
-    mine = speaks_for(ld_events, url)
+    mine = speaks_for(ld_events, url, patterns)
     if ld_events and not mine:
         # Name the addresses. "A different address" is a verdict; WHICH address
         # is the evidence, and it is the difference between a sidebar event and
@@ -963,7 +994,8 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
             result.queued.append((url, "empty body — nothing read (not 'nothing stated')"))
             continue
 
-        read = field_read(page.body, url=landed, as_of=as_of)
+        read = field_read(page.body, url=landed, as_of=as_of,
+                          patterns=patterns)
         result.reads.append(read)
         moved = False
         for index in indexes:
