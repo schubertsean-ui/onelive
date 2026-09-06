@@ -528,39 +528,62 @@ def _named_urls(event: Dict[str, object], url: str) -> FrozenSet[str]:
     return frozenset(out)
 
 
-def _states_the_day(event: Dict[str, object], page_dates: FrozenSet[_date],
-                    stated: Sequence[object]) -> bool:
-    """Does the page's OWN printed content state the day this node claims?
+_HEADING_RE = re.compile(
+    r"<(h1|title)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
 
-    The corroboration the weak arm of `speaks_for` rests on. A node the page
-    does not otherwise back up is one witness whose identity we could not
-    establish; a node whose day the page also prints in its own content is the
-    page agreeing with itself.
 
-    NEVER COMPARE A DAY ACROSS TWO NORMALISATIONS. `parse_jsonld` hands back a
-    node whose start is already UTC (`2026-12-26T02:00:00Z`) while the page
-    prints the local day it means (`2026-12-25`) — comparing those directly is
-    wrong by one day for every evening show west of Greenwich, and it silently
-    refused a page that corroborates itself perfectly. So the node's own day is
-    read back out of `same_page_dates`, which is also what read the prose:
-    ONE module's convention on both sides, and the node is found in it by the
-    same instant key the per-hit bind uses.
+def _headings(html: str) -> List[str]:
+    """What this page calls ITSELF: its `<h1>`s and its `<title>`."""
+    out: List[str] = []
+    for _tag, inner in _HEADING_RE.findall(html or ""):
+        text = " ".join(_TAG_RE.sub(" ", inner).split())
+        if text:
+            out.append(text)
+    return out
+
+
+def _same_name(a: str, b: str) -> bool:
+    """Two names for the same thing, compared the way a reader would.
+
+    Case, punctuation and spacing are noise ("Boeing Boeing" / "boeing-boeing");
+    containment either way is deliberate, because a desk routinely heads a page
+    with more than the node's name ("Prodigal Sun at Saengerrunde Hall") or
+    less. The floor on length stops a short token matching everything.
     """
-    key = _instant_key(str(event.get("start_time") or ""))
-    if key is None:
-        # It states no start. Nothing to corroborate and nothing to publish
-        # from — it cannot date this row either way.
+    left = " ".join(re.sub(r"[^0-9a-z]+", " ", a.casefold()).split())
+    right = " ".join(re.sub(r"[^0-9a-z]+", " ", b.casefold()).split())
+    if len(left) < 4 or len(right) < 4:
         return False
-    return any(getattr(hit, "kind", None) in _DOCUMENT_LEVEL_KINDS
-               and _instant_key(getattr(hit, "raw", "")) == key
-               and getattr(hit, "date", None) in page_dates
-               for hit in stated)
+    return left in right or right in left
+
+
+def _names_this_page(event: Dict[str, object], headings: Sequence[str]) -> bool:
+    """Does this node say it is ABOUT the thing this page is about?
+
+    THE QUESTION IS IDENTITY, NOT AGREEMENT. The first version of this check
+    asked whether the page's own content stated the DAY the node claims, and
+    the live desk showed what is wrong with that: on
+    `/event/prodigal-sun-14267156` the node states Sep 4 and the page displays
+    Sep 6, because a run of performances has more than one date and the two
+    statements are about different ones. That is not evidence the node belongs
+    to another happening — and refusing on it took `structured-not-bound` from
+    2 pages to 17 of 40, with 14 of them falling through to a date they could
+    only find in their own plumbing.
+
+    A node that names what the page names is this page's node. A promotional or
+    stale Event is about something else and says so in its own `name`, which is
+    exactly the evaluator's case (PR #235 r4: a node called "Something Else" on
+    a page headed "Dominic Fike").
+    """
+    name = " ".join(str(event.get("title") or event.get("name") or "").split())
+    if not name:
+        return False
+    return any(_same_name(name, heading) for heading in headings)
 
 
 def speaks_for(events: Sequence[Dict[str, object]], url: str,
                patterns: Sequence[IdentityPattern] = (),
-               *, page_dates: FrozenSet[_date] = frozenset(),
-               stated: Sequence[object] = ()
+               *, headings: Sequence[str] = ()
                ) -> List[Dict[str, object]]:
     """The structured nodes on this page that are about THIS happening.
 
@@ -621,10 +644,10 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
     if any(match_identity(one, patterns) is not None for one in named):
         # It names another happening. That is a different row's statement.
         return []
-    if named and not _states_the_day(events[0], page_dates, stated):
+    if named and not _names_this_page(events[0], headings):
         # It names SOMETHING, and the table cannot tell us what. Unrecognised is
-        # not the same as ours: without the page's own content standing behind
-        # the day it claims, this node is unidentified, and an unidentified
+        # not the same as ours: unless the node says it is about the thing this
+        # page is about, it is an unidentified witness, and an unidentified
         # witness dates nothing.
         return []
     return list(events)
@@ -764,16 +787,13 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         ld_events = []
         refuse("jsonld-raised", f"JSON-LD parse raised ({exc}); the page's other "
                                 f"statements were still read")
-    # The page's own printed content, read BEFORE the structured statement is
-    # judged, because the weak arm of `speaks_for` is corroborated by it: a lone
-    # node at an address the identity table cannot classify speaks for this page
-    # only while the page itself also prints the day that node claims.
+    # What the page calls ITSELF, read before the structured statement is
+    # judged: the weak arm of `speaks_for` rests on it — a lone node at an
+    # address the identity table cannot classify speaks for this page only when
+    # it names the thing this page names.
     said = segments(html)
-    page_dates = frozenset(d.date for s in said
-                           for d in same_page_dates(s, as_of=as_of))
-    stated = same_page_dates(html, as_of=as_of)
-    mine = speaks_for(ld_events, url, patterns,
-                      page_dates=page_dates, stated=stated)
+    headings = _headings(html)
+    mine = speaks_for(ld_events, url, patterns, headings=headings)
     if ld_events and not mine:
         # Name the addresses. "A different address" is a verdict; WHICH address
         # is the evidence, and it is the difference between a sidebar event and
@@ -789,9 +809,11 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                or any(match_identity(a, patterns) is not None
                       for a in _named_urls(ld_events[0], url)) else
                f"; the address it names is one no committed pattern classifies, "
-               f"and the page's own content states "
-               f"{', '.join(sorted(d.isoformat() for d in page_dates)[:3]) or 'no date'}"
-               f", which does not corroborate the day it claims"))
+               f"and it calls itself "
+               f"{str(ld_events[0].get('title') or ld_events[0].get('name') or '')!r} "
+               f"while this page calls itself "
+               f"{(headings[0] if headings else '')!r} — a node about something "
+               f"else is not this row's"))
 
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
@@ -836,8 +858,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                    or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}
                    for s in said)
 
-    # `stated` was read above, before the structured statement was judged —
-    # every date carrier on this page, in ONE module's convention.
+    stated = same_page_dates(html, as_of=as_of)
     # NEVER MIX TIERS (ONE-LIVE-ENTITY-SPLIT-LAW.md §2, the ladder's own rule,
     # here applied to fields rather than identities). A schema.org
     # `Event.startDate` or an ICS `DTSTART` states WHOSE start it is; printed

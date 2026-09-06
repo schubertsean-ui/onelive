@@ -1160,12 +1160,13 @@ def test_a_vanity_url_for_the_same_happening_is_not_another_event():
     None of those is an address the identity table calls a happening, which is
     exactly what separates them from a sidebar's link to another PERMALINK.
 
-    The table alone is not enough, though — see the test below. The page has to
-    corroborate the day, and here it does: the article prints Dec 25 itself.
+    The table alone is not enough, though — see the test below. The node has to
+    say it is about the thing this page is about, and here it does: it and the
+    page's own heading both name Dominic Fike.
     """
     def page(url_value, printed="<p>Friday, December 25, 2026</p>"):
         return f"""<html><head><script type="application/ld+json">
-        {{"@type":"Event","name":"X","url":"{url_value}",
+        {{"@type":"Event","name":"Dominic Fike","url":"{url_value}",
           "startDate":"2026-12-25T20:00:00-06:00",
           "location":{{"@type":"Place","name":"The Room"}}}}</script></head>
         <body><article><h1>Dominic Fike</h1>
@@ -1205,9 +1206,9 @@ def test_an_unrecognised_address_is_not_proof_the_node_is_ours():
     something else entirely. On a page whose own listing carries no structured
     markup, it is the lone node, and it published its day and its venue here.
 
-    The page has to stand behind it. This page prints nothing about December,
-    so the node is one witness we could not identify, and the row keeps its
-    hole."""
+    The node has to say it is about the thing this page is about. This one
+    calls itself "Something Else" on a page headed "Dominic Fike", so it is an
+    unidentified witness and the row keeps its hole."""
     page = """<html><head><script type="application/ld+json">
     {"@type":"Event","name":"Something Else","url":"https://desk.test/promo-xyz",
       "startDate":"2026-12-25T20:00:00-06:00",
@@ -1220,7 +1221,46 @@ def test_an_unrecognised_address_is_not_proof_the_node_is_ours():
     assert "structured-not-bound" in read.codes
     # The refusal says WHY, so a live run can tell this apart from a sidebar
     # naming another permalink.
-    assert any("does not corroborate" in r for r in read.refusals), read.refusals
+    assert any("about something else" in r for r in read.refusals), read.refusals
+
+
+def test_a_run_of_performances_disagreeing_about_the_day_still_binds():
+    """The live shape that the first version of the identity check destroyed.
+
+    `/event/prodigal-sun-14267156`: the node states Sep 4, the page displays
+    Sep 6, and both are about Prodigal Sun — a run of performances has more than
+    one date and the two statements are about different ones. Asking whether the
+    page's content CORROBORATES the node's day answered the wrong question
+    (agreement, not identity) and took `structured-not-bound` from 2 pages to 17
+    of 40, with 14 falling through to a date they could only find in their own
+    plumbing.
+
+    The node names what the page names, so it speaks for this row, and its day
+    is the answer within its tier."""
+    page = """<html><head><title>Prodigal Sun</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Prodigal Sun","url":"https://desk.test/events/269428",
+      "startDate":"2026-09-04T19:30:00-05:00",
+      "location":{"@type":"Place","name":"Saengerrunde Hall"}}</script></head>
+    <body><article><h1>Prodigal Sun</h1>
+    <p>Next performance Sunday, September 6, 2026</p></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-04T19:30:00-05:00", read.refusals
+    assert read.place_text == "Saengerrunde Hall"
+    assert "structured-not-bound" not in read.codes
+
+
+def test_a_heading_that_says_more_than_the_node_still_names_it():
+    """A desk routinely heads a page with more than the node's name. Requiring
+    the two to be EQUAL would refuse the desk that describes its own page
+    well."""
+    page = """<html><head><title>Prodigal Sun at Saengerrunde Hall | Desk</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Prodigal Sun","url":"https://desk.test/tickets/9",
+      "startDate":"2026-09-04T19:30:00-05:00"}</script></head>
+    <body><article><h1>Prodigal Sun at Saengerrunde Hall</h1></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-04T19:30:00-05:00", read.refusals
 
 
 def test_a_structured_day_never_borrows_a_clock_printed_elsewhere():

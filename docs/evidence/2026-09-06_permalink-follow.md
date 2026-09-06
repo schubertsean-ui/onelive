@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-91 passed in 0.44s
+93 passed in 0.40s
 ```
 
 | ticket case | test | result |
@@ -626,6 +626,46 @@ record — a chrome-word list (r1: "related", "more", "also" are English) and a
 title match (brittle across punctuation and truncation). The bound is narrow: a
 bound node's venue is read first and is unaffected, two labelled places already
 refuse, and the live desk resolves its places through bound nodes.
+
+### 13b. The live desk rejected my own fix, and it was right
+
+Run [34008921609](https://github.com/schubertsean-ui/onelive/actions/runs/34008921609)
+on head `bb6380a` — the r4 fixes — against run 34007753540 on `9e3029a`:
+
+| the page said | r3 head | r4 head |
+|---|---:|---:|
+| `structured-not-bound` | 2 | **17** (42% of opened) |
+| `date-in-plumbing` | 1 | **14** (35%) |
+| `no-clock` | 26 | 13 |
+
+Fifteen of forty pages stopped being dated. The diagnostic named the reason in
+the desk's own words:
+
+> `/event/prodigal-sun-14267156`: … the address it names is one no committed
+> pattern classifies, and **the page's own content states 2026-09-06, which does
+> not corroborate the day it claims**
+
+The node states Sep 4. The page displays Sep 6. Both are about Prodigal Sun — a
+run of performances has more than one date, and the two statements are about
+different ones. **That is not evidence the node belongs to another happening.**
+
+The evaluator asked an IDENTITY question — is this node ours? — and I answered
+an AGREEMENT question — does the page's content back up its day? They are not
+the same question, and on any desk that lists a run rather than a single night
+they give opposite answers. The corroboration is now the identity test it should
+always have been: the node must NAME what the page names, comparing its `title`
+against the page's own `<h1>`/`<title>` with case, punctuation and spacing
+treated as noise and containment allowed either way (a desk heads a page
+"Prodigal Sun at Saengerrunde Hall" and the node says "Prodigal Sun").
+
+The evaluator's case is still closed by it, and more directly than before: its
+attack node calls itself "Something Else" on a page headed "Dominic Fike".
+
+Two tests pin the shape that broke — the disagreeing run, and the heading that
+says more than the node. This is the value of running the rule against the desk
+rather than only against the fixtures I wrote for it: every hermetic test passed
+on both versions, because I had not thought to write the case where a page and
+its own node disagree about which night.
 
 ## 14. What this ticket did NOT do
 
