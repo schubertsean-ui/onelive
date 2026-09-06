@@ -1,0 +1,11 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Fixture Desk//EN
+BEGIN:VEVENT
+UID:sample-improv-night@desk.example
+SUMMARY:Sample Improv Night
+DTSTART:20260913T000000Z
+LOCATION:Placeholder Theatre
+URL:https://desk.example/Events/sample-improv-night
+END:VEVENT
+END:VCALENDAR

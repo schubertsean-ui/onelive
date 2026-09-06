@@ -12,6 +12,16 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #69 (2026-09-06, founder — Ticket C: same-host event page -> date + place, branch claude/event-page-date-place-nyz9iv) — OPEN
+
+WHAT: a same-host `/event/...` permalink from Ticket B becomes a Happening carrying `when` + `place_text` when THAT page states them; a wall is a hole (queued, one knock, never retried); a table of 20 permalinks (url | dated? | place? | blocked reason).
+HOW: new pure `worker/locale/event_page.py` — `read_event_page()` (time datetime / JSON-LD startDate / same-host ICS for the date; JSON-LD + microdata location or a printed venue line for the place) and `follow()` (same-host only, one knock via `demote_on_response`); reuses `parse_jsonld`/`parse_ics`/`discover_ics_links`; report CLI `tools/event_page_table.py`; event-page fixtures.
+WHY: Ticket B produced rows addressed by a permalink but with holes where the night and the place go, so a friend cannot see when or where anything is.
+WHY-IT-MATTERS: an undated, unplaced row cannot reach Tonight at all — filling those two fields from the page's own words is what turns a parsed permalink into something a friend can act on, and taking them from anywhere else would publish an invented night.
+EXPECTED OUTCOMES: page with date+venue -> both filled; clock-only -> `when` NULL; a list-page date does NOT copy onto the event-page row; 403 -> hole + queued, never a mash; the 20-row table prints from fixtures (sandbox proxy 403s both desks); no write, no merge.
+OUT OF SCOPE: Kaizen/ledger/hats/session-arc as the ticket, new importer, catalog upsert, `ai_extract` rewrite, Ticketmaster API, Tonight redesign, merging leftover PRs.
+STATUS: OPEN — draft PR only; no merge without the founder's word.
+
 ## Session Contract #68 (2026-09-06, founder — freeze Kaizen ceremony so product tickets ship, branch claude/freeze-kaizen-gates-r617z5) — OPEN
 
 WHAT: `construction_gate` fires ONLY on gate-custody diffs (`tools/validate`, `trust_gate`, `adversarial_review`, `docs/memory/RED_CLASSES.md`); CLAUDE.md "Thinking tools & Kaizen" becomes one paragraph — optional, never a ticket.

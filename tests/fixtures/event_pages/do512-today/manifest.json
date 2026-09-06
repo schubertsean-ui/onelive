@@ -1,0 +1,12 @@
+{
+  "note": "SYNTHETIC shape fixtures for Ticket C \u2014 the EVENT pages behind the do512-today list fixture's permalinks. Not a copy of any live page (sandbox CONNECT 403, re-probed 2026-09-06); every value is invented. Faithful in SHAPE: a dated+placed page, a page with a venue and no date, a page stating two different dates, a page whose only address is the desk's own footer, and a page carrying a NEIGHBOUR's schema.org Event.",
+  "pages": {
+    "https://desk.example/events/2026/9/12/bright-room-quartet": "date-and-venue.html",
+    "https://desk.example/events/2026/9/19/riverside-story-circle": "no-date-venue-only.html",
+    "https://desk.example/events/2026/9/12/second-sunday-comedy-hour": "two-dates.html",
+    "https://desk.example/events/2026/9/12/taco-alley-pop-up": "footer-address-only.html",
+    "https://desk.example/events/2026/9/13/warehouse-district-late-set": "foreign-jsonld.html",
+    "https://desk.example/events/2026/9/12/shape-town-brass": "shared-listing.html"
+  },
+  "walls": {}
+}
