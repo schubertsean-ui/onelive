@@ -830,7 +830,18 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                     f"time stays a hole")
             else:
                 refuse("no-clock", "page states a day and no time")
-    if clock_refusal and not any(clock_refusal in r for r in refusals):
+    if (clock_refusal
+            and when_precision != "datetime"
+            and not any(clock_refusal in r for r in refusals)):
+        # A REFUSAL CODE EXPLAINS A HOLE. THIS ROW HAS NO HOLE TO EXPLAIN.
+        # The page-level clock scan is a last-resort reason for a MISSING time.
+        # When a structured carrier already stated the whole instant, the prose
+        # elsewhere on the page disagreeing with itself is not this row's
+        # problem — and recording it anyway made the live table claim 7 pages
+        # (17% of those opened) needed a clock repair when their rows were
+        # already complete. A diagnostic that overstates the work is not a
+        # smaller lie than one that hides it: the next ticket is chosen by
+        # whichever count is largest (Law §9.3).
         refuse("clocks-ambiguous", clock_refusal)
 
     # --- 3. place ----------------------------------------------------------

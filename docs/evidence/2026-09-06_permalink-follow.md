@@ -46,7 +46,13 @@ $ python -c "from tools import arming_runtime as a; fs=sorted(a.runtime_files())
 
 ## 3. The founder's three tests
 
-`tests/test_permalink_follow.py` — 78 tests, none of which opens a socket.
+`tests/test_permalink_follow.py`, none of which opens a socket. The count is
+whatever this prints, and is not restated anywhere else in this document:
+
+```
+$ python -m pytest tests/test_permalink_follow.py -q | tail -1
+84 passed in 0.39s
+```
 
 | ticket case | test | result |
 |---|---|---|
@@ -225,7 +231,7 @@ broken.** The committed fixtures are served from a test host, and no row in
 a committed pattern calls a single happening. Committing a test host to the
 production pattern table to make this column non-zero would put a fixture inside
 the data that decides what a live page's links mean. The tick is proven instead
-by the 78 hermetic tests above and by the LIVE run in §8; the dry run prints the
+by the hermetic tests in §3 and by the LIVE run in §8; the dry run prints the
 reason in place of the number.
 
 `dated_n` here is what the LIST cards stated, unchanged by this PR — the same
@@ -281,7 +287,38 @@ not stated, and picking one would be a coin flip published as a fact.
 
 ### 9b. The table
 
-Run [34006786824](https://github.com/schubertsean-ui/onelive/actions/runs/34006786824)
+**The table on the SHIPPED code** — run
+[34007753540](https://github.com/schubertsean-ui/onelive/actions/runs/34007753540)
+on head `9e3029a`, `--real --dry-run --max-pages 3 --follow-budget 40`. Pasted
+from that job log:
+
+| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 120 | 39 | 81 | 0 | 0 |
+| `do512-today` | 0 | 0 | 0 | 1 | 0 |
+
+`mash_n` is **0**, which is the precondition the whole tick rests on: a mashed
+row's address IS the list page, so following it would have written one page's
+date onto every happening on the desk.
+
+Three sample rows, pasted from the same log:
+
+| # | listing_url | start_time | place |
+|---:|---|---|---|
+| 1 | `.../event/back-to-the-ranch-the-lbj-bbq-returns-14329073` | 2026-09-26T18:00:00-05:00 | Lyndon B. Johnson National Historical Park |
+| 2 | `.../event/boeing-boeing-14285657` | 2026-09-18T19:30:00-05:00 | TexARTS |
+| 3 | `.../event/austin-steel-guitar-fest-14286428` | 2026-10-01T10:00:00-05:00 | Austin Airport Marriott South |
+
+All three are `filled_from_detail = (when, place_text)` — every one of those six
+fields is a hole the list card left and the event page filled. Of the 40 pages
+opened, 39 were dated and 1 stated no date; the other 80 followable rows were
+NOT opened because the founder's 40-page budget was spent, so `dated_n` is a
+FLOOR and `still_null_n` a CEILING. See §12 for why this table's counts are
+directly comparable to the earlier one only on `dated_n`, and for a defect the
+run's own diagnostics revealed.
+
+**The earlier table, kept** — run
+[34006786824](https://github.com/schubertsean-ui/onelive/actions/runs/34006786824)
 on head `7925f00`, `--real --dry-run --max-pages 40 --follow-budget 40`. Every
 number below is pasted from that job log; the one derivation is marked.
 
@@ -415,7 +452,8 @@ first cut stopped the unbound node from WINNING its tier and left it holding the
 scope EXEMPTION that tier granted — so it still dated the row. Removing a
 statement from its tier is not the same as removing its waiver; both had to go.
 
-11 tests pin this round (75 in the file). The other two lenses APPROVE'd the
+Tests were added for each case in the table above; the file's total is derived
+in §3, not restated here. The other two lenses APPROVE'd the
 same head, and `gemini/spec-vs-contract` independently verified all three
 founder acceptance criteria and `mash_n = 0`.
 
@@ -462,10 +500,46 @@ addresses are resolved against the page before the comparison.
 
 This is the same red class as round 2 — `whose-statement-is-this` — one level
 finer, so the class now carries the triggers that would have caught it: a
-page-level `bool()` or `any()` standing in for a per-hit question. 86 tests pin
-the file.
+page-level `bool()` or `any()` standing in for a per-hit question. Each of the
+four cases above is a test; the file total is derived in §3.
 
-## 12. What this ticket did NOT do
+## 12. Two things the r3 live run found, both in the report rather than the data
+
+Run 34007753540 walked the desk on the shipped r3 code. `dated_n` was unchanged
+at 39, which is the right answer — every Chronicle permalink carries exactly one
+bound node, so per-hit binding has nothing to reject there. But reading the
+run's own output found two defects, neither of them in a published field.
+
+**(a) A refusal code was recorded for a hole that did not exist.** The last line
+of the clock section recorded the page-level `clocks-ambiguous` scan whenever
+the page's prose disagreed with itself — including when a structured carrier had
+already stated the whole instant. `/event/boeing-boeing-14285657` is the shape:
+JSON-LD says `2026-09-18T19:30:00-05:00`, the prose prints "7:30, 10:15 pm, 4:45
+pm", and the row is complete. The run reported 7 of 40 opened pages (17%)
+needing a clock repair when their rows had no clock hole at all.
+
+Nothing wrong was ever published — `when` is untouched by this — but the
+diagnostic is what the NEXT ticket is chosen from (Law §9.3: the repair with the
+largest count). A count that overstates the work sends the next ticket at
+nothing. The code now records only when the row actually lacks a time, pinned
+from both sides: a complete instant records no complaint, and the same
+contradictory prose on a page whose date carries no time still does.
+
+**(b) A test count in the record was typed, not derived.** The r3 commit message
+and this document's §11 both said "86 tests"; the real count at that commit was
+82. The commit message is history and stays as written; every count in this
+document is now derived by the command printed in §3 and stated exactly once.
+This is `retyped-evidence`, self-caught, and the reason the rule exists is
+visible in how quietly it happened: 82 and 86 both look like a green suite.
+
+Comparability note, so the two published tables are not read as a change they
+are not: run 34006786824 (head `7925f00`) walked the list at the workflow's
+default 40 pages and found 1568 rows; run 34007753540 walked 3 and found 120.
+`dated_n` is 39 in both because it is capped by the 40-page FOLLOW budget, not
+by the list walk. `still_null_n` differs for the same reason — 1529 against 81 —
+and neither number moved because of the r3 code.
+
+## 13. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,
   no login, no Planomato, no touching PRs #230/#231/#232.

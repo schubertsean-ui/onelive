@@ -335,6 +335,42 @@ def test_a_page_printing_two_clocks_keeps_the_day_and_holes_the_time():
     assert any("different clocks" in r for r in read.refusals)
 
 
+def test_a_complete_instant_records_no_clock_complaint():
+    """The live table's own defect, pinned.
+
+    This is the shape of `/event/boeing-boeing-14285657`: a schema.org node
+    states the whole instant, and the prose elsewhere on the page prints three
+    different clocks. The row has a time. There is no clock hole. Recording
+    `clocks-ambiguous` anyway made the run report that 7 of 40 opened pages
+    (17%) needed a clock repair when their rows were already complete — and
+    the next ticket is chosen by whichever count is largest."""
+    page = """<!doctype html><html><body>
+    <script type="application/ld+json">{"@type": "Event", "name": "Boeing",
+      "startDate": "2026-09-18T19:30:00-05:00"}</script>
+    <h1>Boeing Boeing</h1>
+    <p>Matinees 4:45 pm. Late show 10:15 pm.</p>
+    <div class="venue">TexARTS</div></body></html>"""
+    read = df.field_read(page, url="https://desk.test/event/boeing-2", as_of=AS_OF)
+    assert read.when == "2026-09-18T19:30:00-05:00"
+    assert read.when_precision == "datetime"
+    assert "clocks-ambiguous" not in read.codes, read.refusals
+
+
+def test_a_day_without_a_time_still_records_the_clock_complaint():
+    """The converse, so the fix above cannot silence a real hole: the same
+    contradictory prose on a page whose date carries NO time leaves the time a
+    hole, and the hole keeps its reason."""
+    page = """<!doctype html><html><body>
+    <h1>Boeing Boeing</h1>
+    <p><time datetime="2026-09-18">Fri Sep 18</time></p>
+    <p>Matinees 4:45 pm. Late show 10:15 pm.</p>
+    <div class="venue">TexARTS</div></body></html>"""
+    read = df.field_read(page, url="https://desk.test/event/boeing-3", as_of=AS_OF)
+    assert read.when == "2026-09-18"
+    assert read.when_precision == "date"
+    assert "clocks-ambiguous" in read.codes, read.refusals
+
+
 def test_two_labelled_places_name_no_place():
     page = """<!doctype html><html><body><h1>A Show</h1>
     <time datetime="2026-09-06">Sun Sep 6</time>
