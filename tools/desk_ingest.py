@@ -193,6 +193,21 @@ def split_table(walks: Sequence[DeskWalk]) -> str:
 DEFAULT_FOLLOW_PAGES = 40
 
 
+def _knocks(run: Optional[FollowRun]) -> int:
+    """Pages this desk actually cost the budget.
+
+    A knock is a fetch we spent. A REUSED visit is a second row at an address
+    already answered, a NOT-KNOCKED visit is a page we declined after a run of
+    walls, and an OFF-HOST visit was never fetched at all — none of the three
+    spends anything, so none of them is a knock. A wall we met IS one: we spent
+    the fetch and got a closed door.
+    """
+    if run is None:
+        return 0
+    return sum(1 for v in run.visits
+               if not v.reused and not v.not_knocked and not v.off_host)
+
+
 def followable(one: DeskWalk) -> List[str]:
     """This desk's own event pages, in walk order, each listed once.
 
@@ -393,27 +408,35 @@ def follow_table(walks: Sequence[DeskWalk], runs: Mapping[str, FollowRun],
     nulled = sum(r.nulled_when_n for r in runs.values())
     not_knocked = sum(r.not_knocked_n for r in runs.values())
     off_host = sum(r.off_host_n for r in runs.values())
-    # How the budget was ACTUALLY spread, derived — not the number of desks we
+    # How the budget was ACTUALLY spent, derived — not the number of desks we
     # walked. On a run where one desk is walled, every page goes to the other
     # one, and a sentence claiming a spread across two desks would be false on
     # exactly the run a reader most needs to understand.
-    spread = sorted((one.door_id, len(runs.get(one.door_id, FollowRun()).visits))
-                    for one in walks)
-    offered = [f"`{door}` {n}" for door, n in spread if n]
-    if len(offered) > 1:
-        how = (f"spread round-robin across {len(offered)} desk(s) rather than "
-               f"spent down one ({', '.join(offered)} page(s))")
-    elif offered:
-        how = (f"all of them on {offered[0].split()[0]}, the ONLY desk that "
-               f"offered a page to follow — the other desk(s) offered none "
-               f"(walled, or no same-host permalink), so the round-robin had "
-               f"nothing to alternate with and no page was stranded")
+    #
+    # The unit is a KNOCK, because that is what the founder's cap counts.
+    # Evaluator, PR #238 r2 (openai/attacker-smuggle): this was `len(visits)`,
+    # which counts ROWS — three rows sharing one permalink cost one knock but
+    # were reported as three "pages", overstating how the cap was spent. A
+    # reused visit, a page behind our wall-streak stop, and an off-host address
+    # all cost nothing, so none of them is a knock.
+    spread = sorted((one.door_id, _knocks(runs.get(one.door_id))) for one in walks)
+    spent = [f"`{door}` {n}" for door, n in spread if n]
+    if len(spent) > 1:
+        how = (f"the budget was spent round-robin across {len(spent)} desk(s) "
+               f"rather than down one ({', '.join(spent)} knock(s))")
+    elif spent:
+        how = (f"every knock went to {spent[0].split()[0]}, the ONLY desk whose "
+               f"pages we knocked on this run — the others offered none we could "
+               f"reach (walled, no same-host permalink, or held back by our own "
+               f"wall-streak stop), so the round-robin had nothing to alternate "
+               f"with and no page was stranded")
     else:
-        how = "no desk offered a page to follow"
+        how = "no desk offered a page we could knock on"
     lines.append("")
     lines.append(
         f"**{totals['followed']}** event page(s) read of a founder cap of "
-        f"**{cap}** per run, {how}. Following FILLED {filled_when} night(s) and "
+        f"**{cap}** knock(s) per run, and {how}. Following FILLED "
+        f"{filled_when} night(s) and "
         f"{filled_place} place(s) that the list pages left empty, and TOOK AWAY "
         f"{nulled} night(s) where the desk's own event page contradicted its list "
         f"card — a contested night is no night, so neither claim is published and "
@@ -439,6 +462,13 @@ def follow_table(walks: Sequence[DeskWalk], runs: Mapping[str, FollowRun],
     return "\n".join(lines)
 
 
+def changed_rows_n(runs: Mapping[str, FollowRun]) -> int:
+    """How many rows following actually CHANGED — the one predicate both the
+    §4 heading and `write_plan_caveat()` ask, so they can never contradict."""
+    return sum(r.filled_when_n + r.filled_place_n + r.nulled_when_n
+               for r in runs.values())
+
+
 def write_plan_caveat(runs: Mapping[str, FollowRun]) -> str:
     """Why the plan printed above is NOT the plan `--write` would produce.
 
@@ -453,7 +483,7 @@ def write_plan_caveat(runs: Mapping[str, FollowRun]) -> str:
     filled_when = sum(r.filled_when_n for r in runs.values())
     filled_place = sum(r.filled_place_n for r in runs.values())
     nulled = sum(r.nulled_when_n for r in runs.values())
-    if not (filled_when or filled_place or nulled):
+    if not changed_rows_n(runs):
         return ("Event pages were followed and changed no row, so this plan is "
                 "also what `--real --write` would plan.")
     return (
@@ -972,8 +1002,15 @@ def main(argv=None) -> int:
         print(f"**Not followed**: {note}")
     print()
     followed_any = sum(r.followed_n for r in runs.values())
+    # The heading warns only when following actually CHANGED a row. Evaluator,
+    # PR #238 r2 (openai/attacker-smuggle): guarding it on "a page was followed"
+    # contradicted `write_plan_caveat()`, which is guarded on "a row changed" —
+    # a run that followed pages and changed nothing printed a heading saying
+    # this is not the write plan directly above a line saying it is. One
+    # predicate, asked once, so the two can never disagree.
+    changed_any = changed_rows_n(runs)
     print("## 4. The write plan" + (
-        " — DRY-RUN VIEW, not what `--write` would plan" if followed_any else ""))
+        " — DRY-RUN VIEW, not what `--write` would plan" if changed_any else ""))
     print()
     print(plan_table(writes))
     if followed_any:
@@ -1003,7 +1040,7 @@ def main(argv=None) -> int:
                 "desks and holds `ONELIVE_DB_DSN`."
               + (" That run will NOT follow event pages, so it plans the rows "
                  "the LIST pages stated — see the caveat under section 4."
-                 if followed_any else ""))
+                 if changed_any else ""))
         return 0
 
     # --- the write ---------------------------------------------------------

@@ -407,16 +407,16 @@ def test_the_table_does_not_claim_a_spread_that_did_not_happen():
     filled, runs = follow_pages([open_desk, walled],
                                 {"desk-a": fetch, "desk-walled": fetch}, cap=40)
     one_desk = follow_table(filled, runs, cap=40)
-    assert "the ONLY desk that offered a page to follow" in one_desk
-    assert "spread round-robin across" not in one_desk
+    assert "the ONLY desk whose pages we knocked on this run" in one_desk
+    assert "round-robin across" not in one_desk
 
     both = walk_of([row(f"https://b.test/event/{i}", source_url="https://b.test/list")
                     for i in range(3)], door_id="desk-b", start_url="https://b.test/list")
     filled2, runs2 = follow_pages([open_desk, both],
                                   {"desk-a": fetch, "desk-b": fetch}, cap=40)
     two_desks = follow_table(filled2, runs2, cap=40)
-    assert "spread round-robin across 2 desk(s)" in two_desks
-    assert "`desk-a` 3, `desk-b` 3 page(s)" in two_desks
+    assert "spent round-robin across 2 desk(s)" in two_desks
+    assert "`desk-a` 3, `desk-b` 3 knock(s)" in two_desks
 
 
 # --------------------------------------------------------------------------
@@ -439,9 +439,10 @@ def test_the_write_plan_section_says_it_is_not_the_write_plan():
     assert "not what `--real --write` would plan" in caveat
     assert "1 night(s) and 1 place(s) here came from an event page" in caveat
 
-    source = open(os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "tools", "desk_ingest.py"), encoding="utf-8").read()
-    assert '" — DRY-RUN VIEW, not what `--write` would plan" if followed_any else ""' in source
+    # The heading that carries this is asserted BEHAVIOURALLY, on real output,
+    # by test_the_heading_warns_when_a_row_did_change — grepping the source for
+    # the guard's spelling only pinned how it was written, and went red on the
+    # r2 fix that made the guard correct.
 
 
 def test_a_run_that_changed_no_row_says_the_plan_is_the_write_plan():
@@ -481,3 +482,97 @@ def test_rows_sharing_one_permalink_are_all_counted_as_asked():
     assert sum(1 for r in filled[0].rows if r.when) == 4, "all four rows answered"
     assert "| `test-desk` | 4 | 4 | 4 | 0 | 0 | 0 | 1 | 0 |" in follow_table(
         filled, runs, cap=DEFAULT_FOLLOW_PAGES), "not_asked is 0: every row was asked"
+
+
+# --------------------------------------------------------------------------
+# The evaluator's r2 findings, PR #238 (openai/attacker-smuggle) — both in the
+# r1 fix itself
+# --------------------------------------------------------------------------
+
+def test_the_spread_counts_knocks_not_rows():
+    """Finding B, REAL and fixed: the spread sentence derived its per-desk
+    number from `len(visits)`, which counts ROWS. Three rows sharing one
+    permalink cost ONE knock and were reported as three "pages", overstating
+    how the founder's cap was spent — on a table whose whole job is to say what
+    the cap bought."""
+    shared = "https://a.test/event/one-page"
+    rows_a = [row(shared, title=f"row {i}", source_url="https://a.test/list")
+              for i in range(3)]
+    a = walk_of(rows_a, door_id="desk-a", start_url="https://a.test/list")
+    b = walk_of([row(f"https://b.test/event/{i}", source_url="https://b.test/list")
+                 for i in range(2)], door_id="desk-b", start_url="https://b.test/list")
+    knocks = []
+
+    def fetch(url):
+        knocks.append(url)
+        return PageFetch(url=url, status=200, body=DATE_AND_VENUE, final_url=url)
+
+    filled, runs = follow_pages([a, b], {"desk-a": fetch, "desk-b": fetch}, cap=40)
+
+    assert len(knocks) == 3, "one knock for desk-a's shared page, two for desk-b"
+    table = follow_table(filled, runs, cap=40)
+    assert "`desk-a` 1, `desk-b` 2 knock(s)" in table, (
+        "desk-a's three rows cost ONE knock and must be reported as one")
+    assert "`desk-a` 3" not in table
+
+
+def test_a_page_behind_our_wall_stop_is_not_counted_as_a_knock():
+    """Same unit, the other direction: a page we declined to knock on after a
+    run of walls cost nothing, so it cannot appear as budget spent."""
+    from worker.locale.event_page import DEFAULT_WALL_STREAK_LIMIT
+
+    urls = [f"https://a.test/event/{i}" for i in range(6)]
+    walk = walk_of([row(u, source_url="https://a.test/list") for u in urls],
+                   door_id="desk-a", start_url="https://a.test/list")
+
+    def fetch(url):
+        return PageFetch(url=url, status=403, final_url=url, error="HTTP 403")
+
+    filled, runs = follow_pages([walk], {"desk-a": fetch}, cap=40)
+    run = runs["desk-a"]
+
+    assert run.walled_n == DEFAULT_WALL_STREAK_LIMIT, "we stop after a run of walls"
+    assert run.not_knocked_n == 6 - DEFAULT_WALL_STREAK_LIMIT
+    table = follow_table(filled, runs, cap=40)
+    assert f"`desk-a` {DEFAULT_WALL_STREAK_LIMIT} knock(s)" in table or (
+        f"every knock went to `desk-a`" in table)
+    assert f"| `desk-a` | 6 | 0 | 0 | 6 | {DEFAULT_WALL_STREAK_LIMIT} | 0 | 0 | "
+    assert f"{6 - DEFAULT_WALL_STREAK_LIMIT} |" in table, (
+        "the unknocked pages are not_asked — OUR stop, never walls we met")
+
+
+def test_the_heading_and_the_caveat_ask_the_same_question(capsys, monkeypatch):
+    """Finding A, REAL and fixed: the §4 heading was guarded by "a page was
+    followed" while the caveat under it was guarded by "a row changed". A run
+    that followed pages and changed nothing printed a heading saying this is
+    NOT the write plan directly above a line saying it IS. One predicate now,
+    asked once, so the two cannot disagree."""
+    from tools.desk_ingest import changed_rows_n, write_plan_caveat
+
+    url = "https://desk.test/event/foo-9"
+    # The list already stated everything the page states: pages followed, no
+    # row changed — the exact contradiction the evaluator found.
+    walks = [walk_of([row(url, when="2026-09-11T20:00:00-05:00",
+                          place_text="The Shape Hall")])]
+    _filled, runs = follow_pages(walks, {"test-desk": fetcher({url: DATE_AND_VENUE})},
+                                 cap=DEFAULT_FOLLOW_PAGES)
+
+    assert runs["test-desk"].followed_n == 1, "a page WAS followed"
+    assert changed_rows_n(runs) == 0, "and it changed nothing"
+    assert "changed no row" in write_plan_caveat(runs)
+
+    _poison_the_write_seams(monkeypatch)
+    assert main(["--dry-run", "--follow-pages", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "## 4. The write plan\n" in out
+    assert "DRY-RUN VIEW" not in out, (
+        "nothing was followed, so the plan IS what --write would plan")
+
+
+def test_the_heading_warns_when_a_row_did_change(capsys, monkeypatch):
+    _poison_the_write_seams(monkeypatch)
+    assert main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "## 4. The write plan — DRY-RUN VIEW, not what `--write` would plan" in out
+    assert "**This is not what `--real --write` would plan.**" in out, (
+        "the heading and the caveat agree, because they ask one predicate")
