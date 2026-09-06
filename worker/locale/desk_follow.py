@@ -609,6 +609,12 @@ class FieldRead:
     #: instead of a number (ONE-LIVE-ENTITY-SPLIT-LAW.md §9.3: record it as
     #: data, not chat).
     codes: Tuple[str, ...] = ()
+    #: What this page calls ITSELF — the visible subject, or `<title>` where it
+    #: prints none. Carried so `apply_read` can ask whether the page is about
+    #: the row it is being applied to WITHOUT computing the headings a second
+    #: time: two readers of "what is this page called" is the class this ticket
+    #: has paid for six times (r6, r7).
+    headings: Tuple[str, ...] = ()
 
     @property
     def states_anything(self) -> bool:
@@ -1039,6 +1045,34 @@ def _same_name(a: str, b: str) -> bool:
 
 def _node_name(event: Dict[str, object]) -> str:
     return " ".join(str(event.get("title") or event.get("name") or "").split())
+
+
+def _page_denies_this_row(row_title: Optional[str],
+                          headings: Sequence[str]) -> bool:
+    """Does the page this row points at call itself something else entirely?
+
+    The LAST untied end in this ticket, and the seat put it exactly right: every
+    other rule here binds a STATEMENT to the PAGE, and none bound the PAGE to
+    the ROW. The identity ladder chose the address; nothing checked that the
+    page which answered is about the happening the list card named. A stale or
+    recycled permalink headed "Some Other Show" filled a row titled "Dominic
+    Fike" with December 25 at 'The Other Room', codes=() (evaluator, PR #235
+    r17, openai/absence-only).
+
+    Same rule as `_contradicts_this_page`, one level up, and deliberately the
+    same one: ABSENCE IS NOT DISAGREEMENT. A row with no title, or a page with
+    no heading, denies nothing — a desk that heads its page with an image is
+    not lying about it. Only two names that both exist and name nothing in each
+    other are a denial.
+
+    That direction matters for coverage: a list card reading "The Yellow
+    Wallpaper" and a page headed "Trinity Street Theatre presents The Yellow
+    Wallpaper" contain each other and pass, which is what `_same_name` is for
+    and why this reuses it rather than testing equality.
+    """
+    if not row_title or not headings:
+        return False
+    return not any(_same_name(row_title, heading) for heading in headings)
 
 
 def _contradicts_this_page(event: Dict[str, object],
@@ -1851,7 +1885,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         url=url, when=when, when_precision=when_precision, when_text=when_text,
         when_carrier=when_carrier, place_text=place_text,
         place_carrier=place_carrier, refusals=tuple(refusals),
-        codes=tuple(codes),
+        codes=tuple(codes), headings=tuple(headings),
     )
 
 
@@ -1933,6 +1967,23 @@ def apply_read(row: Happening, read: FieldRead) -> Tuple[Happening, List[str]]:
     keeps every one of the three, because the list page's statement is not this
     page's to correct — that is `worker/listing_update.py`'s reviewed seam.
     """
+    if _page_denies_this_row(row.title, read.headings):
+        # IS THIS THE ROW'S OWN PAGE AT ALL? Every other rule in this module
+        # decides whether a statement belongs to THIS PAGE, and all of them are
+        # correct and beside the point once the page turns out to be about a
+        # different happening. The identity ladder chose the address; nothing
+        # checked that the page which answered is about the happening the list
+        # card named, so a stale or recycled permalink headed "Some Other Show"
+        # filled a row titled "Dominic Fike" with December 25 at 'The Other
+        # Room', codes=() (evaluator, PR #235 r17, openai/absence-only).
+        #
+        # Asked PER ROW rather than per page, because two cards can share one
+        # address and a page about one of them is not evidence against the
+        # other: refusing the page for both would be this rule's own version of
+        # the over-correction the suite has caught three times in this ticket.
+        # The page's names ride on the read (`headings`), so this asks the
+        # question with the same walk `field_read` already did.
+        return replace(row, detail_url=read.url, filled_from_detail=()), []
     patch: Dict[str, object] = {}
     filled: List[str] = []
     if row.when is None and read.when:
@@ -2064,6 +2115,18 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
         result.reads.append(read)
         moved = False
         for index in indexes:
+            if _page_denies_this_row(result.rows[index].title, read.headings):
+                # A ROW THE PAGE IS NOT ABOUT LEAVES A TRACE. `apply_read`
+                # refuses it silently otherwise, and a hole with no reason is
+                # the `diagnostics-as-data` defect this ticket opened: the run
+                # would report the row as dateless when it was never asked.
+                result.unread += 1
+                result.queued.append((
+                    url,
+                    f"the list card calls this {result.rows[index].title!r} "
+                    f"while the page calls itself {read.headings[0]!r} — a "
+                    f"stale or recycled permalink is not this happening's "
+                    f"page, so none of it is read for this row"))
             patched, filled = apply_read(result.rows[index], read)
             result.rows[index] = patched
             if "when" in filled:

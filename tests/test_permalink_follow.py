@@ -1286,7 +1286,10 @@ def test_a_fetcher_that_raises_costs_one_page_not_the_run():
 def test_nothing_is_ever_fetched_twice():
     """No retry anywhere, and rows sharing one address share one fetch."""
     calls = []
-    same = [row(), row("Same show, second card")]
+    # Both cards NAME the show the page is headed with: since r17 a page whose
+    # own heading names none of a row's title is not read for that row, and a
+    # fixture about fetch de-duplication should not depend on that rule.
+    same = [row(), row("Dominic Fike — second card")]
     result = df.follow(same, fetcher({
         "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}, calls=calls),
         patterns=PATTERNS, as_of=AS_OF)
@@ -1300,7 +1303,10 @@ def test_nothing_is_ever_fetched_twice():
 def test_the_budget_bounds_the_pages_and_the_rest_are_UNASKED():
     """RED_CLASSES pagination-integrity-gap: a cap is a runaway backstop, never
     a measurement. The rows past it are not dateless — nobody asked them."""
-    rows = [row(f"Show {i}", listing_url=f"https://desk.test/event/show-{i}")
+    # Each row's title NAMES what its page is headed with: since r17 a page
+    # whose heading names none of the row's title is not read for that row, and
+    # a fixture about the BUDGET should not be measuring that rule instead.
+    rows = [row("Dominic Fike", listing_url=f"https://desk.test/event/show-{i}")
             for i in range(5)]
     pages = {f"https://desk.test/event/show-{i}": EVENT_PAGE_DATED for i in range(5)}
     calls = []
@@ -2048,6 +2054,64 @@ def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
               '<time datetime="2026-09-18T23:00">Late</time></article></body></html>')
     read = df.field_read(inside, url=HERE, as_of=AS_OF, patterns=PATTERNS)
     assert read.when == "2026-09-18T23:00:00", read.refusals
+
+
+def test_a_page_that_calls_itself_something_else_is_not_this_rows_page():
+    """Evaluator, PR #235 r17, openai/absence-only — and the seat named the shape
+    exactly: every rule in this module binds a STATEMENT to the PAGE, and none
+    bound the PAGE to the ROW. The identity ladder chose the address; nothing
+    checked that the page which answered is about the happening the list card
+    named, so a stale or recycled permalink filled a row with another show's
+    fields:
+
+        PRE-FIX   row 'Dominic Fike' -> when=2026-12-25T20:00:00
+                  place='The Other Room'  codes=()
+
+    Same rule as the node check one level up, deliberately: ABSENCE IS NOT
+    DISAGREEMENT. A row with no title, or a page with no heading, denies
+    nothing. Only two names that both exist and name nothing in each other are
+    a denial — so a card reading "The Yellow Wallpaper" and a page headed
+    "Trinity Street Theatre presents The Yellow Wallpaper" still reads.
+
+    Asked PER ROW, not per page: two cards can share one address, and a page
+    about one of them is not evidence against the other."""
+    stale = """<html><body><article><h1>Some Other Show</h1>
+      <p>Friday, December 25, 2026 8:00PM</p>
+      <div class="venue">The Other Room</div></article></body></html>"""
+    result = df.follow([row("Dominic Fike")], fetcher({
+        "https://desk.test/event/dominic-fike-1": stale}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when is None, result.rows[0].when
+    assert result.rows[0].place_text is None
+    assert result.rows[0].filled_from_detail == ()
+    # A hole with no reason is the `diagnostics-as-data` defect this ticket
+    # opened: the run would report the row as dateless when it was never read.
+    assert any("Some Other Show" in why for _u, why in result.queued), result.queued
+
+    # A page that says MORE than the card still reads — the common shape, and
+    # the reason this reuses `_same_name` rather than testing equality.
+    longer = stale.replace("Some Other Show",
+                           "Trinity Street Theatre presents Dominic Fike")
+    fuller = df.follow([row("Dominic Fike")], fetcher({
+        "https://desk.test/event/dominic-fike-1": longer}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert fuller.rows[0].when == "2026-12-25T20:00:00", fuller.reads[0].refusals
+
+    # A page with no heading at all denies nothing: absence is not disagreement.
+    headless = ('<html><body><article><p>Friday, December 25, 2026 8:00PM</p>'
+                '<div class="venue">The Other Room</div></article></body></html>')
+    quiet = df.follow([row("Dominic Fike")], fetcher({
+        "https://desk.test/event/dominic-fike-1": headless}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert quiet.rows[0].when == "2026-12-25T20:00:00", quiet.reads[0].refusals
+
+    # TWO cards at one address: the page is about one of them, and refusing the
+    # other's row does not cost the named one its fields.
+    both = df.follow([row("Dominic Fike"), row("Some Entirely Other Thing")],
+                     fetcher({"https://desk.test/event/dominic-fike-1": longer}),
+                     patterns=PATTERNS, as_of=AS_OF)
+    assert both.rows[0].when == "2026-12-25T20:00:00"
+    assert both.rows[1].when is None
 
 
 def test_a_nested_card_linking_to_another_happening_is_not_this_one():

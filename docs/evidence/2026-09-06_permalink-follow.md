@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-130 passed in 0.43s
+131 passed in 0.45s
 ```
 
 | ticket case | test | result |
@@ -1671,6 +1671,61 @@ link", used by both scanners, because they now both need it and two spellings
 is the class this ticket has paid for six times; and `_labelled_places`, left
 unused by the change, is deleted rather than kept as a second un-scoped way to
 ask for a page's places.
+
+### 13s. Round 17 — every tie bound a statement to the page; none bound the page to the row
+
+Three of four seats APPROVE. One blocking finding (openai/absence-only) and it
+names the shape of the whole ticket back at me.
+
+Seventeen rounds of rules decide whether a STATEMENT belongs to THIS PAGE — the
+plumbing rule, the card boundary, the node bind, the cross-tier checks, the
+nested-card exclusion. **Not one of them asked whether the PAGE belongs to the
+ROW.** The identity ladder chose the address and nothing checked that the page
+which answered is about the happening the list card named:
+
+```
+row:  'Dominic Fike'   (from the list card)
+page: <h1>Some Other Show</h1>  December 25, 2026 8:00PM  The Other Room
+PRE-FIX  when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+```
+
+A stale or recycled permalink, filling a row with another show's fields, with
+no refusal.
+
+**Same rule as the node check, one level up, and deliberately the same one:**
+absence is not disagreement. A row with no title, or a page with no heading,
+denies nothing — a desk that heads its page with an image is not lying about
+it. Only two names that both exist and name nothing in each other are a denial,
+so a card reading "The Yellow Wallpaper" beside a page headed "Trinity Street
+Theatre presents The Yellow Wallpaper" still reads. That is what `_same_name` is
+for, and why this reuses it rather than testing equality.
+
+**Asked PER ROW, not per page — and the first draft got that wrong.** I wrote
+it into `field_read`, which knows the page and not the row, so two cards sharing
+one address meant one unchecked title; making it fail-closed over all of them
+then refused the page for BOTH when it was plainly about one. The suite said so
+(`test_nothing_is_ever_fetched_twice`). It belongs in `apply_read`, which has
+the row in hand and is already the function that asks "does this row want what
+this page said". The page's own names ride on the `FieldRead` (`headings`) so
+the question is asked with the walk `field_read` already did — the seventh time
+this ticket that a second reader of one thing would have been the easy mistake.
+
+| the card says | the page is headed | result |
+|---|---|---|
+| Dominic Fike | Some Other Show | nothing read, queued with the reason |
+| Dominic Fike | Trinity Street Theatre presents Dominic Fike | dated |
+| Dominic Fike | *(no heading)* | dated |
+| two cards, one address | names one of them | the named row reads; the other does not |
+
+**A denied row leaves a trace.** `apply_read` refuses silently by design, and a
+hole with no reason is the `diagnostics-as-data` defect this ticket opened — the
+run would report the row as dateless when it was never read. `follow()` queues
+it with the two names in the message.
+
+**Three scaffolding fixtures needed titles that match their pages** (the budget
+test, the fetch-de-duplication test), which is the same shape as r12: tests
+about other rules leaning on a permissiveness that has now gone. Each says so in
+place.
 
 ## 14. What this ticket did NOT do
 
