@@ -63,12 +63,15 @@ import argparse
 import json
 import os
 import sys
+from dataclasses import replace as dc_replace
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
+from tools.event_page_table import event_fixture_fetcher  # noqa: E402
+from worker.locale.event_page import FollowRun, apply, follow  # noqa: E402,F401
 from worker.locale.desk_publish import (  # noqa: E402
     DESK_KEY,
     CandidateWrite,
@@ -83,7 +86,9 @@ from worker.locale.desk_publish import (  # noqa: E402
     registration_for,
 )
 from worker.locale.desk_union import DeskUnion, bounded, union  # noqa: E402
-from worker.locale.desk_walk import DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, walk  # noqa: E402
+from worker.locale.desk_walk import (  # noqa: E402
+    DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, _normalize, _same_host, walk,
+)
 from worker.locale.kind_map import KindMapError, load_kind_map, map_for_door  # noqa: E402
 from worker.locale.pack import LocalePackError, available_locales, load_pack  # noqa: E402
 
@@ -152,6 +157,345 @@ def split_table(walks: Sequence[DeskWalk]) -> str:
             "by `tests/test_identity_split.py` and by the FIXTURE run of this "
             "same command, and these desks stay queued.")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# Ticket D — the event page fills the row's holes
+# --------------------------------------------------------------------------
+#
+# `worker/locale/event_page.py` (Ticket C, merged ad3a578) reads ONE event page
+# and fills the two holes Ticket B's rows carry. Until now it ran only in tests
+# and in `tools/event_page_table.py`. This section is the GLUE that runs it on
+# the desks' own walk, and it is glue only: the reader is imported, never
+# reimplemented and not modified.
+#
+# Three founder rules are enforced HERE rather than inside the reader, because
+# they are about which pages a RUN may spend, and the reader knows about one
+# page at a time:
+#
+#   * SAME HOST ONLY. Selected here (a permalink on another host is not this
+#     desk's page) and again inside `follow()`, which reports `off_host`.
+#   * AT MOST `DEFAULT_FOLLOW_PAGES` PAGES PER RUN, across all desks.
+#   * ROUND-ROBIN, never 40 pages of one venue. `follow()`'s own `limit` walks
+#     one list in order, so passing the budget straight to it would spend the
+#     whole thing on the first desk — which is the shape the founder's cap
+#     exists to forbid, not to permit.
+
+#: Founder cap, this session: the most EVENT pages one run may knock on, across
+#: every desk. A cap on PAGES, not on rows — two rows sharing one permalink cost
+#: one knock (`follow()` answers the second from the first).
+#:
+#: One honest asterisk: a page that advertises its own iCalendar file may cost
+#: one further fetch (`event_page.MAX_ICS_FETCHES` is 1), because reading that
+#: file is part of reading THAT page rather than a knock on a 41st one. So the
+#: worst case for a full budget is 40 pages plus up to 40 same-host .ics reads,
+#: and stating it is cheaper than someone finding it in a server log.
+DEFAULT_FOLLOW_PAGES = 40
+
+
+def _knocks(run: Optional[FollowRun]) -> int:
+    """Pages this desk actually cost the budget.
+
+    A knock is a fetch we spent. A REUSED visit is a second row at an address
+    already answered, a NOT-KNOCKED visit is a page we declined after a run of
+    walls, and an OFF-HOST visit was never fetched at all — none of the three
+    spends anything, so none of them is a knock. A wall we met IS one: we spent
+    the fetch and got a closed door.
+    """
+    if run is None:
+        return 0
+    return sum(1 for v in run.visits
+               if not v.reused and not v.not_knocked and not v.off_host)
+
+
+def followable(one: DeskWalk) -> List[str]:
+    """This desk's own event pages, in walk order, each listed once.
+
+    Three addresses are refused before any budget is spent, and each refusal is
+    a rule from a law rather than a tidy-up:
+
+      * no `listing_url` — the row never stated its own address, so there is
+        nothing to follow (it is Ticket B's hole, not this ticket's).
+      * the LIST's own url — ONE-LIVE-ENTITY-SPLIT-LAW.md §2 Forbidden: that
+        row is a mash, and knocking on it would read a list page as an event
+        page and staple a list's date onto a blob. Counted in `mash_n`, never
+        followed.
+      * another host — the ticket's first Must-do. `follow()` refuses it too;
+        refusing it here as well keeps the budget for pages we can actually read.
+    """
+    starts = {_normalize(p.url) for p in one.pages}
+    starts.add(_normalize(one.start_url))
+    seen: set = set()
+    out: List[str] = []
+    for row in one.rows:
+        url = (row.listing_url or "").strip()
+        if not url:
+            continue
+        key = _normalize(url)
+        if key in starts or key in seen:
+            continue
+        if not _same_host(url, row.source_url):
+            continue
+        seen.add(key)
+        out.append(url)
+    return out
+
+
+def round_robin(walks: Sequence[DeskWalk], *, cap: int) -> Dict[str, List[str]]:
+    """Spread the page budget ACROSS the desks, never down one of them.
+
+    Not `worker/crawl_state.py`'s round-robin, which answers a different
+    question (which SOURCES are due next, with round-robin only as the
+    tie-break, and a database behind it). This one spreads one run's page
+    budget across the desks already walked, and is pure.
+
+    One page from each desk, then a second from each, until the cap runs out.
+    A desk with fewer pages than its share simply stops contributing and the
+    rest of the budget keeps circulating, so a small desk cannot strand pages
+    and a large one cannot swallow the run.
+    """
+    queues: Dict[str, List[str]] = {w.door_id: followable(w) for w in walks}
+    picked: Dict[str, List[str]] = {door: [] for door in queues}
+    budget = max(0, cap)
+    depth = 0
+    while budget > 0 and any(depth < len(q) for q in queues.values()):
+        for door, queue in queues.items():
+            if budget <= 0:
+                break
+            if depth < len(queue):
+                picked[door].append(queue[depth])
+                budget -= 1
+        depth += 1
+    return picked
+
+
+def follow_fetchers(door_ids: Sequence[str], *, real: bool, timeout: int,
+                    min_interval: float) -> Tuple[Dict[str, object], List[str]]:
+    """A fetcher per door for its EVENT pages — a different set from the list.
+
+    Live: the same polite fetcher the walk uses (it holds no state between
+    calls, so a second one is the same fetcher, not a second rate budget).
+    Fixture: the committed event pages under `tests/fixtures/event_pages/<door>/`,
+    reusing `tools/event_page_table.py`'s reader so the fixture run here and the
+    Ticket C table cannot drift apart. A door with no committed event fixtures
+    is REPORTED and skipped, never silently followed to a wall of 404s.
+    """
+    out: Dict[str, object] = {}
+    notes: List[str] = []
+    for door_id in door_ids:
+        if real:
+            out[door_id] = live_fetcher(timeout_s=timeout, min_interval_s=min_interval)
+            continue
+        try:
+            fetch, _manifest = event_fixture_fetcher(door_id)
+        except (FileNotFoundError, OSError):
+            notes.append(f"`{door_id}`: no committed event-page fixtures "
+                         f"(tests/fixtures/event_pages/{door_id}/) — its pages "
+                         f"were not followed on this FIXTURE run")
+            continue
+        out[door_id] = fetch
+    return out, notes
+
+
+def follow_pages(walks: Sequence[DeskWalk], fetchers: Mapping[str, object], *,
+                 cap: int, read_ics: bool = True
+                 ) -> Tuple[List[DeskWalk], Dict[str, FollowRun]]:
+    """Follow the selected permalinks and give each desk back its filled rows.
+
+    Returns walks whose `rows` are the SAME rows in the SAME order — no row is
+    added, dropped or reordered by following; a row is only replaced by itself
+    with a hole filled (or, on a contested night, with a night taken away —
+    `event_page.apply()`'s founder ruling, unchanged here).
+    """
+    # Only desks we can actually fetch for get a share of the budget. A desk
+    # with no fetcher (fixture mode, no committed event pages for that door)
+    # would otherwise be handed pages it can never knock on, and those pages
+    # would be stranded — spent from the cap and read by nobody.
+    reachable = [w for w in walks if fetchers.get(w.door_id) is not None]
+    selection = round_robin(reachable, cap=cap)
+    out: List[DeskWalk] = []
+    runs: Dict[str, FollowRun] = {}
+    for one in walks:
+        chosen = {_normalize(u) for u in selection.get(one.door_id, ())}
+        fetch = fetchers.get(one.door_id)
+        if not chosen or fetch is None:
+            runs[one.door_id] = FollowRun()
+            out.append(one)
+            continue
+        rows_in = [r for r in one.rows
+                   if _normalize((r.listing_url or "").strip()) in chosen]
+        run = follow(rows_in, fetch, read_ics=read_ics)
+        if len(run.rows) != len(rows_in):
+            raise DeskPublishError(
+                f"follow() returned {len(run.rows)} rows for {len(rows_in)} sent on "
+                f"{one.door_id!r}; the desk's rows cannot be put back in order")
+        filled = iter(run.rows)
+        new_rows = []
+        for row in one.rows:
+            if _normalize((row.listing_url or "").strip()) in chosen:
+                new_rows.append(next(filled))
+            else:
+                new_rows.append(row)
+        runs[one.door_id] = run
+        out.append(dc_replace(one, rows=new_rows))
+    return out, runs
+
+
+def follow_table(walks: Sequence[DeskWalk], runs: Mapping[str, FollowRun],
+                 *, cap: int) -> str:
+    """The founder's Ticket D table: how many rows a friend could act on.
+
+    Every count is derived from the rows THEMSELVES after following, never from
+    the reader's internal tallies, because the claim under test is what the row
+    carries — not what a page said.
+
+      rows_n         happenings this desk yielded (unchanged by following)
+      dated_n        rows carrying a night AFTERWARDS. Not the same as pages
+                     that stated one: a night the page and the list contest is
+                     taken AWAY (`event_page.apply()`), and a table printing the
+                     page's number would overstate what a friend would see.
+      placed_n       rows carrying a place text afterwards
+      still_null_n   rows still missing a night, a place, or both — the holes
+                     this ticket did not close, printed beside the ones it did
+      403_n          walls we MET while following (401/402/403/407/429 or a
+                     sign-in redirect). One knock, then the page is a hole and
+                     the door is queued for the human claim path. Pages we
+                     declined to knock on after a run of walls are OUR stop and
+                     are in `not_asked`, never here.
+      mash_n         rows whose address is the LIST's own url (§2 Forbidden).
+                     Never followed; must be 0.
+      pages_followed distinct event pages actually read on this desk
+      not_asked      rows whose page this run never put a question to: beyond
+                     the page budget, no permalink, a mash address, off-host,
+                     or behind our own wall-streak stop
+    """
+    lines = ["| desk | rows_n | dated_n | placed_n | still_null_n | 403_n | "
+             "mash_n | pages_followed | not_asked |",
+             "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    totals = {"rows": 0, "dated": 0, "placed": 0, "null": 0, "walled": 0,
+              "mash": 0, "followed": 0, "not_asked": 0, "nothing": 0}
+    for one in walks:
+        run = runs.get(one.door_id) or FollowRun()
+        rows_n = len(one.rows)
+        dated_n = sum(1 for r in one.rows if r.when)
+        placed_n = sum(1 for r in one.rows if r.place_text)
+        still_null_n = sum(1 for r in one.rows if not r.when or not r.place_text)
+        asked = sum(1 for v in run.visits if not v.not_knocked and not v.off_host)
+        not_asked = rows_n - asked
+        # Every page we KNOCKED on lands in exactly one bucket: it opened, it
+        # walled, or it answered with nothing we could read (404, an empty
+        # body, a transport failure that is not a wall). The third bucket is
+        # derived rather than counted so it can never go missing — the gap
+        # between "asked" and "read" is the number that would otherwise let a
+        # partial fixture set, or a desk that moved its pages, read as a desk
+        # that has nothing to say.
+        knocks = asked - sum(1 for v in run.visits if v.reused)
+        totals["nothing"] += max(0, knocks - run.followed_n - run.walled_n)
+        lines.append(
+            f"| `{one.door_id}` | {rows_n} | {dated_n} | {placed_n} | "
+            f"{still_null_n} | {run.walled_n} | {one.mash_n} | "
+            f"{run.followed_n} | {not_asked} |")
+        totals["rows"] += rows_n
+        totals["dated"] += dated_n
+        totals["placed"] += placed_n
+        totals["null"] += still_null_n
+        totals["walled"] += run.walled_n
+        totals["mash"] += one.mash_n
+        totals["followed"] += run.followed_n
+        totals["not_asked"] += not_asked
+    filled_when = sum(r.filled_when_n for r in runs.values())
+    filled_place = sum(r.filled_place_n for r in runs.values())
+    nulled = sum(r.nulled_when_n for r in runs.values())
+    not_knocked = sum(r.not_knocked_n for r in runs.values())
+    off_host = sum(r.off_host_n for r in runs.values())
+    # How the budget was ACTUALLY spent, derived — not the number of desks we
+    # walked. On a run where one desk is walled, every page goes to the other
+    # one, and a sentence claiming a spread across two desks would be false on
+    # exactly the run a reader most needs to understand.
+    #
+    # The unit is a KNOCK, because that is what the founder's cap counts.
+    # Evaluator, PR #238 r2 (openai/attacker-smuggle): this was `len(visits)`,
+    # which counts ROWS — three rows sharing one permalink cost one knock but
+    # were reported as three "pages", overstating how the cap was spent. A
+    # reused visit, a page behind our wall-streak stop, and an off-host address
+    # all cost nothing, so none of them is a knock.
+    spread = sorted((one.door_id, _knocks(runs.get(one.door_id))) for one in walks)
+    spent = [f"`{door}` {n}" for door, n in spread if n]
+    if len(spent) > 1:
+        how = (f"the budget was spent round-robin across {len(spent)} desk(s) "
+               f"rather than down one ({', '.join(spent)} knock(s))")
+    elif spent:
+        how = (f"every knock went to {spent[0].split()[0]}, the ONLY desk whose "
+               f"pages we knocked on this run — the others offered none we could "
+               f"reach (walled, no same-host permalink, or held back by our own "
+               f"wall-streak stop), so the round-robin had nothing to alternate "
+               f"with and no page was stranded")
+    else:
+        how = "no desk offered a page we could knock on"
+    lines.append("")
+    lines.append(
+        f"**{totals['followed']}** event page(s) read of a founder cap of "
+        f"**{cap}** knock(s) per run, and {how}. Following FILLED "
+        f"{filled_when} night(s) and "
+        f"{filled_place} place(s) that the list pages left empty, and TOOK AWAY "
+        f"{nulled} night(s) where the desk's own event page contradicted its list "
+        f"card — a contested night is no night, so neither claim is published and "
+        f"both are kept on the visit. **{totals['null']}** row(s) still carry a "
+        f"hole. Walls met: **{totals['walled']}** — one knock each, then the page "
+        f"is a hole and the door stays queued for a claim; a walled page is an "
+        f"UNKNOWN listing, never a mash and never an empty desk. "
+        f"{totals['nothing']} page(s) were asked and answered with nothing we "
+        f"could read (404, an empty body, a transport failure that is not a "
+        f"wall) — asked, so not in `not_asked`, and an UNKNOWN listing rather "
+        f"than an absent one. "
+        f"{not_knocked} page(s) went unknocked behind our own wall-streak stop and "
+        f"{off_host} address(es) left the desk's host; both are in `not_asked`, "
+        f"which counts rows we never asked about, for any reason.")
+    if not totals["followed"]:
+        lines.append("")
+        lines.append(
+            "**No event page was read on this run**, so `dated_n` and `placed_n` "
+            "above are whatever the LIST pages already stated — they are not "
+            "evidence that following does nothing, and not evidence these pages "
+            "are empty. The reader is proven by `tests/test_event_page.py` and "
+            "`tests/test_event_page_dryrun.py`; these pages stay queued.")
+    return "\n".join(lines)
+
+
+def changed_rows_n(runs: Mapping[str, FollowRun]) -> int:
+    """How many rows following actually CHANGED — the one predicate both the
+    §4 heading and `write_plan_caveat()` ask, so they can never contradict."""
+    return sum(r.filled_when_n + r.filled_place_n + r.nulled_when_n
+               for r in runs.values())
+
+
+def write_plan_caveat(runs: Mapping[str, FollowRun]) -> str:
+    """Why the plan printed above is NOT the plan `--write` would produce.
+
+    Evaluator, PR #238 (openai/attacker-smuggle): a dry run follows event pages
+    and then plans from the FILLED rows, while a `--write` run skips following
+    entirely — so a section headed "The write plan" showed an operator dated and
+    placed candidate writes that the real write path will not produce. The PR
+    body said so; the printed report did not, and the report is what an operator
+    reads. Both the heading and this line now carry it, with the size of the
+    difference DERIVED from the visits rather than described in the abstract.
+    """
+    filled_when = sum(r.filled_when_n for r in runs.values())
+    filled_place = sum(r.filled_place_n for r in runs.values())
+    nulled = sum(r.nulled_when_n for r in runs.values())
+    if not changed_rows_n(runs):
+        return ("Event pages were followed and changed no row, so this plan is "
+                "also what `--real --write` would plan.")
+    return (
+        f"**This is not what `--real --write` would plan.** Following ran on this "
+        f"DRY run and does not run under `--write` (wiring the reader into the "
+        f"write path is a catalog change, out of scope here), so the rows behind "
+        f"the plan above differ from the rows a write run would carry: "
+        f"{filled_when} night(s) and {filled_place} place(s) here came from an "
+        f"event page and would be NULL under `--write`, and {nulled} contested "
+        f"night(s) were removed here and would still be published there. Read "
+        f"this section as what the desks plus their event pages know — not as a "
+        f"rehearsal of the next write.")
 
 
 def count_events(cur) -> int:
@@ -566,6 +910,10 @@ def main(argv=None) -> int:
     ap.add_argument("--hours", type=int, default=168,
                     help="the wide /tonight window to count (default 168 = this week)")
     ap.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES)
+    ap.add_argument("--follow-pages", type=int, default=DEFAULT_FOLLOW_PAGES,
+                    help=(f"the most EVENT pages this run may knock on, across all "
+                          f"desks, round-robin (founder cap, default "
+                          f"{DEFAULT_FOLLOW_PAGES}; 0 follows nothing)"))
     ap.add_argument("--timeout", type=int, default=20)
     ap.add_argument("--min-interval", type=float, default=2.0,
                     help="politeness delay between live page fetches, seconds")
@@ -592,6 +940,31 @@ def main(argv=None) -> int:
         return 2
 
     mode = "LIVE" if args.real else "FIXTURE"
+
+    # --- Ticket D: fill the rows' holes from their own event pages --------
+    # DRY RUN ONLY, deliberately. Following changes what a row CARRIES, so
+    # letting it run under `--write` would change what this tool publishes —
+    # a catalog change, which this ticket excludes (founder Must-not). The
+    # write path therefore stays byte-for-byte the behaviour it had before
+    # this change, and the cost is stated rather than hidden: on a `--write`
+    # run the plan below is the plan WITHOUT the event pages.
+    follow_notes: List[str] = []
+    runs: Dict[str, FollowRun] = {}
+    cap = max(0, args.follow_pages)
+    if args.write:
+        follow_notes.append(
+            "event pages were NOT followed: this run WRITES, and wiring the "
+            "reader into the write path is a catalog change this ticket "
+            "excludes. The plan below is the plan without them.")
+    elif cap:
+        fetchers, fetcher_notes = follow_fetchers(
+            door_ids, real=args.real, timeout=args.timeout,
+            min_interval=args.min_interval)
+        follow_notes.extend(fetcher_notes)
+        walks, runs = follow_pages(walks, fetchers, cap=cap)
+    else:
+        follow_notes.append("`--follow-pages 0`: no event page was knocked on.")
+
     one = union(walks, timezone=tz, timezone_id=tz_id, mode=mode)
     writes = plan(one, registrations)
     digest = plan_digest(writes)
@@ -621,9 +994,28 @@ def main(argv=None) -> int:
     print()
     print(split_table(walks))
     print()
-    print("## 3. The write plan")
+    print("## 3. The event pages — did the row get a night and a place?")
+    print()
+    print(follow_table(walks, runs, cap=cap))
+    for note in follow_notes:
+        print()
+        print(f"**Not followed**: {note}")
+    print()
+    followed_any = sum(r.followed_n for r in runs.values())
+    # The heading warns only when following actually CHANGED a row. Evaluator,
+    # PR #238 r2 (openai/attacker-smuggle): guarding it on "a page was followed"
+    # contradicted `write_plan_caveat()`, which is guarded on "a row changed" —
+    # a run that followed pages and changed nothing printed a heading saying
+    # this is not the write plan directly above a line saying it is. One
+    # predicate, asked once, so the two can never disagree.
+    changed_any = changed_rows_n(runs)
+    print("## 4. The write plan" + (
+        " — DRY-RUN VIEW, not what `--write` would plan" if changed_any else ""))
     print()
     print(plan_table(writes))
+    if followed_any:
+        print()
+        print(write_plan_caveat(runs))
     print()
     tba = digest['clock_holes'] - digest['held'] - digest['clock_disputed']
     print(f"{bounded(digest['rows'], one)} happening(s) planned, of which "
@@ -641,11 +1033,14 @@ def main(argv=None) -> int:
     print()
 
     if not args.write:
-        print("## 4. Nothing was written")
+        print("## 5. Nothing was written")
         print()
         print("This was a dry run" + ("" if args.real else " over COMMITTED FIXTURES")
               + ". Re-run with `--real --write` on a machine that can reach the "
-                "desks and holds `ONELIVE_DB_DSN`.")
+                "desks and holds `ONELIVE_DB_DSN`."
+              + (" That run will NOT follow event pages, so it plans the rows "
+                 "the LIST pages stated — see the caveat under section 4."
+                 if changed_any else ""))
         return 0
 
     # --- the write ---------------------------------------------------------
