@@ -534,11 +534,19 @@ def test_a_page_behind_our_wall_stop_is_not_counted_as_a_knock():
     assert run.walled_n == DEFAULT_WALL_STREAK_LIMIT, "we stop after a run of walls"
     assert run.not_knocked_n == 6 - DEFAULT_WALL_STREAK_LIMIT
     table = follow_table(filled, runs, cap=40)
-    assert f"`desk-a` {DEFAULT_WALL_STREAK_LIMIT} knock(s)" in table or (
-        f"every knock went to `desk-a`" in table)
-    assert f"| `desk-a` | 6 | 0 | 0 | 6 | {DEFAULT_WALL_STREAK_LIMIT} | 0 | 0 | "
-    assert f"{6 - DEFAULT_WALL_STREAK_LIMIT} |" in table, (
-        "the unknocked pages are not_asked — OUR stop, never walls we met")
+
+    # ONE assertion on the WHOLE row. Evaluator, PR #238 r3: this was split
+    # across two `assert`s and the first half was a bare f-string — always
+    # truthy, so it could not fail, on the very row that separates "walled" from
+    # "never asked". A test that cannot fail is worse than no test: it reports
+    # confidence it never earned.
+    assert "| `desk-a` | 6 | 0 | 0 | 6 | 3 | 0 | 0 | 3 |" in table, (
+        f"6 rows, 3 walls MET, 3 pages we declined to knock on afterwards: the "
+        f"walls belong in 403_n and OUR stop belongs in not_asked.\n{table}")
+    assert "every knock went to `desk-a`" in table
+    assert "`desk-a` 3 knock(s)" not in table, (
+        "3 knocks were spent, but desk-a is the only desk here, so the "
+        "single-desk sentence is the one that prints")
 
 
 def test_the_heading_and_the_caveat_ask_the_same_question(capsys, monkeypatch):
@@ -561,12 +569,32 @@ def test_the_heading_and_the_caveat_ask_the_same_question(capsys, monkeypatch):
     assert changed_rows_n(runs) == 0, "and it changed nothing"
     assert "changed no row" in write_plan_caveat(runs)
 
+    # End to end through main() on the case the fix was FOR — pages followed,
+    # no row changed. Evaluator, PR #238 r3 (nit, taken): the earlier version
+    # ran `--follow-pages 0`, which exercises "followed nothing" and never
+    # reaches the contradiction. Only the fetched BYTES are substituted here
+    # (the seam the design already injects); every line of reporting code is
+    # the real one, reading pages that state neither a date nor a venue.
+    import tools.desk_ingest as tool
+
+    blank = "<html><body><article><h1>A listing</h1><p>No date here.</p>"\
+            "</article></body></html>"
+
+    def blank_fetchers(door_ids, *, real, timeout, min_interval):
+        def fetch(url):
+            return PageFetch(url=url, status=200, body=blank, final_url=url)
+        return {d: fetch for d in door_ids}, []
+
+    monkeypatch.setattr(tool, "follow_fetchers", blank_fetchers)
     _poison_the_write_seams(monkeypatch)
-    assert main(["--dry-run", "--follow-pages", "0"]) == 0
+    assert main(["--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "## 4. The write plan\n" in out
-    assert "DRY-RUN VIEW" not in out, (
-        "nothing was followed, so the plan IS what --write would plan")
+
+    assert "event page(s) read of a founder cap" in out
+    assert "**0** event page(s) read" not in out, "pages WERE followed"
+    assert "## 4. The write plan\n" in out, "plain heading: no row changed"
+    assert "DRY-RUN VIEW" not in out
+    assert "changed no row, so this plan is also what `--real --write` would plan" in out
 
 
 def test_the_heading_warns_when_a_row_did_change(capsys, monkeypatch):
