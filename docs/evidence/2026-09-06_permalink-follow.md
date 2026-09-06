@@ -280,7 +280,77 @@ not stated, and picking one would be a coin flip published as a fact.
 
 ### 9b. The table
 
-<!-- LIVE TABLE: pasted verbatim from the run on the shipped head -->
+Run [34005255072](https://github.com/schubertsean-ui/onelive/actions/runs/34005255072)
+on head `40d0084`, `--real --dry-run --max-pages 40 --follow-budget 40`. Pasted
+verbatim from the job log.
+
+| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 1568 | 40 | 1528 | 0 | 0 |
+| `do512-today` | 0 | 0 | 0 | 1 | 0 |
+
+**`mash_n` is 0.** Every one of the 1568 rows carries its own `/event/…`
+address, so the field tick opened 40 different pages rather than the list page
+forty times.
+
+**Every page the budget reached was dated — 40 of 40.**
+
+| desk | pages opened | page stated no date | page could not be read | not asked (budget) | no followable address |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 40 | 0 | 0 | 1528 | 0 |
+| `do512-today` | 0 | 0 | 0 | 0 | 0 |
+
+`still_null_n` is 1528, and every one of those is **UNASKED**, not dateless: the
+founder's 40-page cap for this ticket. `dated_n` is a floor.
+
+What the opened pages said — all three remaining refusals are about the TIME,
+never the day:
+
+| the page said | pages | of opened |
+|---|---:|---:|
+| `no-clock` | 27 | 67% |
+| `clocks-ambiguous` | 7 | 17% |
+| `clock-elsewhere` | 2 | 5% |
+
+```
+- clocks-ambiguous — .../event/boeing-boeing-14285657:
+    page prints 3 different clocks (7:30, 10:15 pm, 4:45 pm)
+- clocks-ambiguous — .../event/day-of-dance-14167854:
+    page prints 2 different clocks (10 am, 5 pm)
+- no-clock — .../event/austin-film-festival-14316417:
+    page states a day and no time
+```
+
+Those are correct refusals: a page printing "10 am" and "5 pm" has not said when
+this happening starts, and the DAY stands regardless.
+
+Three sample rows, as a person would read them:
+
+| # | listing_url | start_time | place | filled from the event page |
+|---:|---|---|---|---|
+| 1 | `https://calendar.austinchronicle.com/event/back-to-the-ranch-the-lbj-bbq-returns-14329073` | 2026-09-26T18:00:00-05:00 | Lyndon B. Johnson National Historical Park | when, place_text |
+| 2 | `https://calendar.austinchronicle.com/event/boeing-boeing-14285657` | 2026-09-18T19:30:00-05:00 | TexARTS | when, place_text |
+| 3 | `https://calendar.austinchronicle.com/event/austin-steel-guitar-fest-14286428` | 2026-10-01T10:00:00-05:00 | Austin Airport Marriott South | when, place_text |
+
+Every one of those clocks came from the event page. The list card stated none of
+them, and `filled_from_detail` says so on the row itself.
+
+The write plan moves with them:
+
+```
+at least 1567 happening(s) planned, of which 1539 publish and 28 are HELD
+(a desk stated the night and no time ... R-111). 11 carry a clock a desk
+stated; 0 publish DISPUTED; 1528 publish with a true 'Date TBA' because no
+desk stated a date at all.
+```
+
+1568 rows became 1567 planned because dated rows now MERGE on the founder's
+night+place+title key — two cards for one happening are one row once both carry
+the night. The 28 HELD are the R-111 case working: a day with no time is not
+published as "Date TBA", because that would hide a date the desk gave us.
+
+`do512-today` is unchanged and still walled at its list page (403, class D,
+queued for a claim) — an UNKNOWN list, never an empty one.
 
 ## 10. What this ticket did NOT do
 
