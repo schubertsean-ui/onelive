@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-112 passed in 0.37s
+114 passed in 0.50s
 ```
 
 | ticket case | test | result |
@@ -953,6 +953,34 @@ readers where to go. Its own test.
 regression to explain away: it is the measurement of how often this desk's
 structured data disagrees with its own pages, which nothing before this round
 could see.
+
+### 13i. Round 9 — the last of the card rule's defaults
+
+One blocking finding (openai/absence-only; both gemini APPROVE), and it is the
+card rule's THIRD case: a page printing no heading at all.
+
+I had written "nothing is known about what it is about, so nothing is excluded
+on that basis". `_inside_the_card` read that as exclude nothing, so an
+image-headed page with an unrelated promo `<section>` published that section's
+date and venue:
+
+```
+PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+POST-FIX  when=None                 place=None
+```
+
+**Not knowing what a page is about is a reason to trust it less, not more.**
+That sentence is the whole finding, and it is the third default in this one
+rule to have been written the permissive way — r6 caught the sectionless
+heading, r9 the absent one.
+
+**The first fix was too blunt and three existing tests said so.** Page-level
+statements only would have cost every heading-less page whose content sits in
+one `<article>`. So the rule distinguishes: with exactly ONE top-level card,
+that card is the subject — it is the only thing the page could be about; with
+two or more there is nothing to choose between them, so only page-level
+statements count and every section is excluded, which is the seat's case
+exactly. Both directions tested.
 
 ## 14. What this ticket did NOT do
 

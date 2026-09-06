@@ -146,7 +146,8 @@ _PLACE_ITEMPROPS = frozenset({"location", "address"})
 _HEADING_TAGS = ("h1", "h2", "h3")
 
 
-def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...], str]]
+def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...], str]],
+                  top_sections: Sequence[int] = ()
                   ) -> Optional[Tuple[int, ...]]:
     """The sectioning elements enclosing the page's SUBJECT heading.
 
@@ -156,14 +157,26 @@ def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...], str]]
     check still read only `<h1>`/`<title>`, so a page whose visible subject is
     an `<h2>` had NO headings to contradict a poisoned node with.
 
-    None when the page prints no heading at all: nothing is known about what it
-    is about, so nothing is excluded on that basis.
+    A page that prints NO heading has to be answered without one, and
+    "nothing is known, so exclude nothing" was the third and last fail-open
+    default in this rule (evaluator, PR #235 r9, openai/absence-only): a
+    title-only or image-headed page with an unrelated promo `<section>`
+    published that section's date and venue. Not knowing what a page is about
+    is a reason to trust it LESS, not more.
+
+    But page-level-only is too blunt, and the tests said so: a heading-less page
+    whose content sits in ONE `<article>` would lose everything. So when the
+    page has exactly one top-level card, that card is the subject — it is the
+    only thing the page could be about. Two or more and there is nothing to
+    choose between them, so only page-level statements count and every section
+    is excluded, which is the seat's case exactly.
     """
     for tag in _HEADING_TAGS:
         for mark_tag, sections, _text in marks:
             if mark_tag == tag:
                 return sections
-    return None
+    alone = set(top_sections)
+    return (top_sections[0],) if len(alone) == 1 else ()
 
 
 def _inside_the_card(sections: Tuple[int, ...],
@@ -186,11 +199,13 @@ def _inside_the_card(sections: Tuple[int, ...],
         sectionless heading as "no boundary at all" left exactly that open
         (evaluator, PR #235 r6, openai/attacker-smuggle).
 
-    A page printing no heading has said nothing about what it is about, so
-    nothing is excluded on that basis.
+    The third case — a page printing no heading at all — is the page level too,
+    and it is the one r9 caught still fail-open. `_pick_subject` returns `()`
+    for it rather than `None`, so it lands on the clause below and a promo
+    `<section>` on an image-headed page is excluded like any other.
     """
-    if subject is None:
-        return True
+    if subject is None:      # no caller produces this; kept as a fail-closed arm
+        return False
     if not subject:
         return not sections
     return sections[:len(subject)] == subject
@@ -280,6 +295,8 @@ class _SegmentScanner(HTMLParser):
         #: plumbing. The TEXT rides along so the identity check and the card
         #: boundary read one walk — see `_headings`.
         self.heading_marks: List[Tuple[str, Tuple[int, ...], str]] = []
+        #: Ids of the page's top-level sectioning elements, in document order.
+        self.top_sections: List[int] = []
         self._heading_open: Optional[Tuple[str, Tuple[int, ...]]] = None
         self._heading_parts: List[str] = []
         self._parts: List[str] = []
@@ -325,6 +342,11 @@ class _SegmentScanner(HTMLParser):
         if tag in SECTIONING_TAGS:
             self._next_id += 1
             section_id = self._next_id
+            if not self._sections():
+                # A sectioning element with no sectioning ancestor: one of the
+                # page's top-level cards. Counted so a page with no heading can
+                # still know whether it has exactly ONE.
+                self.top_sections.append(section_id)
         self._open.append((tag, furniture, section_id))
         if tag in _HEADING_TAGS and not self._furniture:
             # Every heading is RECORDED; which one is the page's subject is
@@ -403,7 +425,7 @@ def segments(html: str) -> List[str]:
     except Exception as exc:  # noqa: BLE001 — a pathological page states nothing, it never crashes
         log.debug("segment scan raised on a followed page: %s", exc)
         return []
-    subject = _pick_subject(scanner.heading_marks)
+    subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
     return [text for text, scope in zip(scanner.segments, scanner.segment_scopes)
             if _inside_the_card(scope, subject)]
 
@@ -506,6 +528,8 @@ class _PlaceScanner(HTMLParser):
         #: plumbing. This scan needs only the sections; the text side is read
         #: once, by the segment scan.
         self.heading_marks: List[Tuple[str, Tuple[int, ...], str]] = []
+        #: Ids of the page's top-level sectioning elements, in document order.
+        self.top_sections: List[int] = []
         #: Enclosing sectioning ids at the moment each place was captured.
         self._opened_in: Tuple[int, ...] = ()
         self.place_scopes: List[Tuple[int, ...]] = []
@@ -540,6 +564,11 @@ class _PlaceScanner(HTMLParser):
         if tag in SECTIONING_TAGS:
             self._next_id += 1
             section_id = self._next_id
+            if not self._sections():
+                # A sectioning element with no sectioning ancestor: one of the
+                # page's top-level cards. Counted so a page with no heading can
+                # still know whether it has exactly ONE.
+                self.top_sections.append(section_id)
         self._open.append((tag, furniture, section_id))
         if tag in _HEADING_TAGS and not self._furniture:
             # Every heading is RECORDED; which one is the page's subject is
@@ -896,7 +925,7 @@ def _scan_places(html: str) -> Tuple[List[str], List[str]]:
     except Exception as exc:  # noqa: BLE001 — a pathological page loses its place, not its row
         log.debug("place scan raised on a followed page: %s", exc)
         return [], []
-    subject = _pick_subject(scanner.heading_marks)
+    subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
     out: List[str] = []
     for place, scope in zip(scanner.places, scanner.place_scopes):
         if not _inside_the_card(scope, subject):

@@ -738,6 +738,42 @@ def test_a_sectionless_heading_does_not_disable_the_boundary():
     assert read.place_text is None
 
 
+def test_a_page_with_no_heading_and_two_cards_chooses_neither():
+    """Evaluator, PR #235 r9, openai/absence-only — reproduced before fixing.
+
+    The card rule's THIRD case, and the last of its defaults to be fail-open. A
+    page printing no heading at all set the subject to None, which
+    `_inside_the_card` read as "exclude nothing" — so an image-headed page with
+    an unrelated promo `<section>` published that section's date and venue:
+
+        PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+
+    Not knowing what a page is about is a reason to trust it LESS, not more."""
+    page = """<html><head><title>Dominic Fike</title></head><body><main>
+      <article><img src="hero.jpg" alt=""><p>Tickets at the door.</p></article>
+      <section class="promo"><p>Friday, December 25, 2026 &mdash; 8:00PM</p>
+        <div class="venue">The Other Room</div></section>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None
+
+
+def test_a_page_with_no_heading_and_one_card_still_states_its_fields():
+    """The converse, and why the rule is not simply "no heading, no fields": a
+    heading-less page whose content sits in ONE card is unambiguous — that card
+    is the only thing the page could be about. Three existing tests failed on
+    the blunter version, which is how this clause was found."""
+    page = """<html><head><title>Dominic Fike</title></head><body>
+      <article><img src="hero.jpg" alt="">
+        <p>Saturday, September 5, 2026 &mdash; 9:00PM</p>
+        <div class="venue">The Hall</div></article>
+    </body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+    assert read.place_text == "The Hall"
+
+
 def test_a_sectionless_page_still_states_its_own_day_and_venue():
     """The converse, so the clause above cannot be read as "a sectionless page
     states nothing": statements at the page level, beside the heading, are the
