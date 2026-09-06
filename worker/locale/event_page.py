@@ -846,13 +846,34 @@ def _read_ics(html: str, page_url: str,
         except Exception as exc:  # noqa: BLE001
             notes.append(f"calendar parse raised ({exc})")
             continue
+        # WHICH event in this file is THIS page's, asked exactly as
+        # `_jsonld_for_this_page` asks it (evaluator finding, PR #237 r3). A
+        # calendar file is routinely shared or reused across a desk, so a lone
+        # VEVENT naming ANOTHER address is a neighbour's night, not this
+        # listing's — and adopting it would print a fabricated date for the
+        # wrong event. A VEVENT that names no url at all is the file's own
+        # single statement and stands, as it does on the JSON-LD rung.
         here = _norm_url(page_url)
         own = [e for e in events if e.get("url") and _norm_url(e["url"]) == here]
-        chosen = own[0] if len(own) == 1 else (events[0] if len(events) == 1 else None)
-        if chosen is None:
+        chosen = None
+        if len(own) == 1:
+            chosen = own[0]
+        elif len(own) > 1:
+            notes.append(f"calendar file holds {len(own)} events claiming this "
+                         f"same address; none taken")
+        elif len(events) == 1:
+            only = events[0]
+            if only.get("url") and _norm_url(only["url"]) != here:
+                notes.append(
+                    f"the calendar's only event names another address "
+                    f"({only['url']}) — not read as this page's own statement")
+            else:
+                chosen = only
+        else:
             notes.append(
                 f"calendar file holds {len(events)} events, none addressed to this "
                 f"page; no date taken")
+        if chosen is None:
             continue
         start = chosen.get("start_time")
         if not start:

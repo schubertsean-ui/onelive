@@ -829,3 +829,43 @@ def test_a_repeat_of_a_walled_permalink_is_a_hole_without_a_second_knock():
     assert run.walled_n == 1, "one wall was counted three times"
     assert all(v.blocked for v in run.visits)
     assert run.visits[1].reused and not run.visits[1].queued
+
+
+def test_a_calendar_whose_only_event_names_another_page_is_not_this_pages_night():
+    """A calendar file is routinely shared or reused across a desk. The JSON-LD
+    rung already refuses a lone Event naming another address; the ICS rung
+    adopted it, printing a neighbour's night for this permalink."""
+    neighbour_ics = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:A Neighbour's Listing
+DTSTART:20991231T235900Z
+URL:https://desk.test/event/bar-2
+UID:bar-2
+END:VEVENT
+END:VCALENDAR"""
+    run = follow([row()], fetcher({
+        "https://desk.test/event/foo-1": ICS_PAGE,
+        "https://desk.test/event/foo-1.ics": neighbour_ics}))
+    assert run.rows[0].when is None, "a neighbour's night was published here"
+    assert run.visits[0].statement.when_source is None
+    assert any("names another address" in n
+               for n in run.visits[0].statement.notes)
+
+
+def test_a_calendar_event_naming_no_url_is_still_the_files_own_statement():
+    """The guard must refuse neighbours, not every calendar: a lone VEVENT with
+    no URL is what a small desk's .ics actually looks like."""
+    no_url_ics = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:Foo at the Hall
+DTSTART:20260911T200000Z
+UID:foo-1
+END:VEVENT
+END:VCALENDAR"""
+    run = follow([row()], fetcher({
+        "https://desk.test/event/foo-1": ICS_PAGE,
+        "https://desk.test/event/foo-1.ics": no_url_ics}))
+    assert run.rows[0].when == "2026-09-11T20:00:00Z"
+    assert run.visits[0].statement.when_source == "ics"
