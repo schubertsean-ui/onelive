@@ -22,6 +22,16 @@ INDEX = """# test index
 """
 
 
+# The gate is GATE-CUSTODY-SCOPED (founder-directed 2026-09-06): a diff
+# touching none of tools/validate / trust_gate / adversarial_review /
+# RED_CLASSES.md is OUT OF SCOPE and owes no citation. Tests that exercise the
+# citation machinery must therefore put their change IN scope. This path does
+# that and matches NO trigger in the test index above ("publish_gate",
+# "custody", "journal", "price", "decimal"), so it changes nothing else about
+# what each test proves.
+CUSTODY_PATH = "tools/trust_gate.py"
+
+
 @pytest.fixture()
 def index_file(tmp_path):
     path = tmp_path / "RED_CLASSES.md"
@@ -52,7 +62,7 @@ def test_bare_token_mention_is_not_a_citation(tmp_path, index_file, capsys):
     # pass — only the deliberate [S3:token] tag counts.
     rc = _run(
         tmp_path, index_file,
-        paths=["social/carousel/publish_gate.py"],
+        paths=[CUSTODY_PATH, "social/carousel/publish_gate.py"],
         citations="changelog: fixed caller-suppliable-custody-inputs today",
     )
     assert rc == 1
@@ -62,7 +72,7 @@ def test_bare_token_mention_is_not_a_citation(tmp_path, index_file, capsys):
 def test_tagged_contract_citation_passes(tmp_path, index_file):
     rc = _run(
         tmp_path, index_file,
-        paths=["social/carousel/publish_gate.py"],
+        paths=[CUSTODY_PATH, "social/carousel/publish_gate.py"],
         citations="[S3:caller-suppliable-custody-inputs] allowlist registry + clock owned by gate.",
     )
     assert rc == 0
@@ -73,7 +83,7 @@ def test_content_triggers_match_semantic_classes(tmp_path, index_file, capsys):
     # even when no changed PATH names it.
     rc = _run(
         tmp_path, index_file,
-        paths=["social/carousel/generator.py"],
+        paths=[CUSTODY_PATH, "social/carousel/generator.py"],
         content="+    value = decimal(str(raw))  # price normalization",
         citations="",
     )
@@ -82,7 +92,10 @@ def test_content_triggers_match_semantic_classes(tmp_path, index_file, capsys):
 
 
 def test_no_match_is_an_explicit_printed_result(tmp_path, index_file, capsys):
-    rc = _run(tmp_path, index_file, paths=["web/app/page.tsx"])
+    # IN SCOPE (a gate-custody path) but matching no class: the "no matched
+    # red classes" branch is distinct from the OUT-OF-SCOPE branch below, and
+    # both must stay printed results rather than silence.
+    rc = _run(tmp_path, index_file, paths=[CUSTODY_PATH, "web/app/page.tsx"])
     assert rc == 0
     assert "no matched red classes" in capsys.readouterr().out
 
@@ -146,9 +159,14 @@ def test_stale_citation_in_base_history_never_passes(tmp_path, index_file, monke
     _git(repo, "config", "user.name", "t")
     (repo / "STATE.md").write_text("[S3:caller-suppliable-custody-inputs] old contract\n")
     (repo / "publish_gate.py").write_text("original\n")
+    # A gate-custody path puts this change IN scope (2026-09-06 scope filter);
+    # publish_gate.py alongside it is what matches the class trigger.
+    (repo / "tools").mkdir()
+    (repo / "tools" / "trust_gate.py").write_text("original\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "base")
     _git(repo, "checkout", "-qb", "feature")
+    (repo / "tools" / "trust_gate.py").write_text("original\ntouched\n")
     (repo / "publish_gate.py").write_text("original\nchanged with no citation\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "change")
@@ -398,8 +416,165 @@ def test_fully_supplied_runs_never_touch_the_remote(tmp_path, index_file, monkey
     monkeypatch.setattr(gate, "assert_base_fresh", _must_not_be_called)
     rc = _run(
         tmp_path, index_file,
-        paths=["social/carousel/publish_gate.py"],
+        paths=[CUSTODY_PATH, "social/carousel/publish_gate.py"],
         citations="[S3:caller-suppliable-custody-inputs] answered.",
     )
     assert rc == 0
     assert "[S3:…] contract citations — PASS" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Gate-custody scope filter (founder-directed 2026-09-06: "Kaizen may MEASURE.
+# It may not RUN the session"). The gate used to judge EVERY diff, and because
+# triggers match the diff's TEXT as well as its paths, an ordinary
+# worker/locale product PR matched 50 of the 56 committed classes and owed 50
+# [S3:] citations. These tests pin BOTH directions on real git fixtures — a
+# product ticket walks through free, a gate-custody change still pays.
+# ---------------------------------------------------------------------------
+
+
+def _fixture_repo(tmp_path, name, *, state_text, changed):
+    """A real repo with a base commit and one feature commit changing
+    `changed` (path -> new text). Returns the repo path."""
+    repo = tmp_path / name
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "master")
+    _git(repo, "config", "user.email", "t@t")
+    _git(repo, "config", "user.name", "t")
+    for rel in changed:
+        path = repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("original\n")
+    (repo / "STATE.md").write_text("# base state\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base")
+    _git(repo, "checkout", "-qb", "feature")
+    for rel, text in changed.items():
+        (repo / rel).write_text(text)
+    (repo / "STATE.md").write_text(state_text)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "ticket")
+    return repo
+
+
+# An 8-line Session Contract in the founder's Operating Law shape, carrying
+# NO [S3:] tag — the exact artifact a product ticket now ships with.
+EIGHT_LINE_STATE = """# OneLive — STATE
+
+## Session Contract #99 (product ticket) — OPEN
+WHAT: the CapCog desk reader splits a list page into one row per happening.
+HOW: worker/locale/desk_read.py walks the identity ladder; pack data only.
+WHY: the live run mashed 40 pages into one row, so friends saw one blob.
+WHY-IT-MATTERS: a blob carries no Place, Actor, or next step — display is blocked behind it.
+EXPECTED OUTCOMES: two /event/ links -> two rows; an unidentified blob -> zero rows.
+OUT OF SCOPE: Tonight redesign, catalog upsert, ai_extract, any --write run.
+STATUS: OPEN — draft PR, no merge.
+"""
+
+# Product-diff text that deliberately trips MANY content triggers (price,
+# decimal, custody, journal...). Before the scope filter this alone was worth
+# dozens of demanded citations; in scope it still is, out of scope it is free.
+PRODUCT_DIFF_TEXT = (
+    "original\n"
+    "price = decimal(str(raw))  # journal the custody handoff\n"
+)
+
+
+def test_product_diff_is_out_of_scope_and_owes_no_citations(tmp_path, index_file,
+                                                            monkeypatch, capsys):
+    """Must-do 4a: a worker/locale-only diff passes with an 8-line STATE and
+    no [S3:] tags — derived from real git, not from supplied --paths."""
+    repo = _fixture_repo(
+        tmp_path, "product",
+        state_text=EIGHT_LINE_STATE,
+        changed={
+            "worker/locale/desk_read.py": PRODUCT_DIFF_TEXT,
+            "worker/locale/pack.py": PRODUCT_DIFF_TEXT,
+        },
+    )
+    import tools.construction_gate as gate
+
+    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
+    rc = main(["--index", index_file, "--base-index-file", "-",
+               "--diff-range", "master...HEAD"])
+
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert "OUT OF SCOPE" in out
+    # The point of the ticket: no class is matched and no citation is DEMANDED.
+    # (The out-of-scope message itself says the words "[S3:] citation", so the
+    # assertion is per-TOKEN — a demanded tag always names its class.)
+    assert "matched red classes" not in out
+    for token in ("caller-suppliable-custody-inputs", "volatile-safety-store",
+                  "nonfinite-decimal-accepted"):
+        assert f"[S3:{token}]" not in out
+    # ...and the contract the ticket ships is 8 substantive lines with no tags.
+    assert "[S3:" not in EIGHT_LINE_STATE
+    contract_lines = [
+        ln for ln in EIGHT_LINE_STATE.strip().splitlines()
+        if ln.strip() and not ln.startswith("# OneLive")
+    ]
+    assert len(contract_lines) == 8, contract_lines
+
+
+def test_gate_custody_diff_still_demands_citations(tmp_path, index_file,
+                                                   monkeypatch, capsys):
+    """The filter narrows the gate; it does not disable it. The SAME content
+    that walks free above still pays when tools/validate is in the diff."""
+    repo = _fixture_repo(
+        tmp_path, "custody",
+        state_text=EIGHT_LINE_STATE,
+        changed={
+            "tools/validate": PRODUCT_DIFF_TEXT,
+            "worker/locale/desk_read.py": PRODUCT_DIFF_TEXT,
+        },
+    )
+    import tools.construction_gate as gate
+
+    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
+    rc = main(["--index", index_file, "--base-index-file", "-",
+               "--diff-range", "master...HEAD"])
+
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert "IN SCOPE" in out
+    assert "[S3:nonfinite-decimal-accepted]" in out
+
+
+def test_index_self_protection_is_scope_independent(tmp_path, index_file):
+    """A weakened red-class index fails closed even on an OUT-OF-SCOPE product
+    diff: the scope filter sits AFTER assert_index_not_weakened, so the gate's
+    own brain can never be quietly narrowed under cover of a product ticket."""
+    with pytest.raises(SystemExit, match="REMOVED"):
+        _run(
+            tmp_path, index_file,
+            paths=["worker/locale/desk_read.py"],
+            base_index=INDEX + "| deleted-class | somewhere | old |\n",
+        )
+
+
+def test_every_founder_named_custody_surface_is_covered():
+    """The four surfaces the founder named on 2026-09-06 all resolve to IN
+    SCOPE, in the spellings they actually wear in this tree."""
+    from tools.construction_gate import gate_custody_hits
+
+    for path in (
+        "tools/validate",
+        "tools/validate_bind_skips.sh",
+        "tools/trust_gate.py",
+        "tests/test_trust_gate.py",
+        ".github/workflows/trust-gate.yml",
+        "tools/adversarial_review.py",
+        ".github/workflows/adversarial-review.yml",
+        "docs/memory/RED_CLASSES.md",
+    ):
+        assert gate_custody_hits([path]) == [path], path
+
+    for path in (
+        "worker/locale/desk_read.py",
+        "web/app/tonight/page.tsx",
+        "sources/locale_packs/us-tx-capcog.json",
+        "docs/metrics/KAIZEN_LEDGER.md",
+        "STATE.md",
+    ):
+        assert gate_custody_hits([path]) == [], path

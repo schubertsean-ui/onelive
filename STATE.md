@@ -12,7 +12,21 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
-## Session Contract #68 (2026-09-06, founder — Ticket C "follow the permalink for fields", Entity Split Law §4 field tick, branch claude/event-page-date-place-alilfe) — OPEN
+## Session Contract #68 (2026-09-06, founder — freeze Kaizen ceremony so product tickets ship, branch claude/freeze-kaizen-gates-r617z5) — OPEN
+
+WHAT: `construction_gate` fires ONLY on gate-custody diffs (`tools/validate`, `trust_gate`, `adversarial_review`, `docs/memory/RED_CLASSES.md`); CLAUDE.md "Thinking tools & Kaizen" becomes one paragraph — optional, never a ticket.
+HOW: option (b), one file — a scope filter in `tools/construction_gate.py` that prints an explicit OUT-OF-SCOPE result and exits 0; index self-protection stays unconditional; CLAUDE.md section replaced in place; fixture tests added.
+WHY: a worker/locale product PR matched 50 red classes (measured on HEAD~1..HEAD) and demanded 50 `[S3:]` citations — ceremony outranking Vision.
+WHY-IT-MATTERS: this gate exists to protect gate custody; charging every product ticket 50 citations for it buys no user protection and taxes every ship, which is the exact inversion Operating Law forbids.
+EXPECTED OUTCOMES: a fixture product diff (worker/locale) exits 0 with an 8-line STATE and no `[S3:]` tags; a `tools/validate` diff still demands citations; `trust_gate` + full pytest stay green.
+OUT OF SCOPE: Kaizen philosophy, new hats/ledgers, Tonight redesign, ingest write, merging leftover PRs, Ticket C.
+STATUS: OPEN — draft PR only; no merge without the founder's word.
+
+<!-- NUMBERING: this contract was written as #68 while PR #236 was writing its own #68 on a
+     parallel branch. #236 merged first, so its number stands and this one became #69 at the
+     merge. RED_CLASSES: parallel-record-id-collision — two branches minting the same id is
+     the id's fault, not either branch's, and the merged one wins. -->
+## Session Contract #69 (2026-09-06, founder — Ticket C "follow the permalink for fields", Entity Split Law §4 field tick, branch claude/event-page-date-place-alilfe) — OPEN
 
 WHAT: a happening whose `listing_url` is an identity permalink gets its date/time and place from THAT page — new pure `worker/locale/desk_follow.py`, wired into `tools/desk_ingest.py` behind a 40-page budget.
 HOW: reuse `worker/same_page_dates.py` (R-030, ARMED-CRON file — imported, never edited) for the same-page date rule; on-origin + committed-pattern gate on which URL may be fetched; fill HOLES only, never overwrite, never combine a list-page date with an event-page clock; 401/403/429 = hole + queued, no retry, row kept.
