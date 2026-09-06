@@ -215,16 +215,26 @@ class _SegmentScanner(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.segments: List[str] = []
+        #: The card each segment was printed in, same scheme as the place scan:
+        #: the ids of every element open when the segment started.
+        self.segment_scopes: List[Tuple[int, ...]] = []
+        self.subject_scope: Optional[int] = None
         self._parts: List[str] = []
         self._skip = 0
         self._furniture = 0
         self._open: List[str] = []
+        self._next_id = 0
+        self._here: List[int] = []
+        self._started_in: Tuple[int, ...] = ()
+        self._saw_heading = False
 
     def _flush(self) -> None:
         text = " ".join(" ".join(self._parts).split())
         if text:
             self.segments.append(text)
+            self.segment_scopes.append(self._started_in)
         self._parts = []
+        self._started_in = tuple(self._here)
 
     def _in_sectioning(self) -> bool:
         return any(tag in SECTIONING_TAGS for tag, _ in self._open)
@@ -246,7 +256,19 @@ class _SegmentScanner(HTMLParser):
         if furniture:
             self._flush()
             self._furniture += 1
+        self._next_id += 1
+        mine = self._next_id
         self._open.append((tag, furniture))
+        self._here.append(mine)
+        if tag in _HEADING_TAGS and not self._saw_heading and not self._furniture:
+            # The page's own subject, and the section holding it is the card
+            # this page is ABOUT — the same boundary the place scan reads.
+            self._saw_heading = True
+            for (open_tag, _f), ident in zip(reversed(self._open),
+                                             reversed(self._here)):
+                if open_tag in SECTIONING_TAGS:
+                    self.subject_scope = ident
+                    break
         if tag in _BLOCK_TAGS:
             self._flush()
         if tag == "time" and not self._furniture and not self._skip:
@@ -270,11 +292,14 @@ class _SegmentScanner(HTMLParser):
         if any(open_tag == tag for open_tag, _ in self._open):
             while self._open:
                 closed, opened_furniture = self._open.pop()
+                if self._here:
+                    self._here.pop()
                 if opened_furniture:
                     self._parts = []   # anything buffered in plumbing is dropped
                     self._furniture = max(0, self._furniture - 1)
                 if closed == tag:
                     break
+            self._started_in = tuple(self._here)
 
     def handle_data(self, data):
         if not self._skip and not self._furniture:
@@ -286,7 +311,22 @@ class _SegmentScanner(HTMLParser):
 
 
 def segments(html: str) -> List[str]:
-    """The page's statements, plumbing removed. Empty when nothing can be read."""
+    """The page's statements about ITSELF, plumbing removed. Empty when nothing
+    can be read.
+
+    THE CARD BOUNDARY APPLIES TO THE DATE PATH TOO. Rounds 1-5 gave the date its
+    scope (plumbing excluded structurally) and its locality (a clock comes from
+    the statement that gave the day), and round 5 gave the PLACE a card — the
+    section holding the page's own heading. The date path still read every
+    non-plumbing segment, so a related or promotional block printing the only
+    date and clock on the page could date this row (evaluator, PR #235 r5,
+    openai/attacker-smuggle: "a related/unlinked promo block in page content
+    that prints the only date/clock can be attached to the current row").
+
+    One boundary, both fields: a statement outside the section holding the
+    page's heading is about something else. A page whose heading is in no
+    section is ONE card and keeps all of its statements.
+    """
     scanner = _SegmentScanner()
     try:
         scanner.feed(html or "")
@@ -294,7 +334,10 @@ def segments(html: str) -> List[str]:
     except Exception as exc:  # noqa: BLE001 — a pathological page states nothing, it never crashes
         log.debug("segment scan raised on a followed page: %s", exc)
         return []
-    return scanner.segments
+    if scanner.subject_scope is None:
+        return scanner.segments
+    return [text for text, scope in zip(scanner.segments, scanner.segment_scopes)
+            if scanner.subject_scope in scope]
 
 
 def _host(url: Optional[str]) -> str:
@@ -989,16 +1032,20 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 f"and it is not one of the nodes that speaks for this happening — "
                 f"another event's start is not this row's, so this stays NULL")
         elif in_plumbing:
-            # There IS a date on the page and it is not this happening's: a nav,
-            # a page header, a footer's "last updated" stamp. A page timestamp
-            # is not a show's day (evaluator, PR #235, openai/absence-only).
+            # There IS a date on the page and it is not this happening's: a
+            # nav, a page header, a footer's "last updated" stamp (evaluator,
+            # PR #235 r1) — or, since r5's card boundary, a related or
+            # promotional block that is another happening's card. The counter
+            # token stays as it was so its history is continuous; the SENTENCE
+            # names both, because a reason that says "plumbing" about a promo
+            # card sends the next reader at the wrong repair.
             refuse(
                 "date-in-plumbing",
                 f"the only date(s) on this page "
                 f"({', '.join(d.date.isoformat() for d in in_plumbing[:3])}) are "
-                f"stated in its own plumbing — a nav, a page header or footer — "
-                f"not in anything this happening says about itself, so this "
-                f"stays NULL")
+                f"stated outside anything this happening says about itself — in "
+                f"the page's plumbing (a nav, a header, a footer) or in another "
+                f"card beside its own — so this stays NULL")
         elif page_clock:
             # The founder's rule, verbatim: a clock with no date on that page
             # stays NULL. A time with no day is not a moment.

@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-99 passed in 0.32s
+100 passed in 0.33s
 ```
 
 | ticket case | test | result |
@@ -754,6 +754,47 @@ tests, including the founder's own case (b) — "event page clock-only -> the
 place still fills". That was the useful answer: the fallback is what fills the
 place on every page without structured venue markup, and the defect was never
 the fallback but the absence of a boundary around it.
+
+### 13e. One boundary, both fields
+
+The review of the next head kept the place finding (fixed above) and added the
+same question about the DATE path: the card boundary was built for places and
+the date path still read every non-plumbing segment.
+
+> a related/unlinked promo block in page content that prints the only date/clock
+> can be attached to the current row
+
+```
+PRE-FIX   an unlinked <section class="promo">  ->  when=2026-12-25T20:00:00  codes=('no-place',)
+POST-FIX                                           when=None                 codes=('date-in-plumbing', …)
+```
+
+`_SegmentScanner` now carries the same element numbering and the same
+subject-scope as the place scan, and `segments()` returns only the statements
+printed inside the section holding the page's own heading. One boundary, both
+fields.
+
+**It also settled an older test in the other direction, and that is worth
+reading carefully.** `test_prose_beside_a_calendar_widget_is_still_refused`
+asserted that an article stating "Sat Sep 5 • 9:00PM" beside a month grid dated
+NOTHING, reasoning that the page "only prints one date among thirty-one". That
+was never what the page does: it prints one date in the article holding its own
+heading, beside a navigation calendar about no happening at all. The very first
+live run refused 40 of 40 pages on this shape; the structured tier rescued the
+ones that declare a start, and the ones that merely print one stayed poisoned
+until now.
+
+So the test's premise changed, not the standard, and both directions are pinned:
+
+| the grid is | the page states |
+|---|---|
+| outside the card | `2026-09-05T21:00:00` — the article's own line |
+| inside the card | `None` + `dates-ambiguous` — thirty-one days about itself |
+
+The `date-in-plumbing` sentence is also corrected. The counter token keeps its
+name so its history stays continuous, but a reason that says "plumbing" about a
+promotional card sends the next reader at the wrong repair, so it now names
+both: the page's own plumbing, or another card beside its own.
 
 ## 14. What this ticket did NOT do
 

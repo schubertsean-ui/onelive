@@ -656,14 +656,35 @@ def test_two_unaddressed_structured_nodes_speak_for_nobody():
     assert "structured-not-bound" in read.codes
 
 
-def test_prose_beside_a_calendar_widget_is_still_refused():
-    """The tier rule lifts a page that DECLARES its start. It does nothing for a
-    page that only prints one date among thirty-one, and it must not: which of
-    them this happening is on is exactly what is not stated, and picking one
-    would be a coin flip published as a fact."""
+def test_a_calendar_widget_outside_the_card_does_not_poison_the_page():
+    """This test previously asserted the opposite, and the card boundary is why
+    the premise changed rather than the standard.
+
+    Its old reasoning was that the page "only prints one date among thirty-one".
+    That is not what this page does. It prints ONE date in the article holding
+    its own heading, beside a navigation calendar that is about no happening at
+    all — and the first live run refused 40 of 40 pages on exactly this shape.
+    The structured tier rescued the pages that declare a start; pages that only
+    print one stayed poisoned until the card boundary (evaluator, PR #235 r5)
+    said what the widget is: outside the page's card, therefore not its
+    statement.
+
+    A page whose own card is genuinely ambiguous still refuses — see below."""
     page = f"""<html><body>
     <article><h1>A Show</h1><p>Sat Sep 5 &bull; 9:00PM</p></article>
     <table>{CALENDAR_WIDGET}</table></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+
+
+def test_a_calendar_widget_INSIDE_the_card_still_refuses():
+    """The other direction, so the boundary cannot be read as "widgets are
+    always ignored". Put the same grid inside the article and the page really
+    has stated thirty-one days about itself — which one this happening is on is
+    not stated, and picking one would be a coin flip published as a fact."""
+    page = f"""<html><body>
+    <article><h1>A Show</h1><p>Sat Sep 5 &bull; 9:00PM</p>
+    <table>{CALENDAR_WIDGET}</table></article></body></html>"""
     read = df.field_read(page, url="u", as_of=AS_OF)
     assert read.when is None
     assert "dates-ambiguous" in read.codes
