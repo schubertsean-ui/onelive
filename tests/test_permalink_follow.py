@@ -746,6 +746,47 @@ def test_a_walled_page_is_counted_apart_from_a_page_that_said_nothing():
         [one], follows, budget=40, patterns=PATTERNS)
 
 
+def test_the_report_says_what_the_opened_pages_actually_said():
+    """`still_null_n = 1568` is a number; "40 pages printed a clock and no date"
+    is a repair. The codes are what make the second one possible."""
+    tool = _tool()
+    one = _walk([row("Show 0", listing_url="https://desk.test/event/show-0"),
+                 row("Show 1", listing_url="https://desk.test/event/show-1")])
+    follows = tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/show-0": EVENT_PAGE_CLOCK_ONLY,
+        "https://desk.test/event/show-1": FOOTER_STAMP})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    table = tool.what_the_pages_said(follows)
+    # Two pages, two DIFFERENT reasons — which is the whole point: one printed a
+    # clock and no date, the other stated its only date in the page footer.
+    assert "`clock-without-date` | 1 | 50%" in table
+    assert "`date-in-plumbing` | 1 | 50%" in table
+    assert "2 event page(s) opened" in table
+
+
+def test_the_report_says_nothing_rather_than_zero_when_no_page_was_opened():
+    tool = _tool()
+    assert "nothing to count" in tool.what_the_pages_said({})
+
+
+def test_the_plan_table_is_bounded_and_says_so():
+    """A live walk plans over a thousand rows, and a thousand-row markdown table
+    buries the counters the ticket is judged on. The cap is on PRINTING: the
+    total is stated beside the sample so it can never read as the whole plan."""
+    tool = _tool()
+
+    class _W:
+        def __init__(self, i):
+            self.ingest_key, self.title = f"k{i}", f"Show {i}"
+            self.vias, self.start_time, self.clock_hole = ["Desk"], None, "no date"
+            self.extracted = {"venue_name": "The Hall"}
+
+    table = tool.plan_table([_W(i) for i in range(30)], limit=25)
+    assert "| 25 |" in table and "| 26 |" not in table
+    assert "first 25 of 30 planned rows" in table
+    assert "counted in every number on this page" in table
+
+
 def test_the_sample_rows_say_which_page_stated_the_date():
     tool = _tool()
     one = _walk([row()])

@@ -292,6 +292,12 @@ class FieldRead:
     #: location. Free prose is never a place.
     place_carrier: Optional[str] = None
     refusals: Tuple[str, ...] = ()
+    #: The same refusals as short, stable CODES. The sentences above are for a
+    #: person reading one page; these are for counting across a thousand of
+    #: them, which is how "still_null_n is 1568" turns into a repairable fact
+    #: instead of a number (ONE-LIVE-ENTITY-SPLIT-LAW.md §9.3: record it as
+    #: data, not chat).
+    codes: Tuple[str, ...] = ()
 
     @property
     def states_anything(self) -> bool:
@@ -448,9 +454,17 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     weekday pinning OFF rather than assuming a year, and so does this.
     """
     if not isinstance(html, str) or not html.strip():
-        return FieldRead(url=url, refusals=("empty page body — nothing read "
-                                            "(not 'nothing stated')",))
+        return FieldRead(url=url, codes=("empty-body",),
+                         refusals=("empty page body — nothing read "
+                                   "(not 'nothing stated')",))
     refusals: List[str] = []
+    codes: List[str] = []
+
+    def refuse(code: str, message: str) -> None:
+        """One refusal, twice: a sentence for a person, a code for a counter."""
+        refusals.append(message)
+        codes.append(code)
+
     # CRLF -> LF before the date rule reads it. RFC 5545 ends every ICS line
     # with CRLF and R-030's DTSTART pattern is line-anchored, so a permalink
     # that answers with a calendar file would otherwise state no date at all.
@@ -467,7 +481,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     if len(dates) > 1:
         # RED_CLASSES: missing-cardinality-check. Three outcomes, three
         # behaviours — and "more than one" is not a longer list to pick from.
-        refusals.append(
+        refuse(
+            "dates-ambiguous",
             f"page states {len(dates)} different dates "
             f"({', '.join(d.date.isoformat() for d in dates[:4])}) — which one "
             f"this happening is on is not stated, so the clock stays NULL")
@@ -475,11 +490,12 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
         if page_clock:
             # The founder's rule, verbatim: a clock with no date on that page
             # stays NULL. A time with no day is not a moment.
-            refusals.append(
+            refuse(
+                "clock-without-date",
                 f"page prints a clock ({page_clock}) and no date — a time with "
                 f"no day is not a moment, so this stays NULL")
         else:
-            refusals.append("page states no date")
+            refuse("no-date", "page states no date")
     else:
         hit = dates[0]
         # WHICH STATEMENT STATED IT. A date is this happening's only when
@@ -499,7 +515,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
                   if (hit.raw and hit.raw in s)
                   or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}]
         if hit.kind not in _EVENT_SCOPED_KINDS and not owning:
-            refusals.append(
+            refuse(
+                "date-in-plumbing",
                 f"the only date on this page ({hit.date.isoformat()}, from "
                 f"{hit.raw!r}) is stated in the page's own plumbing — a nav, a "
                 f"page header or footer — not in anything this happening says "
@@ -516,7 +533,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
                 if iso:
                     when, when_precision = iso, "datetime"
                 else:
-                    refusals.append(
+                    refuse(
+                        "carrier-refused",
                         f"page states {hit.raw!r} as its {hit.kind} date and the "
                         f"date rule refuses it ({(refusal or {}).get('reason')}) — "
                         f"kept as a hole rather than coerced")
@@ -537,23 +555,26 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
                         when, when_precision = iso, "datetime"
                         when_text = f"{hit.raw} {near}"
                     else:
-                        refusals.append(
+                        refuse(
+                            "clock-unresolved",
                             f"page states {hit.date.isoformat()} and the clock "
                             f"{near!r} beside it does not settle against it "
                             f"({(refusal or {}).get('reason', 'unresolved')}) — "
                             f"the day stands, the time stays a hole")
                 elif near_refusal:
-                    refusals.append(near_refusal + " — the day stands without it")
+                    refuse("clocks-ambiguous",
+                           near_refusal + " — the day stands without it")
                 elif page_clock:
-                    refusals.append(
+                    refuse(
+                        "clock-elsewhere",
                         f"page prints a clock ({page_clock}) somewhere other "
                         f"than in the statement that gave the day — two "
                         f"statements are not one, so the day stands and the "
                         f"time stays a hole")
                 else:
-                    refusals.append("page states a day and no time")
+                    refuse("no-clock", "page states a day and no time")
     if clock_refusal and not any(clock_refusal in r for r in refusals):
-        refusals.append(clock_refusal)
+        refuse("clocks-ambiguous", clock_refusal)
 
     # --- 3. place ----------------------------------------------------------
     place_text = place_carrier = None
@@ -561,8 +582,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
         ld_events = parse_jsonld(html)
     except Exception as exc:  # noqa: BLE001 — a pathological block must not lose the page
         ld_events = []
-        refusals.append(f"JSON-LD parse raised ({exc}); the page's other "
-                        f"statements were still read")
+        refuse("jsonld-raised", f"JSON-LD parse raised ({exc}); the page's other "
+                                f"statements were still read")
     ld_places: List[str] = []
     for ev in ld_events:
         stated = ev.get("venue_name") or ev.get("venue_address") or ev.get("venue_city")
@@ -572,7 +593,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     if len(ld_places) == 1:
         place_text, place_carrier = ld_places[0], "jsonld"
     elif len(ld_places) > 1:
-        refusals.append(
+        refuse(
+            "places-ambiguous",
             f"page publishes {len(ld_places)} schema.org events naming "
             f"different places ({'; '.join(ld_places[:3])}) — which one this "
             f"happening is at is not stated")
@@ -581,16 +603,18 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
         if len(labelled) == 1:
             place_text, place_carrier = labelled[0], "labelled"
         elif len(labelled) > 1:
-            refusals.append(
+            refuse(
+                "places-ambiguous",
                 f"page labels {len(labelled)} different places "
                 f"({'; '.join(labelled[:3])}) — which one this happening is at "
                 f"is not stated")
         else:
-            refusals.append("page labels no place")
+            refuse("no-place", "page labels no place")
     return FieldRead(
         url=url, when=when, when_precision=when_precision, when_text=when_text,
         when_carrier=when_carrier, place_text=place_text,
         place_carrier=place_carrier, refusals=tuple(refusals),
+        codes=tuple(codes),
     )
 
 

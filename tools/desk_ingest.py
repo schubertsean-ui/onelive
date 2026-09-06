@@ -267,6 +267,34 @@ def follow_table(walks: Sequence[DeskWalk], follows: Mapping[str, FollowResult],
     return "\n".join(lines)
 
 
+def what_the_pages_said(follows: Mapping[str, FollowResult]) -> str:
+    """What the OPENED pages actually stated, counted by reason.
+
+    Without this, a live run reports `still_null_n = 1568` and there is nothing
+    to do about it. With it, the same run says whether those pages published no
+    date at all, stated one only in their plumbing, or printed a clock the day
+    never came with — three different repairs, and the next ticket is whichever
+    one is largest (ONE-LIVE-ENTITY-SPLIT-LAW.md §9.3).
+    """
+    counts: Dict[str, int] = {}
+    pages = 0
+    for result in follows.values():
+        for read in result.reads:
+            pages += 1
+            for code in read.codes:
+                counts[code] = counts.get(code, 0) + 1
+    if not pages:
+        return "_No event page was opened on this run, so there is nothing to count._"
+    out = ["| the page said | pages | of opened |", "|---|---:|---:|"]
+    for code, count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        out.append(f"| `{code}` | {count} | {100 * count // pages}% |")
+    out.append("")
+    out.append(f"{pages} event page(s) opened. A page can carry more than one "
+               f"reason (a date refusal and a place refusal are separate), so "
+               f"these do not sum to the page count.")
+    return "\n".join(out)
+
+
 def sample_rows(walks: Sequence[DeskWalk], n: int = 3) -> str:
     """A few rows as a person would read them: the address, the clock, the place.
 
@@ -665,14 +693,27 @@ def _cell(value) -> str:
     return " ".join(text.split()).replace("|", "\\|") or "—"
 
 
-def plan_table(writes: Sequence[CandidateWrite]) -> str:
+#: How many planned rows the report prints in full. A live walk plans over a
+#: thousand, and a thousand-row markdown table is not a deliverable anybody
+#: reads — it also buries the counters this ticket is judged on. The cap is on
+#: the PRINTING only: every row is still planned, still counted, and the total
+#: is stated beside the sample so the table can never read as the whole plan.
+PLAN_ROWS_SHOWN = 25
+
+
+def plan_table(writes: Sequence[CandidateWrite], *, limit: int = PLAN_ROWS_SHOWN) -> str:
     out = ["| # | key | desks | title | place | starts | clock |",
            "|---:|---|---|---|---|---|---|"]
-    for i, w in enumerate(writes, 1):
+    for i, w in enumerate(writes[:limit], 1):
         out.append("| {} | `{}` | {} | {} | {} | {} | {} |".format(
             i, _cell(w.ingest_key), _cell(" + ".join(w.vias)), _cell(w.title),
             _cell(w.extracted.get("venue_name")), _cell(w.start_time),
             "stated" if w.start_time else _cell(w.clock_hole)))
+    if len(writes) > limit:
+        out.append("")
+        out.append(f"_Showing the first {limit} of {len(writes)} planned rows. "
+                   f"The rest are planned, counted in every number on this page, "
+                   f"and simply not printed._")
     return "\n".join(out)
 
 
@@ -792,6 +833,11 @@ def main(argv=None) -> int:
     else:
         print(follow_table(walks, follows, budget=args.follow_budget,
                            patterns=patterns))
+        print()
+        print("**What the opened pages said** — so a NULL is a repair, not a "
+              "number:")
+        print()
+        print(what_the_pages_said(follows))
         print()
         print("Three sample rows, as a person would read them:")
         print()
