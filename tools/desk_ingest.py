@@ -176,21 +176,32 @@ def split_table(walks: Sequence[DeskWalk]) -> str:
 #   * SAME HOST ONLY. Selected here (a permalink on another host is not this
 #     desk's page) and again inside `follow()`, which reports `off_host`.
 #   * AT MOST `DEFAULT_FOLLOW_PAGES` PAGES PER RUN, across all desks.
-#   * ROUND-ROBIN, never 40 pages of one venue. `follow()`'s own `limit` walks
+#   * ROUND-ROBIN, never 200 pages of one venue. `follow()`'s own `limit` walks
 #     one list in order, so passing the budget straight to it would spend the
 #     whole thing on the first desk — which is the shape the founder's cap
 #     exists to forbid, not to permit.
 
-#: Founder cap, this session: the most EVENT pages one run may knock on, across
-#: every desk. A cap on PAGES, not on rows — two rows sharing one permalink cost
-#: one knock (`follow()` answers the second from the first).
+#: Founder cap, RAISED 40 -> 200 (Ticket E, 2026-09-06). A cap on PAGES, not on
+#: rows — two rows sharing one permalink cost one knock (`follow()` answers the
+#: second from the first). It is the most EVENT pages one run may knock on,
+#: across every desk.
 #:
-#: One honest asterisk: a page that advertises its own iCalendar file may cost
-#: one further fetch (`event_page.MAX_ICS_FETCHES` is 1), because reading that
-#: file is part of reading THAT page rather than a knock on a 41st one. So the
-#: worst case for a full budget is 40 pages plus up to 40 same-host .ics reads,
-#: and stating it is cheaper than someone finding it in a server log.
-DEFAULT_FOLLOW_PAGES = 40
+#: WHY it moved: the Ticket D run read 1571 rows off the list pages and could
+#: only knock on 40 of them, so 1552 rows kept a hole. 40 pages cannot fill 1571
+#: rows, and the number of rows a friend could act on was being decided by the
+#: budget rather than by the desks.
+#:
+#: Two honest asterisks, both about what a FULL budget costs on a live run:
+#:   * a page that advertises its own iCalendar file may cost one further fetch
+#:     (`event_page.MAX_ICS_FETCHES` is 1), because reading that file is part of
+#:     reading THAT page rather than a knock on a 201st one. So the worst case
+#:     for a full budget is 200 pages plus up to 200 same-host .ics reads.
+#:   * those fetches are POLITE: `--min-interval` sleeps between live fetches
+#:     (2.0s by default), so a full budget is ~7 minutes of waiting at best and
+#:     ~13 at the .ics worst case, before any page is transferred. That is the
+#:     real cost of the raise, and stating it is cheaper than someone finding it
+#:     in a server log or in a job that ran out of minutes.
+DEFAULT_FOLLOW_PAGES = 200
 
 
 def _knocks(run: Optional[FollowRun]) -> int:

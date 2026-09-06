@@ -294,8 +294,8 @@ def test_an_off_host_permalink_is_never_followed():
 
 
 def test_the_budget_is_spread_across_the_desks_not_down_one():
-    """The founder's cap is a cap AND a shape: 40 pages of one venue is the
-    thing it forbids."""
+    """The founder's cap is a cap AND a shape: a whole budget spent down one
+    venue is the thing it forbids, at 40 and at 200 alike."""
     big = walk_of([row(f"https://a.test/event/{i}", source_url="https://a.test/list")
                    for i in range(30)], door_id="desk-a", start_url="https://a.test/list")
     other = walk_of([row(f"https://b.test/event/{i}", source_url="https://b.test/list")
@@ -604,3 +604,87 @@ def test_the_heading_warns_when_a_row_did_change(capsys, monkeypatch):
     assert "## 4. The write plan — DRY-RUN VIEW, not what `--write` would plan" in out
     assert "**This is not what `--real --write` would plan.**" in out, (
         "the heading and the caveat agree, because they ask one predicate")
+
+
+# --------------------------------------------------------------------------
+# Ticket E — the founder cap is 200
+# --------------------------------------------------------------------------
+#
+# The raise 40 -> 200 is a NUMBER, and a number can drift silently: an editor
+# tidying a constant, a merge taking the wrong side, a later ticket "just
+# lowering it while debugging". These tests make each of those red.
+#
+# The tests above already run at `DEFAULT_FOLLOW_PAGES`, so they now bind at
+# 200 rather than 40 without being rewritten. These four bind the raise itself.
+
+
+def test_the_founder_cap_is_two_hundred_pages_per_run():
+    """The founder's number, pinned. 40 could not fill 1571 rows; 200 is what
+    was authorised, and neither a quiet lowering nor a quiet raising of it is
+    this repo's call to make (Ticket E Must-do 1)."""
+    assert DEFAULT_FOLLOW_PAGES == 200
+
+
+def test_the_cli_default_is_the_founder_cap(capsys):
+    """`.github/workflows/desk-split-dryrun.yml` passes NO `--follow-pages`, so
+    the constant only reaches the live run through this default. A default that
+    drifted from the constant would dispatch a 40-page run while every test on
+    this page passed."""
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    assert "default 200" in capsys.readouterr().out
+
+
+def test_the_cap_is_never_exceeded_at_the_founder_budget(monkeypatch, capsys):
+    """300 pages on offer, 200 in the budget: exactly 200 knocks, never 201.
+
+    The 100 rows beyond the budget are `not_asked` — pages we chose not to
+    spend on, never walls and never empty desks.
+    """
+    rows_a = [row(f"https://a.test/event/{i}", source_url="https://a.test/list")
+              for i in range(150)]
+    rows_b = [row(f"https://b.test/event/{i}", source_url="https://b.test/list")
+              for i in range(150)]
+    a = walk_of(rows_a, door_id="desk-a", start_url="https://a.test/list")
+    b = walk_of(rows_b, door_id="desk-b", start_url="https://b.test/list")
+    knocks = []
+
+    def fetch(url):
+        knocks.append(url)
+        return PageFetch(url=url, status=200, body=DATE_AND_VENUE, final_url=url)
+
+    filled, runs = follow_pages([a, b], {"desk-a": fetch, "desk-b": fetch},
+                                cap=DEFAULT_FOLLOW_PAGES)
+
+    assert len(knocks) == DEFAULT_FOLLOW_PAGES == 200
+    assert len(set(knocks)) == 200, "200 DISTINCT pages — the cap counts knocks"
+    followed = sum(r.followed_n for r in runs.values())
+    assert followed == 200
+    assert sum(1 for w in filled for r in w.rows if r.when) == 200, (
+        "exactly the followed rows got a night; the other 100 kept their hole")
+
+    table = follow_table(filled, runs, cap=DEFAULT_FOLLOW_PAGES)
+    assert "| `desk-a` | 150 | 100 | 100 | 50 | 0 | 0 | 100 | 50 |" in table
+    assert "| `desk-b` | 150 | 100 | 100 | 50 | 0 | 0 | 100 | 50 |" in table
+    assert "**200** event page(s) read of a founder cap of **200**" in table
+
+
+def test_the_round_robin_still_spreads_at_the_founder_budget():
+    """The raise must not turn the cap into "200 pages of the first desk".
+
+    Chronicle alone offered 1571 rows on the live run, so at cap 200 a
+    walk-order spend would hand the whole budget to it and knock on nothing of
+    the second desk — exactly the shape the round-robin exists to forbid.
+    """
+    big = walk_of([row(f"https://a.test/event/{i}", source_url="https://a.test/list")
+                   for i in range(1571)], door_id="desk-a",
+                  start_url="https://a.test/list")
+    other = walk_of([row(f"https://b.test/event/{i}", source_url="https://b.test/list")
+                     for i in range(300)], door_id="desk-b",
+                    start_url="https://b.test/list")
+
+    picked = round_robin([big, other], cap=DEFAULT_FOLLOW_PAGES)
+
+    assert len(picked["desk-a"]) == 100
+    assert len(picked["desk-b"]) == 100
+    assert sum(len(v) for v in picked.values()) == DEFAULT_FOLLOW_PAGES
