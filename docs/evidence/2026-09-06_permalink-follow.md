@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-106 passed in 0.45s
+109 passed in 0.48s
 ```
 
 | ticket case | test | result |
@@ -869,6 +869,40 @@ so the fix cannot hand a poisoned node an easier target — its own test.
 That is the third time this ticket has been bitten by one rule expressed twice
 (the r3 UTC/local instant keys, the r4 heading sets, this). The pattern is in
 the red classes.
+
+### 13g. Round 7 — the tab caption does not get a second vote
+
+One blocking finding (openai/absence-only; both gemini APPROVE), and a gemini
+nit that turned out to have the same fix.
+
+**A stale `<title>` could rescue a node the visible heading contradicts.**
+`_headings` fed `<title>` and the visible subject into ONE list, and a node need
+only match ANY of them. CMS titles go stale routinely:
+
+```
+PRE-FIX   when=2026-12-25T20:00:00-06:00  place='The Other Room'
+          headings=['Some Other Show', 'Dominic Fike']
+POST-FIX  when=None                       headings=['Dominic Fike']
+```
+
+The visible subject now wins outright; `<title>` is read only when the page
+prints no heading at all — and that fallback has its own test, because a desk
+whose event page is headed by an image would otherwise lose every bind.
+
+**The nit had the same root, and it is the class I opened last round.**
+`_headings` was a regex over raw HTML while the scanners suppressed plumbing, so
+`<nav><h1>Browse Events</h1></nav>` was a name this page answered to:
+
+```
+PRE-FIX   headings=['Dominic Fike', 'Browse Events', 'Dominic Fike']
+POST-FIX  headings=['Dominic Fike']
+```
+
+Headings now come from the SEGMENT SCAN — the walk that already knows what
+plumbing is. That removes the last place the heading rule was expressed twice:
+one walk, one precedence, one answer. `one-rule-expressed-twice` was opened in
+r6 with three instances; this is the fourth, found by a reviewer rather than by
+me, one round after I named the class.
 
 ## 14. What this ticket did NOT do
 

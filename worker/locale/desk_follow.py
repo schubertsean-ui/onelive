@@ -146,7 +146,7 @@ _PLACE_ITEMPROPS = frozenset({"location", "address"})
 _HEADING_TAGS = ("h1", "h2", "h3")
 
 
-def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...]]]
+def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...], str]]
                   ) -> Optional[Tuple[int, ...]]:
     """The sectioning elements enclosing the page's SUBJECT heading.
 
@@ -160,7 +160,7 @@ def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...]]]
     is about, so nothing is excluded on that basis.
     """
     for tag in _HEADING_TAGS:
-        for mark_tag, sections in marks:
+        for mark_tag, sections, _text in marks:
             if mark_tag == tag:
                 return sections
     return None
@@ -276,8 +276,12 @@ class _SegmentScanner(HTMLParser):
         #: The card each segment was printed in, same scheme as the place scan:
         #: the ids of every element open when the segment started.
         self.segment_scopes: List[Tuple[int, ...]] = []
-        #: (tag, enclosing sectioning ids) for every heading outside plumbing.
-        self.heading_marks: List[Tuple[str, Tuple[int, ...]]] = []
+        #: (tag, enclosing sectioning ids, text) for every heading outside
+        #: plumbing. The TEXT rides along so the identity check and the card
+        #: boundary read one walk — see `_headings`.
+        self.heading_marks: List[Tuple[str, Tuple[int, ...], str]] = []
+        self._heading_open: Optional[Tuple[str, Tuple[int, ...]]] = None
+        self._heading_parts: List[str] = []
         self._parts: List[str] = []
         self._skip = 0
         self._furniture = 0
@@ -326,7 +330,8 @@ class _SegmentScanner(HTMLParser):
             # Every heading is RECORDED; which one is the page's subject is
             # decided at close by `_pick_subject`, because a streaming scan
             # cannot know whether an <h1> is still coming.
-            self.heading_marks.append((tag, self._sections()))
+            self._heading_open = (tag, self._sections())
+            self._heading_parts = []
         if tag in _BLOCK_TAGS:
             self._flush()
         if tag == "time" and not self._furniture and not self._skip:
@@ -345,6 +350,12 @@ class _SegmentScanner(HTMLParser):
         if tag in _SKIP_TEXT_TAGS:
             self._skip = max(0, self._skip - 1)
             return
+        if self._heading_open is not None and tag == self._heading_open[0]:
+            text = " ".join(" ".join(self._heading_parts).split())
+            open_tag, sections = self._heading_open
+            self.heading_marks.append((open_tag, sections, text))
+            self._heading_open = None
+            self._heading_parts = []
         if tag in _BLOCK_TAGS:
             self._flush()
         if any(open_tag == tag for open_tag, _f, _s in self._open):
@@ -360,6 +371,8 @@ class _SegmentScanner(HTMLParser):
     def handle_data(self, data):
         if not self._skip and not self._furniture:
             self._parts.append(data)
+            if self._heading_open is not None:
+                self._heading_parts.append(data)
 
     def close(self):
         super().close()
@@ -489,8 +502,10 @@ class _PlaceScanner(HTMLParser):
         #: A monotonic id per opened SECTIONING element, so a card can be
         #: named without buffering its subtree.
         self._next_id = 0
-        #: (tag, enclosing sectioning ids) for every heading outside plumbing.
-        self.heading_marks: List[Tuple[str, Tuple[int, ...]]] = []
+        #: (tag, enclosing sectioning ids, "") for every heading outside
+        #: plumbing. This scan needs only the sections; the text side is read
+        #: once, by the segment scan.
+        self.heading_marks: List[Tuple[str, Tuple[int, ...], str]] = []
         #: Enclosing sectioning ids at the moment each place was captured.
         self._opened_in: Tuple[int, ...] = ()
         self.place_scopes: List[Tuple[int, ...]] = []
@@ -530,7 +545,7 @@ class _PlaceScanner(HTMLParser):
             # Every heading is RECORDED; which one is the page's subject is
             # decided at close by `_pick_subject`, because a streaming scan
             # cannot know whether an <h1> is still coming.
-            self.heading_marks.append((tag, self._sections()))
+            self.heading_marks.append((tag, self._sections(), ""))
         if tag == "a" and not self._skip and not self._furniture:
             href = " ".join(
                 (dict((k.lower(), v or "") for k, v in attrs).get("href") or "").split())
@@ -653,36 +668,49 @@ def _named_urls(event: Dict[str, object], url: str) -> FrozenSet[str]:
     return frozenset(out)
 
 
-_HEADING_RE = re.compile(
-    r"<(h1|h2|h3|title)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
+#: The document `<title>`. A WEAKER signal than a visible heading and read only
+#: as a fallback — see `_headings`.
+_TITLE_RE = re.compile(r"<title\b[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 
 
 def _headings(html: str) -> List[str]:
-    """What this page calls ITSELF — its subject heading(s) and its `<title>`.
+    """What this page calls ITSELF, strongest evidence only.
 
-    ONE definition of "the page's heading", shared with the card boundary by
-    construction: the same `_HEADING_TAGS` precedence picks the subject here as
-    picks the card there. The r6 absence-only finding was these two drifting —
-    the boundary already treated `<h2>` as a page subject while this read only
-    `<h1>`/`<title>`, so a page whose visible subject is an `<h2>` had NOTHING
-    for `_contradicts_this_page` to compare against, and a poisoned node
-    claiming this URL sailed through.
+    THE VISIBLE SUBJECT WINS, AND `<title>` IS ONLY A FALLBACK. Feeding both
+    into one list let a STALE `<title>` rescue a node the visible `<h1>`
+    contradicts — a CMS title goes stale routinely, and a poisoned schema.org
+    Event naming the stale title would match it, contradict nothing, and fill
+    this row's holes (evaluator, PR #235 r7, openai/absence-only). A page that
+    prints its own subject has said what it is about; the tab caption does not
+    get a second vote.
 
-    Subheadings of a page that HAS an `<h1>` are deliberately not included: a
-    promotional `<h2>` naming another show must not become a name this page
-    answers to.
+    Read from the SEGMENT SCAN rather than a regex over raw HTML, so headings
+    inside `<nav>`, `<aside>` or a page-level `<header>`/`<footer>` are excluded
+    by exactly the rule that excludes their text elsewhere (gemini NIT, same
+    round). That also removes the last place where the heading rule was
+    expressed twice: one walk, one precedence, one answer.
+
+    Subheadings of a page that HAS an `<h1>` stay out: a promotional `<h2>`
+    naming another show must not become a name this page answers to.
     """
-    found: Dict[str, List[str]] = {}
-    for tag, inner in _HEADING_RE.findall(html or ""):
-        text = " ".join(_TAG_RE.sub(" ", inner).split())
-        if text:
-            found.setdefault(tag.lower(), []).append(text)
-    out = list(found.get("title", []))
+    scanner = _SegmentScanner()
+    try:
+        scanner.feed(html or "")
+        scanner.close()
+    except Exception as exc:  # noqa: BLE001 — a pathological page names itself nothing
+        log.debug("heading scan raised on a followed page: %s", exc)
+        return []
     for tag in _HEADING_TAGS:
-        if found.get(tag):
-            out.extend(found[tag])
-            break
-    return out
+        named = [text for mark_tag, _sections, text in scanner.heading_marks
+                 if mark_tag == tag and text]
+        if named:
+            return named
+    title = _TITLE_RE.search(html or "")
+    if title:
+        text = " ".join(_TAG_RE.sub(" ", title.group(1)).split())
+        if text:
+            return [text]
+    return []
 
 
 def _same_name(a: str, b: str) -> bool:

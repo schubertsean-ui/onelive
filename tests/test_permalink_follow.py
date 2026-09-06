@@ -775,6 +775,65 @@ def test_an_h2_subject_is_a_heading_the_identity_check_can_read():
     assert "structured-not-bound" in read.codes
 
 
+def test_a_stale_title_does_not_rescue_a_node_the_heading_contradicts():
+    """Evaluator, PR #235 r7, openai/absence-only — reproduced before fixing.
+
+    `<title>` and the visible heading were fed into ONE list, and a node need
+    only match ANY of them. A CMS title goes stale routinely, so a poisoned
+    schema.org Event naming the STALE title matched it, contradicted nothing,
+    and filled this row's holes:
+
+        PRE-FIX   when=2026-12-25T20:00:00-06:00  place='The Other Room'
+                  headings=['Some Other Show', 'Dominic Fike']
+
+    A page that prints its own subject has said what it is about. The tab
+    caption does not get a second vote."""
+    page = """<html><head><title>Some Other Show</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Some Other Show",
+      "url":"https://desk.test/event/dominic-fike-1",
+      "startDate":"2026-12-25T20:00:00-06:00",
+      "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h1>Dominic Fike</h1></article></body></html>"""
+    assert df._headings(page) == ["Dominic Fike"]
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None
+
+
+def test_the_title_still_speaks_for_a_page_that_prints_no_heading():
+    """The converse: `<title>` is a fallback, not a reject. A page with no
+    visible heading still has a name, and a node that matches it still binds —
+    otherwise the fix above would hole every desk whose event page is headed by
+    an image."""
+    page = """<html><head><title>Dominic Fike</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike",
+      "url":"https://desk.test/event/dominic-fike-1",
+      "startDate":"2026-09-06T21:00:00-05:00",
+      "location":{"@type":"Place","name":"The Hall"}}</script></head>
+    <body><article><p>no heading at all</p></article></body></html>"""
+    assert df._headings(page) == ["Dominic Fike"]
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-06T21:00:00-05:00", read.refusals
+    assert read.place_text == "The Hall"
+
+
+def test_a_heading_in_the_page_chrome_is_not_a_name_this_page_answers_to():
+    """Gemini NIT, PR #235 r7 — `_headings` read a regex over raw HTML while the
+    scanners suppressed plumbing, so a `<nav><h1>Browse Events</h1></nav>` was a
+    name this page answered to. Reading headings from the SEGMENT SCAN removes
+    the last place the heading rule was expressed twice: one walk, one
+    precedence, one answer."""
+    page = """<html><head><title>Dominic Fike</title></head>
+    <body><nav><h1>Browse Events</h1></nav>
+    <article><h1>Dominic Fike</h1>
+    <p>Saturday, September 5, 2026 &mdash; 9:00PM</p></article></body></html>"""
+    assert df._headings(page) == ["Dominic Fike"], df._headings(page)
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+
+
 def test_a_promo_subheading_is_not_a_name_this_page_answers_to():
     """A page WITH an `<h1>` does not adopt its subheadings as names. Otherwise
     the fix above would hand a poisoned node an easier target: a promotional
