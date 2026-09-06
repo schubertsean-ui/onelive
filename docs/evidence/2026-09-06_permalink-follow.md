@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-115 passed in 0.51s
+117 passed in 0.47s
 ```
 
 | ticket case | test | result |
