@@ -284,6 +284,21 @@ def _visible(html: str) -> str:
     return _TAG_RE.sub(" ", _SCRIPT_STYLE_RE.sub(" ", html or ""))
 
 
+def _href_of(attrs) -> str:
+    """The address an `<a>` offers, or "" when it offers none.
+
+    One definition, used by BOTH scanners since r16 — a fragment, a
+    `javascript:`, a `mailto:` or a `tel:` is not a link to another happening.
+    Written once because the two scanners now each need it, and two spellings of
+    "is this a link" is the class this ticket has paid for six times.
+    """
+    href = " ".join(
+        (dict((k.lower(), v or "") for k, v in attrs).get("href") or "").split())
+    if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+        return ""
+    return href
+
+
 class _SegmentScanner(HTMLParser):
     """The page's printed text, cut into statements, with its plumbing removed.
 
@@ -316,6 +331,11 @@ class _SegmentScanner(HTMLParser):
         self.heading_marks: List[Tuple[str, Tuple[int, ...], str]] = []
         #: Ids of the page's top-level sectioning elements, in document order.
         self.top_sections: List[int] = []
+        #: (enclosing sectioning ids, href) for every link this page's content
+        #: offers, so a NESTED card that links to another happening can be told
+        #: from the card's own "see also" (r16). Ids are this scan's own — never
+        #: compared against the place scan's, which numbers independently.
+        self.link_marks: List[Tuple[Tuple[int, ...], str]] = []
         self._heading_open: Optional[Tuple[str, Tuple[int, ...]]] = None
         self._heading_parts: List[str] = []
         self._parts: List[str] = []
@@ -373,6 +393,10 @@ class _SegmentScanner(HTMLParser):
             # cannot know whether an <h1> is still coming.
             self._heading_open = (tag, self._sections())
             self._heading_parts = []
+        if tag == "a" and not self._skip and not self._furniture:
+            href = _href_of(attrs)
+            if href:
+                self.link_marks.append((self._sections(), href))
         if tag in _BLOCK_TAGS:
             self._flush()
         if tag == "time" and not self._furniture and not self._skip:
@@ -420,7 +444,42 @@ class _SegmentScanner(HTMLParser):
         self._flush()
 
 
-def segments(html: str) -> List[str]:
+def _foreign_sections(link_marks, subject, url, patterns) -> FrozenSet[int]:
+    """Sectioning elements INSIDE this card that belong to another happening.
+
+    The card boundary is a PREFIX test — a statement in a subsection of the
+    card is the card's — and that was deliberate at r6, because a card's own
+    `<section class="details">` holds its own date. It also meant a promo or
+    related card NESTED inside the main `<article>` after the real `<h1>` was
+    read as this happening's, and published its date, clock and venue with no
+    refusal (evaluator, PR #235 r16, openai/attacker-smuggle; reproduced as
+    `2026-12-25T20:00:00` at 'The Other Room').
+
+    Told apart by the split ladder's OWN discriminator, the one r4 already uses
+    for places: a card that links to another happening's permalink — as the
+    committed identity table classifies it — is that happening's card. No
+    chrome words, no title match, no new data.
+
+    Only sections nested INSIDE the card are eligible: a "see also" link in the
+    article's own text would otherwise mark the whole article foreign and cost
+    the page everything. The outermost nested section holding such a link is the
+    one excluded, with its subtree.
+    """
+    depth = len(subject or ())
+    foreign = set()
+    for sections, href in link_marks:
+        if not _inside_the_card(sections, subject):
+            continue
+        inner = sections[depth:]
+        if not inner:
+            continue      # the card's own level — its links are its business
+        if _others_on_this_page([href], url, patterns):
+            foreign.add(inner[0])
+    return frozenset(foreign)
+
+
+def segments(html: str, *, url: Optional[str] = None,
+             patterns: Sequence[IdentityPattern] = ()) -> List[str]:
     """The page's statements about ITSELF, plumbing removed. Empty when nothing
     can be read.
 
@@ -445,8 +504,9 @@ def segments(html: str) -> List[str]:
         log.debug("segment scan raised on a followed page: %s", exc)
         return []
     subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
+    foreign = _foreign_sections(scanner.link_marks, subject, url, patterns)
     return [text for text, scope in zip(scanner.segments, scanner.segment_scopes)
-            if _inside_the_card(scope, subject)]
+            if _inside_the_card(scope, subject) and not foreign.intersection(scope)]
 
 
 def _host(url: Optional[str]) -> str:
@@ -581,6 +641,10 @@ class _PlaceScanner(HTMLParser):
         #: point at another happening" can be asked without a second parse and
         #: without a second definition of what counts as content.
         self.links: List[str] = []
+        #: The same addresses, each with the sectioning elements enclosing it,
+        #: so a NESTED card that links to another happening can be told from
+        #: the card's own "see also" (r16).
+        self.link_marks: List[Tuple[Tuple[int, ...], str]] = []
         self._depth = 0
         self._parts: List[str] = []
         self._skip = 0
@@ -641,10 +705,10 @@ class _PlaceScanner(HTMLParser):
             # cannot know whether an <h1> is still coming.
             self.heading_marks.append((tag, self._sections(), ""))
         if tag == "a" and not self._skip and not self._furniture:
-            href = " ".join(
-                (dict((k.lower(), v or "") for k, v in attrs).get("href") or "").split())
-            if href and not href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            href = _href_of(attrs)
+            if href:
                 self.links.append(href)
+                self.link_marks.append((self._sections(), href))
         if self._depth:
             self._depth += 1
             return
@@ -910,13 +974,21 @@ def _names_within(text: str, name: str) -> bool:
     node saying "TexARTS" names the same place, and the live run holed it as a
     contradiction until this split.
 
-    Containment only, and only in this direction: the TEXT may say more than
-    the name. A one-token floor still applies — a block containing the letter
-    "A" has not named a venue called "A".
+    SYMMETRIC, because either side may be the verbose one. r15 wrote this in
+    one direction only — the card's block containing the node's name — and a
+    desk whose markup carries the address (`location.name = "TexARTS 1110 S RR
+    620"`) beside a card printing plain "TexARTS" would have been read as
+    contradicting itself (gemini/spec-vs-contract NIT, PR #235 r16). The
+    question is "do these name the same place", and neither side is privileged
+    about how much it says.
+
+    A one-token floor still applies — a block containing the letter "A" has not
+    named a venue called "A".
     """
-    haystack, needle = _name_tokens(text), _name_tokens(name)
-    if not haystack or not needle:
+    left, right = _name_tokens(text), _name_tokens(name)
+    if not left or not right:
         return False
+    needle, haystack = (left, right) if len(left) <= len(right) else (right, left)
     if len(needle) < 2 and len(needle[0]) < 2:
         return False
     span = len(needle)
@@ -1094,7 +1166,9 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
     return list(events)
 
 
-def _scan_places(html: str) -> Tuple[List[str], List[str]]:
+def _scan_places(html: str, *, url: Optional[str] = None,
+                 patterns: Sequence[IdentityPattern] = ()
+                 ) -> Tuple[List[str], List[str]]:
     """(places this page states about ITSELF, addresses its content links to).
 
     Both answers come from the SAME walk under the SAME plumbing rule, because
@@ -1122,17 +1196,16 @@ def _scan_places(html: str) -> Tuple[List[str], List[str]]:
         log.debug("place scan raised on a followed page: %s", exc)
         return [], []
     subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
+    foreign = _foreign_sections(scanner.link_marks, subject, url, patterns)
     out: List[str] = []
     for place, scope in zip(scanner.places, scanner.place_scopes):
-        if not _inside_the_card(scope, subject):
+        if not _inside_the_card(scope, subject) or foreign.intersection(scope):
             continue
         if place not in out:
             out.append(place)
     return out, list(scanner.links)
 
 
-def _labelled_places(html: str) -> List[str]:
-    return _scan_places(html)[0]
 
 
 def _others_on_this_page(links: Sequence[str], url: str,
@@ -1260,7 +1333,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     # judged: the weak arm of `speaks_for` rests on it — a lone node at an
     # address the identity table cannot classify speaks for this page only when
     # it names the thing this page names.
-    said = segments(html)
+    said = segments(html, url=url, patterns=patterns or ())
     headings = _headings(html)
     mine = speaks_for(ld_events, url, patterns, headings=headings)
     if ld_events and not mine:
@@ -1304,6 +1377,12 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     # page-level test (evaluator, PR #235 r3, openai/attacker-smuggle —
     # reproduced as 2026-12-25T20:00 published for a row titled something else,
     # with no refusal recorded at all). The bind has to be PER HIT.
+    #: Is the RESPONSE a calendar, rather than a page with calendar text in it?
+    #: The distinction is what makes an ICS date event-scoped by construction —
+    #: see `event_scoped`. Read off the body itself, so no fragment inside an
+    #: HTML page can claim it.
+    is_calendar = (html or "").lstrip().upper().startswith("BEGIN:VCALENDAR")
+
     bound_instants = {key for key in
                       (_instant_key(str(ev.get("start_time") or "")) for ev in mine)
                       if key is not None}
@@ -1311,13 +1390,26 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     def event_scoped(hit) -> bool:
         """Does this carrier say WHOSE start it is, for THIS happening?
 
-        ICS does by construction: a calendar file served at this address is this
-        happening's. A JSON-LD date does only when the node that emitted it is
-        one that speaks for this row — matched on the INSTANT, because the
-        parser normalises to UTC while the page keeps its own offset.
+        ICS does by construction — but only when the RESPONSE IS A CALENDAR.
+        "A calendar file served at this address is this happening's" was true
+        of the case that sentence was written for and false of the one it
+        actually guarded: `same_page_dates` runs over the whole document, so a
+        DTSTART printed inside an HTML page — a download widget, an "add to
+        calendar" snippet, a related event's block — was scoped unconditionally
+        and won the tier over every card and plumbing check (evaluator, PR #235
+        r16, openai/attacker-smuggle; reproduced as `2026-12-25T20:00:00`
+        published from an `<aside>` for a show the page does not name).
+
+        So the test is what the body IS, not what a fragment inside it looks
+        like. On an HTML page an ICS-shaped date is a document-level carrier
+        like any other and has to earn its scope positionally, below.
+
+        A JSON-LD date is scoped only when the node that emitted it speaks for
+        this row — matched on the INSTANT, because the parser normalises to UTC
+        while the page keeps its own offset.
         """
         if hit.kind == "ics":
-            return True
+            return is_calendar
         return hit.kind == "jsonld" and _instant_key(hit.raw) in bound_instants
 
     def owned_by_this_happening(hit) -> bool:
@@ -1702,7 +1794,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # than a helper. Split on the QUESTION, not on the data." The questions
         # here are different: identity asks "are these the same name", a
         # labelled block asks "does this text NAME this place".
-        on_the_card, _links = _scan_places(html)
+        on_the_card, _links = _scan_places(html, url=url, patterns=patterns or ())
         clashing = [one for one in on_the_card
                     if not _names_within(one, ld_places[0])]
         if clashing:
@@ -1730,7 +1822,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # they were right on this repo's own rule, that a RECORD row is not a
         # safe harbour when the bound it states does not cover the harm it
         # names (RED_CLASSES: deferred-trust-work).
-        labelled, links = _scan_places(html)
+        labelled, links = _scan_places(html, url=url, patterns=patterns or ())
         others = _others_on_this_page(links, url, patterns)
         if len(labelled) == 1 and others:
             # A structured node that speaks for this row is bound and read

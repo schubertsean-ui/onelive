@@ -2050,6 +2050,101 @@ def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
     assert read.when == "2026-09-18T23:00:00", read.refusals
 
 
+def test_a_nested_card_linking_to_another_happening_is_not_this_one():
+    """Evaluator, PR #235 r16, openai/attacker-smuggle — the card boundary is a
+    PREFIX test, deliberately (r6: a card's own `<section class="details">` holds
+    its own date), and that meant a promo card NESTED inside the main `<article>`
+    after the real `<h1>` was read as this happening's:
+
+        PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+
+    Told apart by the split ladder's own discriminator, the one r4 already uses
+    for places: a card that links to ANOTHER happening's permalink — as the
+    committed identity table classifies it — is that happening's card. No chrome
+    words, no title match, no new data.
+
+    Only sections nested INSIDE the card are eligible, or the article's own "see
+    also" link would mark the whole article foreign and cost the page
+    everything (its own arm below)."""
+    page = """<html><body><article><h1>Dominic Fike</h1>%s
+      <section class="promo">%s
+        <p>Christmas Special — December 25, 2026 8:00PM</p>
+        <div class="venue">The Other Room</div></section>
+    </article></body></html>"""
+    link = ('<h2><a href="https://desk.test/event/christmas-special-99">'
+            'Also on sale</a></h2>')
+
+    def read(own, promo):
+        return df.field_read(page % (own, promo), url=HERE, as_of=AS_OF,
+                             patterns=PATTERNS)
+
+    # The nested promo names another happening: nothing of it is this row's.
+    smuggled = read("", link)
+    assert smuggled.when is None, smuggled.when
+    assert smuggled.place_text is None, smuggled.place_text
+
+    # And the card's own statement still wins where it has one — the exclusion
+    # removes the promo, it does not disable the card.
+    own = read("<p>Friday, September 18, 2026 8:00PM</p>", link)
+    assert own.when == "2026-09-18T20:00:00", own.refusals
+
+    # A link at the CARD'S OWN level is the card's business: a page that links
+    # to another happening from its own text keeps everything it states.
+    see_also = """<html><body><article><h1>Dominic Fike</h1>
+      <p>Friday, September 18, 2026 8:00PM</p>
+      <div class="venue">The Hall</div>
+      <p>See also <a href="https://desk.test/event/christmas-special-99">the
+      Christmas Special</a>.</p></article></body></html>"""
+    kept = df.field_read(see_also, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert kept.when == "2026-09-18T20:00:00", kept.refusals
+    # Its PLACE is refused, and by an older rule than this one: r4's
+    # `place-among-other-happenings` says an unbound labelled venue on a page
+    # linking to other happenings is not tied to this row. Asserting "The Hall"
+    # here was my own expectation being wrong, not the code — pinned as the
+    # behaviour that actually exists so the two rules stay legible together.
+    assert kept.place_text is None
+    assert "place-among-other-happenings" in kept.codes
+
+    # A card's own SUBSECTION still holds its own statements (the r6 reason the
+    # boundary is a prefix test at all).
+    detailed = """<html><body><article><h1>Dominic Fike</h1>
+      <section class="details"><p>Friday, September 18, 2026 8:00PM</p>
+      <div class="venue">The Hall</div></section></article></body></html>"""
+    sub = df.field_read(detailed, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert sub.when == "2026-09-18T20:00:00", sub.refusals
+    assert sub.place_text == "The Hall"
+
+
+def test_an_ics_snippet_inside_an_html_page_is_not_this_pages_calendar():
+    """Evaluator, PR #235 r16, openai/attacker-smuggle — `event_scoped` returned
+    True for every `ics` hit, on the reasoning that "a calendar file served at
+    this address is this happening's". True of the case that sentence was
+    written for; false of the one it guarded. `same_page_dates` runs over the
+    whole DOCUMENT, so a DTSTART printed inside an HTML page — a download
+    widget, an "add to calendar" block, a related event — was scoped
+    unconditionally and won the tier over every card and plumbing check:
+
+        PRE-FIX   when=2026-12-25T20:00:00  carrier='ics'  codes=()
+
+    The test is what the BODY IS, not what a fragment inside it looks like."""
+    embedded = """<html><body><article><h1>Dominic Fike</h1>
+    <p>No date printed here.</p></article>
+    <aside><pre>BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Some Other Show
+DTSTART:20261225T200000
+END:VEVENT
+END:VCALENDAR</pre></aside></body></html>"""
+    read = df.field_read(embedded, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+
+    # An actual calendar response still dates the row by construction.
+    real = ("BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:Dominic Fike\n"
+            "DTSTART:20261225T200000\nEND:VEVENT\nEND:VCALENDAR")
+    assert df.field_read(real, url=HERE, as_of=AS_OF,
+                         patterns=PATTERNS).when == "2026-12-25T20:00:00"
+
+
 def test_a_bare_clock_face_is_not_a_contradiction():
     """Found by reading the first LIVE run of r14's own rule — the third time in
     this ticket a check was corrected by its own diagnostics.

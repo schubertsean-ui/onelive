@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-128 passed in 0.43s
+130 passed in 0.43s
 ```
 
 | ticket case | test | result |
@@ -1604,6 +1604,73 @@ print a time and no date — and reading those 14 is what found the bare-face
 defect. **A number is not a result until you read the sentences under it**: this
 is the third time in this ticket that the count moved as predicted and the
 prediction was still concealing a wrong rule.
+
+### 13r. Round 16 — the boundary's inside, and a sentence that was true of the wrong case
+
+Three of four seats APPROVE. Two blocking (openai/attacker-smuggle) and one NIT
+(gemini/spec-vs-contract), all three reproduced against `c70f547` first.
+
+**(1) The card boundary had no inside.** `sections[:len(subject)] == subject` is
+a PREFIX test and that was deliberate at r6 — a card's own
+`<section class="details">` holds its own date. It also meant a promo card
+NESTED inside the main `<article>`, after the real `<h1>`, was this happening's:
+
+```
+PRE-FIX  when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+```
+
+Told apart by the split ladder's own discriminator, the one r4 already uses for
+places: **a card that links to another happening's permalink is that
+happening's card.** Committed identity table, no chrome words, no title match,
+no new data. Only sections nested INSIDE the card are eligible — the article's
+own "see also" link would otherwise mark the whole article foreign and cost the
+page everything, which is its own test arm.
+
+| | result |
+|---|---|
+| nested promo linking to another happening | refused, both fields |
+| the same, card states its own date too | the card's date wins; promo excluded |
+| a link at the card's own level | the card keeps its date (its place is refused by r4's older rule) |
+| the card's own `<section class="details">` | still the card's, r6 unchanged |
+
+**Not closed, and recorded as R-114:** a nested block with NO link. That is
+R-112's residual one level in, and the two substitutes are refused on this
+record twice over. The row is bounded **against the harm** this time rather
+than the mechanism — the `deferred-trust-work` lesson from R-112 and R-113,
+both of which this ticket had to reopen — and it names the four live guards
+that stand between the residual and a wrong field, plus the one shape that
+survives all four.
+
+**(2) A sentence that was true of the case it was written for and false of the
+one it guarded.** `event_scoped` returned True for every `ics` hit, because "a
+calendar file served at this address is this happening's". But
+`same_page_dates` runs over the whole DOCUMENT, so a DTSTART printed inside an
+HTML page — a download widget, an "add to calendar" block, a related event —
+was scoped unconditionally and won the tier over every card and plumbing check:
+
+```
+PRE-FIX  when=2026-12-25T20:00:00  carrier='ics'  codes=()
+```
+
+The test is now what the BODY IS (`BEGIN:VCALENDAR`), not what a fragment
+inside it looks like. A real `.ics` response still dates the row by
+construction; an ICS-shaped date inside HTML is a document-level carrier like
+any other and earns its scope positionally. **Third instance in this ticket of
+a comment claiming a mechanism the code did not have** (r4's segment ownership,
+r12's document-level carriers, this).
+
+**(3) NIT taken:** `_names_within` was written in one direction at r15 — the
+card's block containing the node's name — so a desk whose markup carries the
+address (`location.name = "TexARTS 1110 S RR 620"`) beside a card printing plain
+"TexARTS" would have read as contradicting itself. The question is "do these
+name the same place" and neither side is privileged about how much it says, so
+it is symmetric now.
+
+**Housekeeping in the same pass:** `_href_of` is one definition of "is this a
+link", used by both scanners, because they now both need it and two spellings
+is the class this ticket has paid for six times; and `_labelled_places`, left
+unused by the change, is deleted rather than kept as a second un-scoped way to
+ask for a page's places.
 
 ## 14. What this ticket did NOT do
 
