@@ -159,6 +159,10 @@ class PageStatement:
     #: two different nights has not told us which one this is). Counted, because
     #: declining is a decision and a silent decision looks like a bug.
     ambiguous_dates: Tuple[str, ...] = ()
+    #: Every `<time>` this page printed marks the END of the event. It has
+    #: stated no start, and its end is not one — nor is the end's date a safe
+    #: night, since a set ending after midnight names the following day.
+    end_only: bool = False
     #: The page's structured data and its printed markup state DIFFERENT
     #: nights. The page argues with itself, so it has stated no night: `when`
     #: is None and `rung_claims` carries what each rung said.
@@ -510,8 +514,8 @@ def _time_candidates(root: _Node, page_url: str,
 
 
 def _pick_date(candidates: Sequence[_DateCandidate]) -> Tuple[
-        Optional[str], Optional[str], Optional[str], Tuple[str, ...]]:
-    """(when, precision, when_text, ambiguous_dates) from one page's candidates.
+        Optional[str], Optional[str], Optional[str], Tuple[str, ...], bool]:
+    """(when, precision, when_text, ambiguous_dates, end_only) from one page.
 
     A page stating ONE date has stated this listing's night, whether it printed
     it once or five times (a start and an end are one night). A page stating
@@ -520,24 +524,35 @@ def _pick_date(candidates: Sequence[_DateCandidate]) -> Tuple[
     choice we would otherwise be making on the page's behalf.
     """
     if not candidates:
-        return None, None, None, ()
+        return None, None, None, (), False
     dates = sorted({c.date for c in candidates})
     if len(dates) > 1:
-        return None, None, None, tuple(dates)
+        return None, None, None, tuple(dates), False
 
-    starts = [c for c in candidates if c.is_start] or list(candidates)
+    starts = [c for c in candidates if c.is_start]
+    if not starts:
+        # Every `<time>` on this page marks the END (`itemprop="endDate"`,
+        # `class="event-end"`). The old fallback took one anyway, so a page
+        # saying only "ends 11pm" published 11pm as the START and a friend
+        # would arrive as the show finished (evaluator finding, PR #237 r4).
+        #
+        # The end's DATE is not a safe fallback either, and this is the reason
+        # the whole candidate is refused rather than downgraded to a night: a
+        # late set ending 01:00 states the day AFTER the night it belongs to,
+        # and on a music desk that is the common case, not the edge one.
+        return None, None, None, (), True
     marked_start = [c for c in candidates if c.is_start and c.instant]
     timed = {c.instant for c in starts if c.instant}
     if len(marked_start) == 1 and marked_start[0].instant:
         chosen = marked_start[0]
-        return chosen.instant, "datetime", chosen.text or None, ()
+        return chosen.instant, "datetime", chosen.text or None, (), False
     if len(timed) == 1:
         instant = timed.pop()
         text = next((c.text for c in starts if c.instant == instant), None)
-        return instant, "datetime", text or None, ()
+        return instant, "datetime", text or None, (), False
     # One night, and either no clock or several the page never ranked. The night
     # is stated; the minute is not — so the night is what we take.
-    return dates[0], "date", (starts[0].text or None), ()
+    return dates[0], "date", (starts[0].text or None), (), False
 
 
 def _jsonld_for_this_page(html: str, page_url: str) -> Tuple[Optional[dict], int, List[str]]:
@@ -687,10 +702,15 @@ def read_event_page(html: str, page_url: str, *,
     # list-vs-page disagreement is the same rule one layer in — A CONTESTED
     # NIGHT IS NO NIGHT — so a page that disagrees with itself states no night.
     html_when = html_precision = html_text = None
+    end_only = False
     if root is not None:
         candidates, clock_only, dropped = _time_candidates(root, page_url, marked)
         foreign_n += dropped
-        html_when, html_precision, html_text, ambiguous = _pick_date(candidates)
+        html_when, html_precision, html_text, ambiguous, end_only = _pick_date(
+            candidates)
+        if end_only:
+            notes.append("the page states only an end time; it has not stated "
+                         "when this starts")
         if ambiguous:
             notes.append(
                 f"the page states {len(ambiguous)} different dates "
@@ -757,6 +777,7 @@ def read_event_page(html: str, page_url: str, *,
         ambiguous_dates=ambiguous,
         cross_rung_conflict=cross_rung_conflict,
         rung_claims=rung_claims,
+        end_only=bool(end_only and when is None),
         foreign_candidates=foreign_n,
         notes=tuple(notes),
     )

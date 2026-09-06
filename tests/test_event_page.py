@@ -869,3 +869,61 @@ END:VCALENDAR"""
         "https://desk.test/event/foo-1.ics": no_url_ics}))
     assert run.rows[0].when == "2026-09-11T20:00:00Z"
     assert run.visits[0].statement.when_source == "ics"
+
+
+# --- an end time is not a start (evaluator, PR #237 r4) -----------------------
+
+def test_a_page_stating_only_an_end_time_has_not_stated_when_it_starts():
+    """The old fallback took an end candidate when nothing was marked a start,
+    so a page saying only "ends 11pm" published 11pm as the START — a friend
+    would arrive as the show finished."""
+    page = """<!doctype html><html><body><main><article><h1>Foo</h1>
+    <time class="event-end" datetime="2026-09-11T23:00">ends 11pm</time>
+    <div class="venue">The Hall</div></article></main></body></html>"""
+    st = read_event_page(page, f"{DESK}/event/foo-1")
+    assert st.when is None, "an end time was published as the start"
+    assert st.end_only is True
+    assert st.place_text == "The Hall", "only the night is in doubt"
+    assert any("has not stated when this starts" in n for n in st.notes)
+
+
+def test_an_itemprop_enddate_alone_is_also_not_a_start():
+    page = """<!doctype html><html><body><main><article><h1>Foo</h1>
+    <time itemprop="endDate" datetime="2026-09-11T23:00">until 11</time>
+    </article></main></body></html>"""
+    st = read_event_page(page, f"{DESK}/event/foo-1")
+    assert st.when is None
+    assert st.end_only is True
+
+
+def test_an_end_after_midnight_does_not_become_the_night():
+    """Why the end's DATE is refused too, not just its time: a late set ending
+    01:00 names the day AFTER the night it belongs to."""
+    page = """<!doctype html><html><body><main><article><h1>Late Set</h1>
+    <time class="event-end" datetime="2026-09-12T01:00">ends 1am</time>
+    </article></main></body></html>"""
+    st = read_event_page(page, f"{DESK}/event/foo-1")
+    assert st.when is None, "the morning after was published as the night"
+
+
+def test_an_end_beside_a_start_still_yields_the_start():
+    """The fix must refuse end-ONLY pages, not every page that prints an end."""
+    page = """<!doctype html><html><body><main><article><h1>Foo</h1>
+    <time class="event-start" datetime="2026-09-11T20:00">8pm</time>
+    <time class="event-end" datetime="2026-09-11T23:00">11pm</time>
+    </article></main></body></html>"""
+    st = read_event_page(page, f"{DESK}/event/foo-1")
+    assert st.when == "2026-09-11T20:00"
+    assert st.end_only is False
+
+
+def test_an_end_only_page_may_still_be_dated_by_its_own_calendar():
+    """An end-only page has a HOLE where the start goes, not a dispute — so the
+    calendar rung still runs, unlike on a page that contradicts itself."""
+    page = ICS_PAGE.replace(
+        "</article>", '<time class="event-end" datetime="2026-09-11T23:00">ends</time></article>')
+    run = follow([row()], fetcher({
+        "https://desk.test/event/foo-1": page,
+        "https://desk.test/event/foo-1.ics": ICS_BODY}))
+    assert run.rows[0].when == "2026-09-11T20:00:00Z"
+    assert run.visits[0].statement.when_source == "ics"
