@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-144 passed in 0.59s
+145 passed in 0.64s
 ```
 
 | ticket case | test | result |
@@ -2289,6 +2289,69 @@ the markup's precise time. Catching it needs the word; catching all of them need
 every word; the armed parser is the home for both and the founder's Must-do 1
 names it imported-never-edited. There is no third option, and I have now looked
 for one in four separate rounds.
+
+### 13ac. Round 27 — the live table, and the defect it printed
+
+**Must-do 4, on the shipped head `925a19b`** (run 34032558118, `workflow_dispatch`,
+no `--write`, no credential):
+
+| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 1572 | 27 | 1545 | 0 | **0** |
+| `do512-today` | 0 | 0 | 0 | 1 | **0** |
+
+`mash_n` is **0**, which is the founder's condition. `403_n` is 1: Do512 refused
+an unauthenticated read on first contact (class D), so its list is UNKNOWN, not
+empty — queued for a claim path, nothing written, nothing deleted.
+
+Three sample rows, as asked:
+
+| # | listing_url | start_time | place |
+|---:|---|---|---|
+| 1 | `https://calendar.austinchronicle.com/event/day-of-dance-14167854` | 2026-09-12T10:00:00-05:00 | AISD Performing Arts Center |
+| 2 | `https://calendar.austinchronicle.com/event/boeing-boeing-14285657` | 2026-09-18T19:30:00-05:00 | TexARTS |
+| 3 | `https://calendar.austinchronicle.com/event/texas-renaissance-festival-14311742` | 2026-10-10T09:00:00-05:00 | Texas Renaissance Festival |
+
+**`still_null_n` is a ceiling, not a finding.** Of 1572 rows, **1532 were never
+asked** — the 40-page follow budget was spent. Of the 40 pages actually opened,
+27 dated and 13 stated no date. `dated_n` is a FLOOR.
+
+**The two residuals, measured on real desks rather than argued:**
+
+```
+0 of 40  took a precise time from markup with no card clock at all   (R-115)
+8 of 40  filled a field from the page's own prose                    (R-116)
+```
+
+R-115 has **zero** live exposure on this corpus — every clock these desks print
+is numeric. R-116's is 8 of 40, which is the honest size of a residual that was
+a sentence in a record two rounds ago.
+
+**And the run printed a defect of its own** — the fourth this ticket has caught
+by reading its diagnostics rather than from a reviewer:
+
+```
+clocks-ambiguous — /event/story-sessions-14275760: page prints 2 different
+clocks (8 pm, 8:00 pm) — which one this happening starts at is not stated
+```
+
+They are one clock, printed twice. `_clock_claim` has said in its own docstring
+since r11 that "a page that prints the same time in its header and its footer
+still states one clock" — and the code under that sentence compared STRINGS. So
+any desk writing a time two ways lost it to an ambiguity that was not there.
+That is `a comment is not a mechanism` (r4) meeting the r3/r4 rule this ticket
+has already paid for twice: **where two sides of a pairing are spelled
+differently, compare the value, not the spelling.**
+
+Distinctness now resolves each token through the armed rule and groups by the
+wall clock it states. Fail-closed where that rule cannot read a token — two
+unreadable tokens stay two — and a bare face stays distinct from a meridiem'd
+one ("8:00" vs "20:00"), because r14 established that a bare clock is ambiguous
+mod twelve and collapsing them would settle a question the page left open.
+
+`clocks-ambiguous` fired on 2 of 40 opened pages in this run, so the fix is
+worth roughly that on this desk — measured, not estimated, and the next run's
+table will say exactly.
 
 ## 14. What this ticket did NOT do
 

@@ -1774,11 +1774,45 @@ def _clocks_printed(html: str, lang: str = "") -> List[str]:
             _CLOCK_TOKEN_RE.pattern + r"|\b(?:"
             + "|".join(re.escape(w) for w in extra) + r")\b", re.IGNORECASE)
     found: List[str] = []
+    seen: set = set()
     for hit in locator.findall(_visible(html)):
         token = " ".join(hit.split()).lower().replace(".", "")
-        if token not in found:
+        # DISTINCT BY THE TIME, NOT BY THE SPELLING. Found by reading the live
+        # run's own diagnostics — the fourth defect in this ticket caught that
+        # way rather than by a reviewer:
+        #
+        #   clocks-ambiguous — /event/story-sessions-14275760: page prints 2
+        #   different clocks (8 pm, 8:00 pm)
+        #
+        # They are one clock, printed twice. This function's caller says in its
+        # own docstring that "a page that prints the same time in its header and
+        # its footer still states one clock", and until r27 it tested that by
+        # comparing STRINGS, so any desk writing a time two ways lost it to a
+        # false ambiguity. Compare the VALUE, not its spelling — the r3/r4 rule
+        # this ticket has already paid for, in the one place it was inverted.
+        #
+        # A token the armed rule cannot resolve keeps its spelling as its key,
+        # which is the fail-closed direction: two unreadable tokens stay two.
+        key = _clock_face(token) or token
+        if key not in seen:
+            seen.add(key)
             found.append(token)
     return found
+
+
+#: A fixed, fully-specified anchor. `resolve_same_page_datetime` reads a clock
+#: only against a day, and this asks solely for the FACE — the day cancels out
+#: of every comparison it feeds, so any real date does. Not a second parser: the
+#: armed rule is still the only thing that decides what a printed time means.
+_FACE_ANCHOR = "2026-01-01"
+
+
+def _clock_face(token: str) -> Optional[Tuple[int, int]]:
+    """The wall clock this token states, or None when the armed rule cannot
+    read it."""
+    iso, _refusal, _evidence = resolve_same_page_datetime(
+        token, block_text=f"{_FACE_ANCHOR} {token}", as_of=None)
+    return _wall_clock(iso)
 
 
 def _clock_claim(html: str) -> Tuple[Optional[str], Optional[str]]:

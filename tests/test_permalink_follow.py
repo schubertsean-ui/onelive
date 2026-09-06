@@ -2546,6 +2546,56 @@ def test_the_report_counts_the_rows_r116_could_reach():
     assert "R-116" in table
 
 
+def test_one_clock_spelled_two_ways_is_one_clock():
+    """Found by reading the LIVE run's own diagnostics on `925a19b` — the fourth
+    defect in this ticket caught that way rather than by a reviewer:
+
+        clocks-ambiguous — /event/story-sessions-14275760: page prints 2
+        different clocks (8 pm, 8:00 pm) — which one this happening starts at
+        is not stated
+
+    They are one clock, printed twice. `_clock_claim`'s own docstring has said
+    since r11 that "a page that prints the same time in its header and its footer
+    still states one clock" — and the test for it compared STRINGS, so any desk
+    writing a time two ways lost it to an ambiguity that was not there. THE
+    COMMENT WAS RIGHT AND THE CODE UNDER IT ASKED A DIFFERENT QUESTION, which is
+    `a comment is not a mechanism` (r4) meeting the r3/r4 rule this ticket has
+    already paid for twice: where two sides of a pairing are spelled
+    differently, compare the VALUE, not the spelling.
+
+    Fail-closed where the armed rule cannot read a token: two unreadable tokens
+    stay two, because collapsing what we cannot parse would be a guess.
+
+    A bare face stays distinct from a meridiem'd one ("8:00" vs "20:00") on
+    purpose — r14's rule is that a bare clock is AMBIGUOUS mod twelve, so
+    treating them as one would settle a question the page left open."""
+    # One clock, four spellings.
+    assert df._clocks_printed("Doors 8 pm. Show 8:00 pm.") == ["8 pm"]
+    assert df._clocks_printed("8 pm and 8:00PM and 20:00") == ["8 pm"]
+    assert df._clocks_printed("7:30 pm / 7:30PM") == ["7:30 pm"]
+    # ... so the page states a clock instead of refusing as ambiguous.
+    assert df._clock_claim("<p>Doors 8 pm. Show 8:00 pm.</p>") == ("8 pm", None)
+
+    # THE CONVERSE, or this would just be a mute: two clocks are still two.
+    assert df._clocks_printed("8 pm and 9 pm") == ["8 pm", "9 pm"]
+    claim, why = df._clock_claim("<p>Doors 8 pm. Show 9 pm.</p>")
+    assert claim is None and "2 different clocks" in why
+    # A bare face is ambiguous mod twelve (r14), so it does not collapse into a
+    # meridiem'd one — the page has not said which it means.
+    assert df._clocks_printed("8:00 and 20:00") == ["8:00", "20:00"]
+    # And tokens the armed rule cannot read keep their spelling as their key.
+    assert df._clocks_printed("noon and midnight") == ["noon", "midnight"]
+
+    # End to end: the live page's shape now dates, where it refused before.
+    read = df.field_read(
+        "<html><body><article><h1>Story Sessions</h1>"
+        "<p>Thursday, September 10, 2026. Doors 8 pm. Show 8:00 pm.</p>"
+        "</article></body></html>",
+        url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-10T20:00:00", read.refusals
+    assert "clocks-ambiguous" not in read.codes, read.codes
+
+
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
     """Evaluator, PR #235 r20, openai/attacker-smuggle — r18's sub-card rule
     excluded nested SECTIONING elements, and `<div>` is a block boundary and not
