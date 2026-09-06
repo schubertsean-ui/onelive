@@ -23,7 +23,7 @@ import pytest
 from worker.locale.desk_read import Happening
 from worker.locale.desk_walk import PageFetch
 from worker.locale.event_page import (
-    EventPageError, apply, follow, follow_table, read_event_page,
+    EventPageError, FollowRun, apply, follow, follow_table, read_event_page,
 )
 
 DESK = "https://desk.test"
@@ -245,14 +245,61 @@ def test_c_a_jsonld_event_addressed_to_another_page_is_not_read_as_this_one():
     assert any("another address" in n for n in st.notes)
 
 
-def test_a_conflicting_night_is_recorded_never_silently_reconciled():
-    listed = row(when="2026-09-11T20:00")
+def test_a_contested_night_is_taken_away_from_the_row():
+    """Founder ruling 2026-09-06. The list says one night, the page says
+    another: neither wins. This test FAILS on the old "keep the list's date"
+    behaviour, which left `when` at the list's value."""
+    listed = row(when="2026-09-11T20:00", when_text="Fri Sep 11, 8pm")
     st = read_event_page(DATED_AND_PLACED.replace("2026-09-11T20:00",
                                                   "2026-10-02T20:00"),
                          f"{DESK}/event/foo-1")
     filled, visit = apply(listed, st)
     assert visit.when_conflict is True
-    assert filled.when == "2026-09-11T20:00", "a stated field was mutated"
+    assert filled.when is None, "a contested night stayed on the row"
+    assert filled.when_precision is None
+    assert filled.when_text is None, (
+        "the contested night survived as printed text — any surface that "
+        "renders when_text would still show a night the desk contradicts")
+    # Neither side's claim was adopted...
+    assert filled.when != "2026-10-02T20:00"
+    # ...and neither is lost: the disagreement stays auditable on the visit.
+    assert visit.listed_when == "2026-09-11T20:00"
+    assert visit.page_when == "2026-10-02T20:00"
+
+
+def test_a_contested_night_is_not_counted_as_a_fill():
+    listed = row(when="2026-09-11T20:00")
+    st = read_event_page(DATED_AND_PLACED.replace("2026-09-11T20:00",
+                                                  "2026-10-02T20:00"),
+                         f"{DESK}/event/foo-1")
+    run = FollowRun()
+    filled, visit = apply(listed, st)
+    run.visits.append(visit)
+    assert run.filled_when_n == 0
+    assert run.nulled_when_n == 1
+
+
+def test_hole_fill_still_stands_when_the_list_stated_no_night():
+    """The other half of the ruling: a night the list never stated is TAKEN
+    from the page. Nulling a contested night must not turn into nulling
+    everything."""
+    listed = row(when=None)
+    st = read_event_page(DATED_AND_PLACED, f"{DESK}/event/foo-1")
+    filled, visit = apply(listed, st)
+    assert filled.when == "2026-09-11T20:00"
+    assert visit.filled_when is True
+    assert visit.when_conflict is False
+
+
+def test_agreement_written_two_ways_never_nulls_the_night():
+    """The instant test guards the new rule too: if one moment written two ways
+    read as a disagreement, this rule would DELETE nights the desk agreed on."""
+    listed = row(when="2026-09-12T01:00:00Z")
+    page_html = DATED_AND_PLACED.replace("2026-09-11T20:00", "2026-09-11T20:00:00-05:00")
+    st = read_event_page(page_html, f"{DESK}/event/foo-1")
+    filled, visit = apply(listed, st)
+    assert visit.when_conflict is False
+    assert filled.when == "2026-09-12T01:00:00Z", "an agreed night was deleted"
 
 
 def test_one_moment_written_two_ways_is_not_a_disagreement():
@@ -582,3 +629,21 @@ def test_a_walled_fixture_page_prints_its_reason_not_a_blank():
     assert run.visits[0].walled and run.visits[0].queued
     assert "403" in run.visits[0].blocked_reason
     assert run.rows[0].when is None and run.rows[0].place_text is None
+
+
+def test_the_table_separates_what_the_page_said_from_what_the_row_carries():
+    """After the contested-night ruling these are two different numbers, and
+    printing only the page's would overstate what a friend would see."""
+    def mixed_fetch(url: str) -> PageFetch:
+        if url.endswith("clash"):
+            return PageFetch(url=url, status=200, final_url=url,
+                             body=DATED_AND_PLACED.replace("2026-09-11T20:00",
+                                                           "2026-10-02T20:00"))
+        return PageFetch(url=url, status=200, body=DATED_AND_PLACED, final_url=url)
+
+    rows = [row("https://desk.test/event/clash", when="2026-09-11T20:00"),
+            row("https://desk.test/event/agrees", when="2026-09-11T20:00")]
+    run = follow(rows, mixed_fetch)
+    assert run.dated_n == 2, "both pages stated a night"
+    assert run.rows_dated_n == 1, "the contested row still carries a night"
+    assert run.nulled_when_n == 1

@@ -54,12 +54,14 @@ Four rules, each a refusal to guess:
     other page of that host is knocked on again in this run. No login, no
     retry, no work-around.
 
-ONE JUDGEMENT CALL, stated rather than resolved silently: when the list already
-stated a night and the event page states a DIFFERENT one, `apply()` keeps the
-existing value, sets `when_conflict`, and lets the table print it. Filling holes
-is this ticket; CORRECTING a stated field is a mutation, which the ticket's
-Must-not list ("catalog upsert") excludes. The conflict is counted so it can
-never pass as agreement.
+A CONTESTED NIGHT IS NO NIGHT (founder ruling, 2026-09-06). When the list card
+and the event page both state a night and it is not the same moment, `apply()`
+takes the night AWAY: `when` goes NULL, the disagreement is recorded, and
+neither claim wins. Keeping the list's would publish a night that the desk's own
+event page contradicts; taking the page's would be the mutation this ticket
+excludes. Both statements are kept on the visit so the disagreement stays
+auditable. Hole-filling is unchanged: a night the list never stated is taken
+from the page.
 
 Pure: stdlib plus this repo's own parsers. No network, no DB, no clock, no
 model — the caller injects `fetch`, exactly as the walk does.
@@ -196,6 +198,16 @@ class FollowVisit:
     #: carried. Recorded, never silently reconciled (see the module docstring).
     when_conflict: bool = False
     place_conflict: bool = False
+    #: On a contested night, what each side said. The row loses its night; the
+    #: two claims are kept HERE so the disagreement stays auditable — a hole on
+    #: the row must not also be a hole in the record of why.
+    listed_when: Optional[str] = None
+    page_when: Optional[str] = None
+    #: What the ROW carries after `apply()`. Distinct from the page's own
+    #: statement: a contested night leaves the page dated and the row NOT, and
+    #: a table that prints only the page's number overstates what a friend
+    #: would see.
+    row_when_after: Optional[str] = None
     #: Filled by `apply()` — what this visit actually added to the row.
     filled_when: bool = False
     filled_place: bool = False
@@ -269,6 +281,19 @@ class FollowRun:
     @property
     def conflict_n(self) -> int:
         return sum(1 for v in self.visits if v.when_conflict or v.place_conflict)
+
+    @property
+    def rows_dated_n(self) -> int:
+        """Followed rows that CARRY a night afterwards — what a friend would
+        see. `dated_n` counts pages that stated one, which is not the same
+        number once a contested night is taken away."""
+        return sum(1 for v in self.visits if v.row_when_after)
+
+    @property
+    def nulled_when_n(self) -> int:
+        """Rows whose night this run TOOK AWAY because the desk's own two pages
+        disagreed. Counted, because removing a claim is a decision."""
+        return sum(1 for v in self.visits if v.when_conflict)
 
 
 # --------------------------------------------------------------------------
@@ -755,11 +780,28 @@ def _read_ics(html: str, page_url: str,
 # --------------------------------------------------------------------------
 
 def apply(row: Happening, statement: PageStatement) -> Tuple[Happening, FollowVisit]:
-    """Fill this row's HOLES from what its own page stated. Never overwrite.
+    """Fill this row's HOLES from its own page; on a contested night, take away.
 
-    A field the list already stated is left alone and a disagreement is
-    RECORDED (`when_conflict` / `place_conflict`) — correcting a stated field is
-    a mutation, and this ticket fills holes (see the module docstring).
+    Two rules, and they point in opposite directions on purpose (founder ruling,
+    2026-09-06):
+
+      * HOLE-FILL. The list stated no night and the page states one -> take the
+        page's. Same for the place. This is the ticket.
+      * A CONTESTED NIGHT IS NO NIGHT. The list and the page both state a night
+        and they are not the same moment -> `when` goes NULL and the
+        disagreement is recorded. Neither claim wins: keeping the list's would
+        publish a night its own event page contradicts, and taking the page's
+        would be the mutation this ticket excludes. What both sides said is kept
+        on the VISIT (`listed_when` / `page_when`), so nothing is lost to audit
+        — it is only refused a public row.
+
+    `when_text` and `when_precision` go with it. They are the same contested
+    claim in other clothes, and a NULL `when` beside a `when_text` reading
+    "Fri Sep 11, 8pm" is a night on any surface that renders text.
+
+    The founder's ruling names the NIGHT. A contested PLACE still keeps the
+    list's value and records `place_conflict` — unchanged, and not extended
+    here on our own authority.
     """
     visit = FollowVisit(listing_url=row.listing_url or statement.url,
                         title=row.title, fetched_url=statement.url,
@@ -774,13 +816,20 @@ def apply(row: Happening, statement: PageStatement) -> Tuple[Happening, FollowVi
             visit.filled_when = True
         elif not _same_moment(row.when, statement.when):
             visit.when_conflict = True
+            visit.listed_when = row.when
+            visit.page_when = statement.when
+            changes["when"] = None
+            changes["when_precision"] = None
+            changes["when_text"] = None
     if statement.place_text:
         if not row.place_text:
             changes["place_text"] = statement.place_text
             visit.filled_place = True
         elif not _same_place(row.place_text, statement.place_text):
             visit.place_conflict = True
-    return (replace(row, **changes) if changes else row), visit
+    filled = replace(row, **changes) if changes else row
+    visit.row_when_after = filled.when
+    return filled, visit
 
 
 def _same_moment(a: Optional[str], b: Optional[str]) -> bool:

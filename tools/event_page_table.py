@@ -152,7 +152,7 @@ def render(runs: Sequence[Tuple[str, FollowRun]], *, mode: str, limit: int) -> s
     n = 0
     totals = {"dated": 0, "placed": 0, "blocked": 0, "walled": 0,
               "off_host": 0, "filled_when": 0, "filled_place": 0, "conflict": 0,
-              "not_knocked": 0}
+              "not_knocked": 0, "nulled_when": 0, "rows_dated": 0}
     for door_id, run in runs:
         for v in run.visits:
             if n >= limit:
@@ -162,7 +162,13 @@ def render(runs: Sequence[Tuple[str, FollowRun]], *, mode: str, limit: int) -> s
             if v.blocked:
                 dated = place = "—"
             else:
-                if st and st.when:
+                if v.when_conflict:
+                    # Founder ruling 2026-09-06: the desk's two pages disagree,
+                    # so the row has NO night. Printing the page's date here
+                    # would show a night no row carries.
+                    dated = (f"no — CONTESTED, night removed "
+                             f"(list {v.listed_when} vs page {v.page_when})")
+                elif st and st.when:
                     dated = f"yes — {st.when} ({st.when_source})"
                 elif st and st.clock_only:
                     dated = "no — clock only, no night stated"
@@ -180,6 +186,8 @@ def render(runs: Sequence[Tuple[str, FollowRun]], *, mode: str, limit: int) -> s
         totals["walled"] += run.walled_n
         totals["off_host"] += run.off_host_n
         totals["not_knocked"] += run.not_knocked_n
+        totals["nulled_when"] += run.nulled_when_n
+        totals["rows_dated"] += run.rows_dated_n
         totals["filled_when"] += run.filled_when_n
         totals["filled_place"] += run.filled_place_n
         totals["conflict"] += run.conflict_n
@@ -187,13 +195,16 @@ def render(runs: Sequence[Tuple[str, FollowRun]], *, mode: str, limit: int) -> s
     followed = sum(len(r.visits) for _, r in runs)
     lines += [
         "",
-        f"permalinks tried **{followed}** · dated by their own page **{totals['dated']}** · "
+        f"permalinks tried **{followed}** · pages that STATED a night "
+        f"**{totals['dated']}** · rows CARRYING a night afterwards "
+        f"**{totals['rows_dated']}** · "
         f"placed by their own page **{totals['placed']}** · blocked **{totals['blocked']}** "
         f"(walls MET **{totals['walled']}**, not knocked after a run of walls "
         f"**{totals['not_knocked']}**, off-host **{totals['off_host']}**)",
         f"holes FILLED by this ticket: when **{totals['filled_when']}**, "
         f"place **{totals['filled_place']}** · list/page disagreements recorded "
-        f"**{totals['conflict']}** (recorded, never reconciled)",
+        f"**{totals['conflict']}**, of which nights REMOVED as contested "
+        f"**{totals['nulled_when']}** (neither side's claim adopted)",
     ]
     if mode == "FIXTURE":
         lines += [
