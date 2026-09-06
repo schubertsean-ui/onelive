@@ -237,7 +237,50 @@ for both desks. `.github/workflows/desk-split-dryrun.yml` (manual dispatch, any
 branch, no secrets, cannot write) is the one command that produces it, and this
 PR adds a `follow_budget` input to it.
 
-<!-- LIVE TABLE: pasted verbatim from the dispatched run; see the PR body -->
+### 9a. What the first live runs found — about my own rules
+
+The live table did its job twice before it was a deliverable, and both times the
+finding was mine rather than the desk's.
+
+**Run on `ab92fe0`.** 1568 rows, `mash_n` 0, and **0 dated**. The refusal codes
+said `dates-ambiguous` on 40 of 40 opened pages, and the quoted sentences said
+why:
+
+```
+- dates-ambiguous — .../event/back-to-the-ranch-the-lbj-bbq-returns-14329073:
+    page states 31 different dates (2026-09-26, 2026-09-05, 2026-09-06, 2026-09-07)
+- dates-ambiguous — .../event/prodigal-sun-14267156:
+    page states 32 different dates (2026-09-04, 2026-09-06, 2026-09-05, 2026-09-07)
+- clocks-ambiguous — .../event/boeing-boeing-14285657:
+    page prints 3 different clocks (7:30, 10:15 pm, 4:45 pm)
+```
+
+Thirty-one is a month: every event page on this desk prints a **calendar widget**
+beside the listing. Two separate defects were hiding behind that one number:
+
+1. **Scope was being checked AFTER cardinality.** Every date on the document was
+   counted first, so any page with a footer stamp — or a widget — was "ambiguous"
+   before the scope rule ever got to exclude it. A rule that is right about a
+   page nobody publishes was wrong about every page anybody does. Scope is now
+   asked first; cardinality applies to what is left. The combine step had the
+   same shape one call deeper (`page_text=html` re-admitted the excluded dates),
+   and now settles against the owning statement, which is what R-030's
+   `block_text` is for.
+2. **Tiers were being mixed.** Split Law §2's ladder says the first tier that
+   yields wins and tiers are never mixed — and that holds for fields as much as
+   for identities. A schema.org `Event.startDate` states WHOSE start it is; the
+   prose around it is not a competing claim to be counted against it. A page that
+   declares its start and also prints a month grid now dates from the
+   declaration.
+
+Neither change loosens anything. Two `startDate`s still refuse, two dates in the
+page's own content still refuse, and prose beside a calendar widget is still a
+hole — because which of thirty-one days this happening is on is exactly what is
+not stated, and picking one would be a coin flip published as a fact.
+
+### 9b. The table
+
+<!-- LIVE TABLE: pasted verbatim from the run on the shipped head -->
 
 ## 10. What this ticket did NOT do
 
