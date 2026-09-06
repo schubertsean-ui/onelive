@@ -173,6 +173,37 @@ makes no provenance claim). The third — comparing scheme/port in `followable()
 on an `https` page, narrowing coverage for no trust gain on what is a data-trust
 boundary, not a security one (we send no credentials and never fetch cross-host).
 
+### 7a. The same class one level deeper, self-caught before pushing the fix
+
+Probing the fix rather than trusting it found the next instance:
+
+```
+<footer><article><footer>site links</footer></article>
+        <p>Last updated September 3, 2026</p></footer>
+   -> segments included the stamp -> when = 2026-09-03
+```
+
+A card's own `<footer>` inside the PAGE `<footer>` decremented a furniture
+counter it never raised, so the rest of the page footer stopped being plumbing.
+Deciding "is this furniture?" again at the close tag cannot work — the answer
+depends on where the element SAT — so both scanners now push `(tag, opened)` and
+only the element that opened plumbing closes it. Pinned by
+`test_plumbing_inside_plumbing_does_not_re_open_the_page`.
+
+### 7b. What the first live run made obvious about the report
+
+The live run reported `still_null_n` = 1568 and gave nothing to act on: the
+reason each opened page stated nothing sat in prose, one sentence per page, and
+the section carrying this ticket's counters was behind a 1568-row markdown
+table. Two report changes followed, neither touching the rule:
+
+* every refusal now carries a stable CODE beside its sentence
+  (`clock-without-date`, `date-in-plumbing`, `clocks-ambiguous`, `no-date`,
+  `clock-elsewhere`, …) and the report counts them across the run — §9.3 asks
+  for exactly this, as data rather than chat;
+* the write plan prints its first 25 rows and states the total beside them. The
+  cap is on PRINTING only: every row is still planned and still counted.
+
 ## 8. Dry ingest — FIXTURE run
 
 `$ python tools/desk_ingest.py --dry-run`
