@@ -46,7 +46,7 @@ $ python -c "from tools import arming_runtime as a; fs=sorted(a.runtime_files())
 
 ## 3. The founder's three tests
 
-`tests/test_permalink_follow.py` — 56 tests, none of which opens a socket.
+`tests/test_permalink_follow.py` — 78 tests, none of which opens a socket.
 
 | ticket case | test | result |
 |---|---|---|
@@ -224,7 +224,7 @@ broken.** The committed fixtures are served from a test host, and no row in
 a committed pattern calls a single happening. Committing a test host to the
 production pattern table to make this column non-zero would put a fixture inside
 the data that decides what a live page's links mean. The tick is proven instead
-by the 56 hermetic tests above and by the LIVE run in §8; the dry run prints the
+by the 78 hermetic tests above and by the LIVE run in §8; the dry run prints the
 reason in place of the number.
 
 `dated_n` here is what the LIST cards stated, unchanged by this PR — the same
@@ -280,43 +280,47 @@ not stated, and picking one would be a coin flip published as a fact.
 
 ### 9b. The table
 
-Run [34005255072](https://github.com/schubertsean-ui/onelive/actions/runs/34005255072)
-on head `40d0084`, `--real --dry-run --max-pages 40 --follow-budget 40`. Pasted
-verbatim from the job log.
+Run [34006786824](https://github.com/schubertsean-ui/onelive/actions/runs/34006786824)
+on head `7925f00`, `--real --dry-run --max-pages 40 --follow-budget 40`. Every
+number below is pasted from that job log; the one derivation is marked.
 
 | desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
 |---|---:|---:|---:|---:|---:|
-| `austin-chronicle-eventsearch` | 1568 | 40 | 1528 | 0 | 0 |
+| `austin-chronicle-eventsearch` | 1568 | 39 | 1529 | 0 | 0 |
 | `do512-today` | 0 | 0 | 0 | 1 | 0 |
 
-**`mash_n` is 0.** Every one of the 1568 rows carries its own `/event/…`
-address, so the field tick opened 40 different pages rather than the list page
-forty times.
-
-**Every page the budget reached was dated — 40 of 40.**
-
-| desk | pages opened | page stated no date | page could not be read | not asked (budget) | no followable address |
-|---|---:|---:|---:|---:|---:|
-| `austin-chronicle-eventsearch` | 40 | 0 | 0 | 1528 | 0 |
-| `do512-today` | 0 | 0 | 0 | 0 | 0 |
-
-`still_null_n` is 1528, and every one of those is **UNASKED**, not dateless: the
-founder's 40-page cap for this ticket. `dated_n` is a floor.
-
-What the opened pages said — all three remaining refusals are about the TIME,
-never the day:
-
-| the page said | pages | of opened |
-|---|---:|---:|
-| `no-clock` | 27 | 67% |
-| `clocks-ambiguous` | 7 | 17% |
-| `clock-elsewhere` | 2 | 5% |
+`dated_n`/`still_null_n` for the first row are derived from the decomposition
+immediately below (1568 rows, 1 page stated no date, 1528 not asked); the
+do512 row and both `mash_n`/`403_n` columns are pasted. **`mash_n` is 0**, which
+is what makes following safe at all: a mashed row would have sent every fetch at
+the list page and written one page's date onto the whole desk.
 
 ```
-- clocks-ambiguous — .../event/boeing-boeing-14285657:
-    page prints 3 different clocks (7:30, 10:15 pm, 4:45 pm)
+| desk                           | pages opened | page stated no date | page could not be read | not asked (budget) | no followable address |
+| `austin-chronicle-eventsearch` |           40 |                   1 |                      0 |               1528 |                     0 |
+| `do512-today`                  |            0 |                   0 |                      0 |                  0 |                     0 |
+```
+
+**39 of the 40 pages the budget reached were dated.** The 1528 remaining are
+UNASKED — the founder's cap for this ticket, not a fact about the desk — so
+`dated_n` is a floor and `still_null_n` a ceiling.
+
+What the opened pages said. Every remaining refusal is about the TIME, except
+three pages where a structured node spoke for somebody else or the only date sat
+in the page's plumbing:
+
+```
+| the page said           | pages | of opened |
+| `no-clock`              |    26 |       65% |
+| `clocks-ambiguous`      |     7 |       17% |
+| `clock-elsewhere`       |     2 |        5% |
+| `structured-not-bound`  |     2 |        5% |
+| `date-in-plumbing`      |     1 |        2% |
+
 - clocks-ambiguous — .../event/day-of-dance-14167854:
     page prints 2 different clocks (10 am, 5 pm)
+- clocks-ambiguous — .../event/story-sessions-14275760:
+    page prints 2 different clocks (8 pm, 8:00 pm)
 - no-clock — .../event/austin-film-festival-14316417:
     page states a day and no time
 ```
@@ -332,25 +336,33 @@ Three sample rows, as a person would read them:
 | 2 | `https://calendar.austinchronicle.com/event/boeing-boeing-14285657` | 2026-09-18T19:30:00-05:00 | TexARTS | when, place_text |
 | 3 | `https://calendar.austinchronicle.com/event/austin-steel-guitar-fest-14286428` | 2026-10-01T10:00:00-05:00 | Austin Airport Marriott South | when, place_text |
 
-Every one of those clocks came from the event page. The list card stated none of
-them, and `filled_from_detail` says so on the row itself.
+Every clock and every venue there came from the event page — the list cards
+stated none of them, and `filled_from_detail` says so on the row itself.
 
 The write plan moves with them:
 
 ```
-at least 1567 happening(s) planned, of which 1539 publish and 28 are HELD
+at least 1567 happening(s) planned, of which 1540 publish and 27 are HELD
 (a desk stated the night and no time ... R-111). 11 carry a clock a desk
-stated; 0 publish DISPUTED; 1528 publish with a true 'Date TBA' because no
-desk stated a date at all.
+stated; 0 publish DISPUTED; 1529 publish with a true 'Date TBA'.
 ```
 
 1568 rows became 1567 planned because dated rows now MERGE on the founder's
-night+place+title key — two cards for one happening are one row once both carry
-the night. The 28 HELD are the R-111 case working: a day with no time is not
+night+place+title key. The 27 HELD are R-111 working: a day with no time is not
 published as "Date TBA", because that would hide a date the desk gave us.
 
 `do512-today` is unchanged and still walled at its list page (403, class D,
 queued for a claim) — an UNKNOWN list, never an empty one.
+
+### 9c. Known, and NOT fixed here
+
+Two rows of the plan still carry a venue as the page's whole labelled block
+("Venue Details Canopy 916 Springdale, Austin East canopyaustin.com 1 event").
+That is what the page labels as its venue, so it is honest, but it is not a
+usable Place — and it becomes part of the de-dup key. It shows up only where the
+structured node does not speak; where one does, its `location.name` is clean
+("TexARTS"). Naming it here rather than fixing it: place-text normalisation is
+Ticket C's neighbour, not its scope.
 
 ## 10. Evaluator round 2 — whose statement is this?
 
