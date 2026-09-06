@@ -1627,6 +1627,87 @@ def test_a_card_listing_more_days_than_its_markup_is_not_a_contradiction():
     assert read.when == "2026-09-18T19:30:00-05:00", read.refusals
 
 
+def test_a_card_clock_contradicting_the_markup_keeps_the_day_and_holes_the_time():
+    """Evaluator, PR #235 r10, openai/attacker-smuggle — reproduced.
+
+    r8 compared the two tiers' DAYS and stopped there, so a node saying 19:30
+    on a card that visibly prints 8:00PM published a precise time the page's own
+    statement contradicts:
+
+        PRE-FIX   when=2026-09-18T19:30:00-05:00   codes=()
+
+    The day is agreed, so the day stands and only the time is refused —
+    refusing the clock is not refusing the date."""
+    def page(card_line):
+        return f"""<html><head><title>Boeing Boeing</title>
+        <script type="application/ld+json">
+        {{"@type":"Event","name":"Boeing Boeing",
+          "url":"https://desk.test/tickets/9",
+          "startDate":"2026-09-18T19:30:00-05:00",
+          "location":{{"@type":"Place","name":"TexARTS"}}}}</script></head>
+        <body><article><h1>Boeing Boeing</h1><p>{card_line}</p></article>
+        </body></html>"""
+
+    clash = df.field_read(page("September 18, 2026 &mdash; 8:00PM"),
+                          url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert clash.when == "2026-09-18", clash.when
+    assert clash.when_precision == "date"
+    assert "card-contradicts-its-own-markup" in clash.codes
+    assert clash.place_text == "TexARTS"      # only the CLOCK is in dispute
+
+    agree = df.field_read(page("September 18, 2026 &mdash; 7:30PM"),
+                          url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert agree.when == "2026-09-18T19:30:00-05:00", agree.refusals
+
+    silent = df.field_read(page("September 18, 2026"),
+                           url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert silent.when == "2026-09-18T19:30:00-05:00", silent.refusals
+
+
+def test_a_desk_in_a_non_latin_script_can_state_its_fields():
+    """Evaluator, PR #235 r10, openai/attacker-smuggle — the half they reported
+    was a smuggling risk; the half nobody reported was a LOCALE REFUSED IN CODE.
+
+    `_same_name` stripped every character outside `[0-9a-z]`, so "Кино Night"
+    collapsed to "night" and matched an unrelated node called "Night". But a
+    page headed "Кино" alone collapsed to the EMPTY STRING — `_same_name` could
+    never be true for it, so every lone node on that page was refused and every
+    bound node read as contradicting the heading. A whole desk in Cyrillic,
+    Greek or any non-Latin script could not fill a single field, and "Café du
+    Nord" came back as "caf du nord".
+
+    Invisible because every test and every desk in this repo is English.
+    Coverage Law forbids refusing a locale, and this refused all of them.
+
+    The fix is an IMPORT, not a new tokenizer: `desk_union.name_key` is this
+    repo's reviewed answer to the same question, and the red class it was
+    hardened against (`destructive-normalization`) names "Кино Night -> night"
+    and "Café -> caf" as its own worked examples. My first pass at this test
+    asserted `not _same_name("Café du Nord", "Cafe du Nord")` — the defect,
+    written down as the expectation, in the test meant to close it."""
+    assert df._name_tokens("Кино Night") == ["кино", "night"]
+    assert df._name_tokens("Ελληνικά") == ["ελληνικά"]
+    # Two desks spelling one venue differently are one venue (the exact pair
+    # the red class was founded on), and a leading article is not a name.
+    assert df._same_name("Café du Nord", "Cafe du Nord")
+    assert df._same_name("The Continental Club", "Continental Club")
+    assert not df._same_name("Fixture Room", "Fixture Annex")
+    # Scriptio continua: no spaces means one token, so the EXACT path is the
+    # one that binds. Recorded in R-113 rather than loosened — substring
+    # containment would match "Night" inside "Nightingale" for every desk.
+    assert df._same_name("東京ホール", "東京ホール")
+    assert not df._same_name("東京", "東京ホール")
+
+    page = """<html><head><title>Кино</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Кино","startDate":"2026-09-18T19:30:00-05:00",
+      "location":{"@type":"Place","name":"Дом"}}</script></head>
+    <body><article><h1>Кино</h1></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-18T19:30:00-05:00", read.refusals
+    assert read.place_text == "Дом"
+
+
 def test_a_card_agreeing_with_its_own_markup_settles_the_day():
     """The converse, and the common case: when the card and the node state the
     same day, the node's fuller answer (its clock and offset) is the row's."""

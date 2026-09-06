@@ -84,6 +84,7 @@ from worker.locale.desk_read import (
     SECTIONING_TAGS,
     Happening,
 )
+from worker.locale.desk_union import name_key
 from worker.locale.desk_walk import DECLARED_PUBLIC, PageFetch
 from worker.locale.identity_patterns import (
     IdentityPattern,
@@ -742,6 +743,48 @@ def _headings(html: str) -> List[str]:
     return []
 
 
+def _wall_clock(iso: Optional[str]) -> Optional[Tuple[int, int]]:
+    """The hour and minute an ISO string states, as written.
+
+    LOCAL, not UTC: `2026-09-18T19:30:00-05:00` is a desk saying half past
+    seven in the evening, and that is what its own card is compared against.
+    Converting first would compare 00:30 the next day with the card's 8pm and
+    call every desk a liar (the r3 lesson, applied before it could bite).
+    """
+    if not iso:
+        return None
+    try:
+        moment = datetime.fromisoformat(iso)
+    except ValueError:  # pragma: no cover — callers pass normalised values
+        return None
+    return moment.hour, moment.minute
+
+
+def _name_tokens(name: str) -> List[str]:
+    """A name as comparable words, in ANY script.
+
+    Written `[^0-9a-z]` this stripped every character outside the Latin
+    alphabet, and the damage ran both ways (evaluator, PR #235 r10,
+    openai/attacker-smuggle). A page headed "Кино Night" collapsed to "night"
+    and matched an unrelated node called "Night". Worse, and unreported: a page
+    headed "Кино" alone collapsed to the EMPTY STRING, so `_same_name` could
+    never be true for it — every lone node on that page refused, and every
+    bound node read as contradicting the heading. A whole desk in a non-Latin
+    script could not fill a single field, which is a LOCALE REFUSED IN CODE and
+    Coverage Law forbids it outright. It was invisible because every fixture
+    and every desk in this repo is English.
+
+    The fix is NOT a new tokenizer. `worker/locale/desk_union` already carries
+    this repo's answer — three review rounds deep against the
+    `destructive-normalization` red class, which names "Кино Night -> night"
+    and "Café -> caf" as its own worked examples. Writing a second one here is
+    how the same defect got in: the class was recorded, the remedy was two
+    modules away, and I typed the regex it warns about. One question, one
+    answer, imported.
+    """
+    return name_key(name).split()
+
+
 def _same_name(a: str, b: str) -> bool:
     """Two names for the same thing, compared the way a reader would.
 
@@ -752,8 +795,7 @@ def _same_name(a: str, b: str) -> bool:
     names nothing. One token of two or more characters, or two tokens, is the
     floor; below that there is no name to compare.
     """
-    left = re.sub(r"[^0-9a-z]+", " ", a.casefold()).split()
-    right = re.sub(r"[^0-9a-z]+", " ", b.casefold()).split()
+    left, right = _name_tokens(a), _name_tokens(b)
     if not left or not right:
         return False
     if left == right:
@@ -1262,6 +1304,26 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
             iso, refusal = normalize_datetime_claim(hit.raw)
             if iso:
                 when, when_precision = iso, "datetime"
+                # AND THE CARD'S OWN CLOCK, IF IT PRINTS ONE, MUST AGREE.
+                # r8 compared the two tiers' DAYS and stopped there, so a node
+                # saying 19:30 on a card that visibly says 8:00PM published a
+                # precise time the page's own statement contradicts (evaluator,
+                # PR #235 r10, openai/attacker-smuggle). The day is agreed
+                # here, so the day stands and only the TIME is refused —
+                # refusing the clock is not refusing the date, which is the
+                # same shape as `clocks-ambiguous`.
+                printed = _wall_clock(resolve_same_page_datetime(
+                    page_clock, block_text=" ".join(said), as_of=as_of)[0]
+                    ) if page_clock else None
+                if printed is not None and printed != _wall_clock(when):
+                    refuse(
+                        "card-contradicts-its-own-markup",
+                        f"this happening's own card prints {page_clock} while "
+                        f"its structured data states {when} — the desk is "
+                        f"contradicting itself about the time, so the day "
+                        f"stands and the clock stays a hole")
+                    when, when_precision = hit.date.isoformat(), "date"
+                    when_text = hit.raw
             else:
                 refuse(
                     "carrier-refused",

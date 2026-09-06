@@ -1031,6 +1031,93 @@ disagreement, and that residue is the measurement the run-modelling ticket
 needs. Publishing this ticket's final number before that run would be reporting
 a rule that no longer ships.
 
+### 13k. Round 10 — the check that only checked half, and a rule that refused a language
+
+Two findings, both `openai/attacker-smuggle`, both reproduced against the
+shipped head `6449e63` before a line was changed.
+
+**(1) The r8 cross-tier check compared DAYS and stopped there.** A card printing
+`8:00PM` above markup stating `19:30` agreed about the day, so the check passed
+it and the desk published a precise time its own visible page contradicts. The
+r8 message already said "the desk is contradicting itself" — it just wasn't
+looking at the clock. The fix compares the card's printed wall clock against the
+structured instant's wall clock, LOCAL as written (`_wall_clock`): converting to
+UTC first would compare `00:30` with the card's `8:00PM` and call every
+Central-time desk a liar — the r3 instant-key lesson, applied before it could
+bite a second time. The day is agreed, so **the day stands and only the clock is
+holed** — the same shape as `clocks-ambiguous`, not a new one.
+
+**(2) `_same_name` refused entire writing systems.** It normalised with
+`[^0-9a-z]+`, so every character outside the Latin alphabet was stripped. The
+evaluator reported the loose half: "Кино Night" collapses to `night` and matches
+an unrelated node called "Night". Reproducing it found the tight half, which is
+worse and was not reported: a page headed "Кино" alone collapses to the **empty
+string**, `_same_name` can never be true for it, and so every lone node on that
+page refuses `structured-not-bound` while every bound node reads as
+contradicting the heading. **A desk in Cyrillic, Greek, Chinese, Hebrew or Thai
+could not fill a single field** — a locale refused in code, which Coverage Law
+forbids outright. "Café du Nord" came back as `caf du nord`. It was invisible
+because every fixture and every desk in this repo is English.
+
+**And the fix is an import, because this repo had already answered it.**
+`docs/memory/RED_CLASSES.md` carries `destructive-normalization` from PR #214,
+three review rounds deep, and its worked examples are — verbatim — `Кино Night`
+→ `night` and `Café` → `caf`. The remedy lives two modules away in
+`worker/locale/desk_union._hard`: NFC-compose, fold marks only where the base
+decomposes onto ASCII (so Latin accents normalise and Devanagari vowel signs
+survive), delete apostrophes, flatten the rest, drop a leading "The". I typed
+the regex that class warns about, in the same package, and my first hand-rolled
+fix (`str.isalnum()`) closed only the erasure half — it left "Café du Nord" and
+"Cafe du Nord" as different venues, and **my first draft of the test asserted
+exactly that**: the defect written down as the expectation, inside the test
+meant to close it. `_hard` is now exported as `name_key` and `_name_tokens` is
+`name_key(name).split()`. One question, one answer.
+
+| | old `[^0-9a-z]+` | `str.isalnum()` (my draft) | `name_key` (shipped) |
+|---|---|---|---|
+| `Кино` binds at all | ✗ empty string | ✓ | ✓ |
+| `Café du Nord` = `Cafe du Nord` | ✗ | ✗ | ✓ |
+| `The Continental Club` = `Continental Club` | ✗ | ✗ | ✓ |
+| Devanagari vowel signs kept distinct | ✗ | ✓ | ✓ |
+
+**Residual, recorded not hidden (R-113):** in a script without spaces one name
+is one token, so `東京ホール` binds to itself by exact match but `東京` does not
+bind into it by containment. Pinned in the test both ways. Loosening
+containment to substrings would match "Night" inside "Nightingale" for every
+desk in the corpus, which is a worse trade than the one it fixes.
+
+```
+=== PRE-FIX (HEAD 6449e63) ===
+card clock CONTRADICTS the markup  when=2026-09-18T19:30:00-05:00  codes=()
+a Cyrillic page can bind at all    when=None  place=None  codes=('structured-not-bound', ...)
+=== POST-FIX ===
+card clock CONTRADICTS the markup  when=2026-09-18            codes=('card-contradicts-its-own-markup',)
+card clock AGREES with the markup  when=2026-09-18T19:30:00-05:00  codes=()
+card prints no clock               when=2026-09-18T19:30:00-05:00  codes=()
+a Cyrillic page can bind at all    when=2026-09-18T19:30:00-05:00  place=Дом  codes=()
+```
+
+The declined half below was written against the hand-rolled draft and still
+stands after the import: `name_key` normalises spelling, it does not decide how
+much of a name has to match.
+
+**DECLINED, on the record: tightening single-token containment.** The loose half
+the evaluator reported is real — a node named "Night" still binds to a page
+headed "Кино Night" — and I am not fixing it in this ticket, because every
+available tightening costs coverage the desk actually uses:
+
+| tightening | what it would also refuse |
+|---|---|
+| require the match to start at token 0 | "Live at the Continental Club" vs "Continental Club" |
+| token-ratio floor (e.g. ≥50% of the heading) | a heading carrying a date or a presenter prefix |
+| stopword / chrome-word list | refused on the record at r1 — host knowledge is DATA, and this would be English knowledge in code |
+
+Containment is already floored at two characters or two tokens (r5), and a
+false bind here costs a wrong FIELD on a page that is otherwise the right
+happening, not a wrong happening. The cheap wrong fix would put a language's
+vocabulary back into the reader module, which is the defect I just removed.
+Recorded rather than silently dropped: `docs/RECORD.md` R-113.
+
 ## 14. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,

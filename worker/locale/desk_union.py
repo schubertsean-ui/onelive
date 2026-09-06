@@ -198,11 +198,25 @@ def local_night(when: Optional[str], timezone) -> Tuple[Optional[str], Optional[
     return moment.astimezone(timezone).date().isoformat(), None
 
 
+def name_key(text: Optional[str]) -> str:
+    """The comparison form of ANY name a desk prints — venue, title, heading.
+
+    `_hard` was written for places and reviewed three rounds deep against the
+    `destructive-normalization` red class, and nothing in it is about places:
+    it folds Latin diacritics without erasing other scripts, deletes
+    apostrophes, flattens the rest of the punctuation and drops a leading
+    "The". Exported under a name that says so, because the second module to
+    need it wrote its own and reproduced the exact defect this one already
+    fixed (PR #235 r10).
+    """
+    return _hard(text)
+
+
 def place_key(place_text: Optional[str]) -> str:
     """The comparison form of the desk's own place text. Empty when the desk
     printed no place — which makes the row unmatchable, never invisible.
     """
-    return _hard(place_text)
+    return name_key(place_text)
 
 
 def performer_key(title: str, place: str) -> str:
