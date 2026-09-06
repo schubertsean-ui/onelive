@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-117 passed in 0.47s
+119 passed in 0.39s
 ```
 
 | ticket case | test | result |
@@ -1181,6 +1181,105 @@ as its place ('Venue Details Ground Floor Theatre 979 Springdale #122, Austin
 East groundfloortheatre.org 3 events') — §9c, place-text normalisation is the
 neighbouring ticket. `do512-today` is still walled (403 on first contact, class
 D, queued, nothing deleted).
+
+### 13m. Round 11 — the guard that a second clock walks past, and an address the two modules spelled differently
+
+Both openai seats blocking, both gemini APPROVE, both reproduced against the
+shipped head `fc6cd6c` before a line changed. **Both are defects in code this
+ticket added, one round after adding it.**
+
+**(1) attacker-smuggle — r10's clock check compared against `page_clock`,
+which is `None` the moment a card prints TWO clocks.** And the multi-clock
+diagnostic underneath it is suppressed once a carrier states the whole instant
+(that suppression is §13's own `diagnostics-as-data` fix). So the two rules had
+a gap exactly between them:
+
+```
+card: "Friday, September 18, 2026 — 8:00PM; doors 7:00PM"
+node: startDate 2026-09-18T19:30:00-05:00
+PRE-FIX  when=2026-09-18T19:30:00-05:00  codes=()
+```
+
+19:30 is neither of the times the page prints, published as settled, with no
+refusal at all — and adding a second clock is all it takes. **Membership, not
+equality, is the rule that covers both counts:** the card's clocks are the
+times this desk says are involved, and the markup's job is to say WHICH one
+starts the show. That is the r8 lesson (elaboration is not contradiction)
+applied to clocks instead of days.
+
+| the card prints | the node states | result |
+|---|---|---|
+| `8:00PM; doors 7:00PM` | 19:30 | `card-contradicts-its-own-markup` + `clocks-ambiguous`, day stands |
+| `7:30PM; doors 7:00PM` | 19:30 | `2026-09-18T19:30:00-05:00` — the markup settled which |
+| `8:00PM` | 19:30 | refused (r10, unchanged) |
+| `7:30PM` | 19:30 | dated (r10, unchanged) |
+| nothing | 19:30 | dated |
+
+Row 2 is a **coverage gain**: that page used to lose its clock to
+`clocks-ambiguous` for no reason. Row 1 shows the two rules now composing —
+the precision drops to `date`, so the row genuinely has a clock hole and the
+multi-clock reason records beside the contradiction instead of being suppressed.
+Clocks the date rule cannot resolve are dropped rather than counted against the
+node: an unreadable statement is not a contradicting one.
+
+**(2) absence-only — `_address()` dropped the query, and this repo had already
+written down why that is wrong.** `desk_read._identity_of`, on the way IN, says
+in its own docstring: *"The query is KEPT: two desks do use `?date=` to address
+two instances of one series, and collapsing those would delete a night."* Two
+modules, one question — what is an address — and opposite answers. That is
+`one-rule-expressed-twice`, **the fifth instance in this ticket**, and the
+first where the other half of the contradiction was not only already written
+but already justified in prose.
+
+For such a desk every night of a run shares one address here, so both things
+the comparison guards fell open at once:
+
+```
+PRE-FIX  same_identity("…/event?id=other", "…/event?id=this")  ->  True
+```
+
+a redirect from one night to another passes, and a structured node naming a
+different night reads as speaking for this one. **Runs are not hypothetical on
+this desk** — they are the largest single cause of the refusals r8 exists for,
+5 of 40 pages in §13l.
+
+The tolerance that made the query droppable in the first place (r2's `?ref=`)
+is kept, and moved to where it belongs — asymmetric, in `same_identity`:
+
+| landed | asked | same page? |
+|---|---|---|
+| `/event?date=2026-09-19` | `/event?date=2026-09-18` | no — a changed parameter is another night |
+| `/event` | `/event?date=2026-09-18` | no — a dropped one is too |
+| `/event?date=2026-09-18&ref=cal` | `/event?date=2026-09-18` | yes — an added one cannot change which happening |
+| `/event?ref=cal` | `/event` | yes (r2's case, unchanged) |
+
+An ADDED parameter cannot change which happening the desk was addressing; a
+CHANGED or DROPPED one can. Where the asked url carries no query, its desk's
+identity lives in the path — which is precisely what `_identity_of` keeping the
+query means. The refusal message carries the query too (`_shown`), because on a
+run-addressing desk a message printing the path alone would say two nights have
+the same address and make a correct refusal read like a bug.
+
+**Both new tests were run against the pre-fix head and fail there:**
+
+```
+$ git checkout fc6cd6c -- worker/locale/desk_follow.py
+$ python -m pytest tests/test_permalink_follow.py -q -k "second_clock or query_naming"
+FAILED … test_a_second_clock_on_the_card_does_not_walk_a_node_past_the_check
+FAILED … test_a_query_naming_another_night_is_another_page
+2 failed, 117 deselected
+$ # restored
+2 passed, 117 deselected
+```
+
+**What round 11 says about rounds 8–10.** Both findings are in code this ticket
+wrote, and both are the same shape: a rule stated for the case in front of me,
+correct there, and silent one step outside it. r10 compared *the* clock because
+the page I had printed one. r2 dropped the query because the redirect I had
+added a tracking parameter. Neither was wrong about its own page. The question
+that would have caught both is the one `hygiene-narrows-coverage` asks in
+reverse — not "whose sites does this refuse?" but **"what does the input look
+like one step past my example, and does the sentence I wrote still hold?"**
 
 ## 14. What this ticket did NOT do
 

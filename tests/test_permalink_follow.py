@@ -1708,6 +1708,110 @@ def test_a_desk_in_a_non_latin_script_can_state_its_fields():
     assert read.place_text == "Дом"
 
 
+def test_a_second_clock_on_the_card_does_not_walk_a_node_past_the_check():
+    """Evaluator, PR #235 r11, openai/attacker-smuggle — r10's guard compared the
+    node against `page_clock`, which is None the moment a card prints TWO clocks,
+    and the multi-clock diagnostic is suppressed once a carrier states the whole
+    instant. So "8:00PM; doors 7:00PM" beside a 19:30 node published 19:30 with
+    codes=(), walking straight through the guard added one round earlier.
+
+    Membership is the rule that covers both counts: the card's clocks are the
+    times this desk says are involved, and the markup's job is to say WHICH one
+    starts the show. One of them being the node's is agreement at two
+    resolutions (the r8 lesson, applied to clocks); none of them being the
+    node's is the desk contradicting itself."""
+    def page(clocks):
+        return f"""<html><body><article>
+        <h1>The Show</h1>
+        <script type="application/ld+json">
+        {{"@type":"Event","name":"The Show",
+          "startDate":"2026-09-18T19:30:00-05:00",
+          "location":{{"@type":"Place","name":"The Hall"}}}}</script>
+        <p>Friday, September 18, 2026 — {clocks}</p>
+        </article></body></html>"""
+
+    def read(clocks):
+        return df.field_read(page(clocks), url=HERE, as_of=AS_OF,
+                             patterns=PATTERNS)
+
+    # The reported shape: two clocks, the node's is NEITHER of them.
+    smuggled = read("8:00PM; doors 7:00PM")
+    assert smuggled.when == "2026-09-18", smuggled.refusals
+    assert "card-contradicts-its-own-markup" in smuggled.codes
+    # And now the row HAS a clock hole, so the multi-clock reason records too —
+    # the r10 suppression and this rule composing, rather than fighting.
+    assert "clocks-ambiguous" in smuggled.codes
+
+    # Two clocks, the node's IS one of them: the markup settled which. This is
+    # coverage the old rule lost to `clocks-ambiguous` for no reason.
+    settled = read("7:30PM; doors 7:00PM")
+    assert settled.when == "2026-09-18T19:30:00-05:00", settled.refusals
+    assert settled.codes == ()
+
+    # The r10 single-clock arms, unchanged by the generalisation.
+    assert read("8:00PM").when == "2026-09-18"
+    assert read("7:30PM").when == "2026-09-18T19:30:00-05:00"
+    # A card printing no clock at all contradicts nothing.
+    assert read("check listings").when == "2026-09-18T19:30:00-05:00"
+
+
+def test_a_query_naming_another_night_is_another_page():
+    """Evaluator, PR #235 r11, openai/absence-only — `_address` dropped the query
+    while `desk_read._identity_of` KEEPS it, and says why in its own docstring:
+    "two desks do use `?date=` to address two instances of one series, and
+    collapsing those would delete a night". Two modules, one question, opposite
+    answers — `one-rule-expressed-twice`, fifth instance in this ticket.
+
+    For such a desk every night of a run shared one address here, so both things
+    this comparison guards fell open: a redirect from one night to another
+    passed `same_identity`, and a node naming a different night read as speaking
+    for this one. Runs are not hypothetical on this desk — they are the largest
+    single cause of the refusals r8 exists for.
+
+    The tolerance that made the query droppable in the first place (r2's `?ref=`)
+    is kept, and it is now where it belongs: asymmetric, in `same_identity`. An
+    ADDED parameter cannot change which happening the desk was addressing; a
+    CHANGED or DROPPED one can."""
+    # The comparison itself, both directions.
+    assert not df.same_identity("https://d.ex/event?date=2026-09-19",
+                                "https://d.ex/event?date=2026-09-18")
+    assert not df.same_identity("https://d.ex/event",
+                                "https://d.ex/event?date=2026-09-18")
+    assert df.same_identity("https://d.ex/event?date=2026-09-18&ref=cal",
+                            "https://d.ex/event?date=2026-09-18")
+    assert df.same_identity("https://d.ex/event?ref=cal", "https://d.ex/event")
+    assert df.same_identity("https://d.ex/event/", "https://d.ex/event")
+
+    # A redirect from one night of a run to another is not the page we asked
+    # for: the row keeps its holes and the page is queued, not read.
+    night = "https://desk.test/event/dominic-fike-1?date=2026-09-18"
+    other = ('<html><body><article><h1>Dominic Fike</h1>'
+             '<time datetime="2026-09-19T20:00">Sat</time>'
+             '<div class="venue">Second Night Hall</div></article></body></html>')
+    walked = df.follow(
+        [row(listing_url=night)],
+        fetcher({night: PageFetch(
+            url=night, status=200, body=other,
+            final_url="https://desk.test/event/dominic-fike-1?date=2026-09-19")}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert walked.rows[0].when is None
+    assert walked.rows[0].place_text is None
+    assert walked.unread == 1
+
+    # And a structured node naming another night does not speak for this one.
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike",
+     "url":"https://desk.test/event/dominic-fike-1?date=2026-09-19",
+     "startDate":"2026-09-19T20:00:00-05:00",
+     "location":{"@type":"Place","name":"Second Night Hall"}}</script></head>
+    <body><article><h1>Dominic Fike</h1></article></body></html>"""
+    read = df.field_read(page, url=night, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.refusals
+    assert read.place_text is None
+    # The refusal has to SHOW which night, or a correct refusal reads like a bug.
+    assert any("date=2026-09-19" in r for r in read.refusals), read.refusals
+
+
 def test_a_card_agreeing_with_its_own_markup_settles_the_day():
     """The converse, and the common case: when the card and the node state the
     same day, the node's fuller answer (its clock and offset) is the row's."""

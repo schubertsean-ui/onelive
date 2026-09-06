@@ -73,7 +73,7 @@ from datetime import date as _date, datetime, timezone as _tz
 from html.parser import HTMLParser
 from typing import (Callable, Dict, FrozenSet, List, Optional, Sequence,
                     Tuple)
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from worker.datetime_normalize import normalize_datetime_claim
 from worker.importers.structured_feed import parse_jsonld
@@ -436,22 +436,66 @@ def _host(url: Optional[str]) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
-def _address(url: Optional[str]) -> Tuple[str, str]:
-    """The (host, path) a URL names, as one address.
+def _address(url: Optional[str]) -> Tuple[str, str, Tuple[Tuple[str, str], ...]]:
+    """The (host, path, query) a URL names, as one address.
 
-    The QUERY is dropped and the fragment with it, because a desk that appends
-    its own tracking parameter on a redirect (`?ref=calendar`) has sent us to
-    the same page — and a trailing slash is the same address too, which is the
-    rule `desk_read._identity_of` already applies on the way in.
+    THE QUERY IS PART OF THE ADDRESS. It was dropped here until PR #235 r11
+    (evaluator, openai/absence-only), which put this module at odds with the
+    one that decides what a row IS: `desk_read._identity_of` KEEPS the query
+    and says why in its own docstring — "two desks do use `?date=` to address
+    two instances of one series, and collapsing those would delete a night".
+    So for such a desk every night of a run shared one address here, and the
+    two things this comparison guards both fell open: a redirect from one night
+    to another passed `same_identity`, and a structured node naming a different
+    night read as speaking for this one. Runs are not a hypothetical on this
+    desk — they are the largest single cause of the refusals r8 exists for.
+
+    The fragment is still dropped (it addresses a position inside a page, never
+    another happening) and a trailing slash still normalises, both matching
+    `_identity_of`. Tolerance for a query the DESK adds on a redirect belongs
+    to `same_identity`, where it can be asymmetric, not here where it would
+    also blind the node comparison.
     """
     parts = urlsplit(url or "")
     path = (parts.path or "/").rstrip("/") or "/"
-    return _host(url), path
+    query = tuple(sorted(parse_qsl(parts.query, keep_blank_values=True)))
+    return _host(url), path, query
+
+
+def _shown(address: Tuple[str, str, Tuple[Tuple[str, str], ...]]) -> str:
+    """An address as a reader would see it in a refusal — path and query.
+
+    The query joined the address at r11 and it has to reach the DIAGNOSTIC too:
+    on a desk addressing a run with `?date=`, every night shares one path, so a
+    message printing the path alone would say two nights have the same address
+    and make a correct refusal read like a bug.
+    """
+    _host_part, path, query = address
+    return path + ("?" + "&".join(f"{k}={v}" for k, v in query) if query else "")
 
 
 def same_identity(landed: Optional[str], asked: Optional[str]) -> bool:
-    """True when the page that answered is the page we asked for."""
-    return _address(landed) == _address(asked)
+    """True when the page that answered is the page we asked for.
+
+    Host and path must match. Every query parameter the ASKED url carries must
+    come back UNCHANGED; parameters the desk added along the way are tolerated,
+    because a desk appending its own `?ref=calendar` on a redirect has sent us
+    to the page we asked for (r2, and the reason the query was dropped here in
+    the first place).
+
+    Asymmetric on purpose, and the asymmetry is the whole rule: an ADDED
+    parameter cannot change which happening the desk was addressing, while a
+    CHANGED or DROPPED one can — `?date=this` becoming `?date=other` is the
+    desk sending us to a different night, and reading that page's fields onto
+    this row is the harm. Where the asked url carries no query at all, its
+    desk's identity lives in the path (that is what `_identity_of` keeping the
+    query means), so a parameter added to it addresses the same happening.
+    """
+    land_host, land_path, land_query = _address(landed)
+    ask_host, ask_path, ask_query = _address(asked)
+    if (land_host, land_path) != (ask_host, ask_path):
+        return False
+    return set(ask_query).issubset(set(land_query))
 
 
 # --------------------------------------------------------------------------
@@ -1004,6 +1048,22 @@ def _others_on_this_page(links: Sequence[str], url: str,
     return out
 
 
+def _clocks_printed(html: str) -> List[str]:
+    """Every DISTINCT clock this text prints, in the order it prints them.
+
+    Split out at r11 so the two callers cannot drift: `_clock_claim` wants the
+    one clock a page settles on, and the cross-tier check wants all of them.
+    Reading them twice is how the r3 instant keys and the r8 card days each
+    went wrong — one walk, one answer, two questions asked of it.
+    """
+    found: List[str] = []
+    for hit in _CLOCK_TOKEN_RE.findall(_visible(html)):
+        token = " ".join(hit.split()).lower().replace(".", "")
+        if token not in found:
+            found.append(token)
+    return found
+
+
 def _clock_claim(html: str) -> Tuple[Optional[str], Optional[str]]:
     """The one clock this page prints, or None with the reason there isn't one.
 
@@ -1012,11 +1072,7 @@ def _clock_claim(html: str) -> Tuple[Optional[str], Optional[str]]:
     the guess this module exists to refuse. Distinct is the test, so a page that
     prints the same time in its header and its footer still states one clock.
     """
-    found: List[str] = []
-    for hit in _CLOCK_TOKEN_RE.findall(_visible(html)):
-        token = " ".join(hit.split()).lower().replace(".", "")
-        if token not in found:
-            found.append(token)
+    found = _clocks_printed(html)
     if not found:
         return None, None
     if len(found) > 1:
@@ -1101,12 +1157,12 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # Name the addresses. "A different address" is a verdict; WHICH address
         # is the evidence, and it is the difference between a sidebar event and
         # this desk addressing one happening two ways.
-        named = sorted({a for ev in ld_events for _, a in _named(ev, url)})
+        named = sorted({_shown(a) for ev in ld_events for a in _named(ev, url)})
         refuse(
             "structured-not-bound",
             f"page publishes {len(ld_events)} schema.org event(s), and they name "
             f"{', '.join(named[:3]) or 'no address'} while this happening's "
-            f"address is {_address(url)[1]} — so none of them speaks for this "
+            f"address is {_shown(_address(url))} — so none of them speaks for this "
             f"row, and none of them dates or places it"
             + ("" if len(ld_events) != 1 or not named
                or any(match_identity(a, patterns) is not None
@@ -1304,24 +1360,44 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
             iso, refusal = normalize_datetime_claim(hit.raw)
             if iso:
                 when, when_precision = iso, "datetime"
-                # AND THE CARD'S OWN CLOCK, IF IT PRINTS ONE, MUST AGREE.
+                # AND THE NODE'S CLOCK MUST BE ONE THE CARD PRINTS.
                 # r8 compared the two tiers' DAYS and stopped there, so a node
                 # saying 19:30 on a card that visibly says 8:00PM published a
                 # precise time the page's own statement contradicts (evaluator,
-                # PR #235 r10, openai/attacker-smuggle). The day is agreed
-                # here, so the day stands and only the TIME is refused —
-                # refusing the clock is not refusing the date, which is the
-                # same shape as `clocks-ambiguous`.
-                printed = _wall_clock(resolve_same_page_datetime(
-                    page_clock, block_text=" ".join(said), as_of=as_of)[0]
-                    ) if page_clock else None
-                if printed is not None and printed != _wall_clock(when):
+                # PR #235 r10, openai/attacker-smuggle). r10 then compared only
+                # against `page_clock`, which is None the moment a card prints
+                # TWO clocks — so "8:00PM; doors 7:00PM" beside a 19:30 node
+                # walked straight through the guard that had just been added,
+                # and the multi-clock diagnostic below is suppressed once a
+                # carrier states the whole instant (r11, same seat).
+                #
+                # The rule that covers both is membership, not equality: the
+                # card's clocks are the times this desk says are involved, and
+                # the markup's job is to say WHICH of them starts the show. One
+                # of them being the node's is the desk agreeing with itself at
+                # two resolutions — the r8 lesson, applied to clocks. None of
+                # them being the node's is the desk contradicting itself, and
+                # then the agreed DAY stands while only the clock is holed,
+                # which is the same shape as `clocks-ambiguous`.
+                #
+                # Clocks the date rule cannot resolve are dropped rather than
+                # counted against the node: an unreadable statement is not a
+                # contradicting one, and refusing on it would hole a field
+                # because of text nobody could read (fail-closed on the FIELD,
+                # never on our own inability to parse).
+                said_text = " ".join(said)
+                printed = [c for c in (
+                    _wall_clock(resolve_same_page_datetime(
+                        token, block_text=said_text, as_of=as_of)[0])
+                    for token in _clocks_printed(said_text)) if c is not None]
+                if printed and _wall_clock(when) not in printed:
+                    shown = ", ".join(_clocks_printed(said_text)[:4])
                     refuse(
                         "card-contradicts-its-own-markup",
-                        f"this happening's own card prints {page_clock} while "
-                        f"its structured data states {when} — the desk is "
-                        f"contradicting itself about the time, so the day "
-                        f"stands and the clock stays a hole")
+                        f"this happening's own card prints {shown} while "
+                        f"its structured data states {when}, which is none of "
+                        f"them — the desk is contradicting itself about the "
+                        f"time, so the day stands and the clock stays a hole")
                     when, when_precision = hit.date.isoformat(), "date"
                     when_text = hit.raw
             else:
@@ -1449,7 +1525,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 "place-among-other-happenings",
                 f"page labels one place ({labelled[0]}) and its content also "
                 f"links to {len(others)} other happening(s) "
-                f"({', '.join(_address(o)[1] for o in others[:3])}) — nothing "
+                f"({', '.join(_shown(_address(o)) for o in others[:3])}) — nothing "
                 f"on the page says the venue is this one's rather than theirs")
         elif len(labelled) == 1:
             place_text, place_carrier = labelled[0], "labelled"
