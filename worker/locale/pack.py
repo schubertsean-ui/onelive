@@ -77,6 +77,44 @@ class LocalePackError(ValueError):
     """
 
 
+#: Grades a committed listing selector may carry. Same two words as the
+#: identity table (`worker.locale.identity_patterns.GRADES`) and for the same
+#: reason: a selector read off a shape fixture must never be presented as one
+#: seen on a live page. ONE-LIVE-ENTITY-SPLIT-LAW.md §6: "If live HTML != fixture:
+#: the live page wins; upgrade `grade` to `desk_observed`; do not silently keep
+#: fixture selectors."
+SELECTOR_GRADES: Tuple[str, ...] = ("desk_observed", "fixture_shape")
+
+
+@dataclass(frozen=True)
+class ListingSelector:
+    """Tier 3 of the split ladder: `(tag, class tokens)` committed FOR THIS DOOR.
+
+    ONE-LIVE-ENTITY-SPLIT-LAW.md §2: "Desk selector - `(tag, class tokens)`
+    committed for *that* door as `listing_selectors` / identity patterns. Whole
+    tokens, not substring `card`." Both halves are load-bearing:
+
+      * WHOLE TOKENS. `class_tokens` are matched against the element's class
+        attribute split on whitespace, so `card` never matches `card-grid` and
+        the global `class contains event|card|listing` splitter the law forbids
+        cannot be reconstructed out of this type.
+      * FOR THAT DOOR. A selector lives on one door in one pack. It cannot leak
+        onto another desk, which is what makes tier 3 a committed reading of one
+        page shape rather than a guess applied everywhere.
+
+    `container_tag` / `container_class_tokens`, when stated, require the row to
+    sit inside that element. That is how a bare `<li>` inside `<ul class="calendar">`
+    is a listing while the `<li>` in the site nav is not.
+    """
+
+    tag: str
+    class_tokens: Tuple[str, ...] = ()
+    container_tag: Optional[str] = None
+    container_class_tokens: Tuple[str, ...] = ()
+    grade: str = "fixture_shape"
+    note: str = ""
+
+
 @dataclass(frozen=True)
 class Door:
     """One door in one locale, exactly as the pack states it."""
@@ -93,6 +131,11 @@ class Door:
     blocked_reason: Optional[str]
     evidence: str
     locale_id: str
+    #: Tier 3 of the split ladder, committed for THIS door. Empty is the normal
+    #: case: a door whose pages declare their own identities (JSON-LD, or
+    #: permalinks in the identity table) never needs one, and a door with
+    #: neither is `unsplit` - never mashed.
+    listing_selectors: Tuple[ListingSelector, ...] = ()
 
     @property
     def readable(self) -> bool:
@@ -184,6 +227,50 @@ def _str_tuple(value: Any, key: str, where: str) -> Tuple[str, ...]:
     return tuple(value)
 
 
+def _selector_from(raw: Any, *, where: str, index: int) -> ListingSelector:
+    """One committed listing selector, validated. Every failure raises: a
+    selector that half-parses would split a page by half a rule.
+    """
+    where = f"{where} listing_selectors[{index}]"
+    if not isinstance(raw, dict):
+        raise LocalePackError(
+            f"{where}: each selector must be an object, got {type(raw).__name__}")
+    tag = _require(raw, "tag", where)
+    if not isinstance(tag, str) or not tag.strip().isalnum():
+        raise LocalePackError(f"{where}: tag must be a bare element name, got {tag!r}")
+    tokens = _str_tuple(raw.get("class_tokens") or [], "class_tokens", where)
+    if any(not t.strip() or any(c.isspace() for c in t) for t in tokens):
+        raise LocalePackError(
+            f"{where}: each class token is ONE whole token — no spaces, no empties "
+            f"(got {list(tokens)!r})")
+    container_tag = raw.get("container_tag")
+    if container_tag is not None and (
+            not isinstance(container_tag, str) or not container_tag.strip().isalnum()):
+        raise LocalePackError(
+            f"{where}: container_tag must be a bare element name or null, "
+            f"got {container_tag!r}")
+    container_tokens = _str_tuple(
+        raw.get("container_class_tokens") or [], "container_class_tokens", where)
+    if container_tokens and container_tag is None:
+        raise LocalePackError(
+            f"{where}: container_class_tokens without a container_tag would match "
+            f"any ancestor — state the tag too")
+    grade = raw.get("grade", "fixture_shape")
+    if grade not in SELECTOR_GRADES:
+        raise LocalePackError(f"{where}: grade {grade!r} is not one of {SELECTOR_GRADES}")
+    note = raw.get("note") or ""
+    if not isinstance(note, str):
+        raise LocalePackError(f"{where}: note must be a string when present")
+    return ListingSelector(
+        tag=tag.strip().lower(),
+        class_tokens=tuple(t.strip() for t in tokens),
+        container_tag=container_tag.strip().lower() if container_tag else None,
+        container_class_tokens=tuple(t.strip() for t in container_tokens),
+        grade=grade,
+        note=note,
+    )
+
+
 def _door_from(raw: Any, *, locale_id: str, index: int) -> Door:
     where = f"{locale_id} door[{index}]"
     if not isinstance(raw, dict):
@@ -226,6 +313,13 @@ def _door_from(raw: Any, *, locale_id: str, index: int) -> Door:
         raise LocalePackError(
             f"{where}: a 'wall' door is class D by definition and cannot be public")
 
+    selectors_raw = raw.get("listing_selectors") or []
+    if not isinstance(selectors_raw, list):
+        raise LocalePackError(
+            f"{where}: listing_selectors must be a list, got {type(selectors_raw).__name__}")
+    listing_selectors = tuple(
+        _selector_from(sel, where=where, index=i) for i, sel in enumerate(selectors_raw))
+
     return Door(
         door_id=door_id,
         brand=_require(raw, "brand", where),
@@ -239,6 +333,7 @@ def _door_from(raw: Any, *, locale_id: str, index: int) -> Door:
         blocked_reason=blocked_reason,
         evidence=evidence,
         locale_id=locale_id,
+        listing_selectors=listing_selectors,
     )
 
 

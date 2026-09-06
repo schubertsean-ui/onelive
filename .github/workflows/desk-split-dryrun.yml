@@ -1,0 +1,87 @@
+name: desk-split-dryrun
+
+# Ticket B (ONE-LIVE-ENTITY-SPLIT-LAW.md §6) asks for a LIVE dry ingest table:
+# rows_n, unsplit_n, mash_n, 403_n per desk. The build sandbox cannot produce
+# it — its egress proxy answers 403 to CONNECT for both desks (re-confirmed
+# 2026-09-05) — and `desk-ingest.yml`, the job that does have egress, is
+# master-only by design, because a workflow_dispatch runs the DISPATCHED ref's
+# code and that job holds the production DB secret.
+#
+# This job is the missing half: the same walk, on a runner with egress, on ANY
+# branch, with NO secrets of any kind. It cannot write, and not by promise —
+# `tools/desk_ingest.py` refuses `--write` without both `--real` and
+# ONELIVE_DB_DSN, and this workflow passes neither the flag nor the variable.
+# Nothing here is armed: manual dispatch only, no `schedule:` block.
+
+on:
+  workflow_dispatch:
+    inputs:
+      doors:
+        description: "Space-separated door_ids to walk"
+        type: string
+        default: "austin-chronicle-eventsearch do512-today"
+      max_pages:
+        description: "Page ceiling per desk"
+        type: string
+        default: "40"
+      locale:
+        description: "Locale pack holding the doors"
+        type: string
+        default: "us-tx-capcog"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desk-split-dryrun-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the worker's requirements
+        run: python -m pip install --quiet -r worker/requirements.txt
+
+      - name: Prove the split on committed fixtures FIRST
+        # A live table is only readable next to a run whose numbers are known.
+        # This step also fails the job if the reader stops splitting at all.
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest tests/test_identity_split.py -q
+
+      - name: Live dry ingest — writes nothing, holds no credential
+        env:
+          # Dispatch inputs reach the script as ENVIRONMENT, never interpolated
+          # into the shell (desk-ingest.yml's pattern): `${{ inputs.doors }}`
+          # spliced into a command line would run whatever a dispatcher typed.
+          IN_DOORS: ${{ inputs.doors }}
+          IN_MAX_PAGES: ${{ inputs.max_pages }}
+          IN_LOCALE: ${{ inputs.locale }}
+        run: |
+          set -euo pipefail
+          : "${IN_DOORS:?dispatch input 'doors' is empty}"
+          : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
+          : "${IN_LOCALE:?dispatch input 'locale' is empty}"
+          args=(--real --dry-run --locale "$IN_LOCALE" --max-pages "$IN_MAX_PAGES")
+          for door in $IN_DOORS; do
+            args+=(--door "$door")
+          done
+          python tools/desk_ingest.py "${args[@]}" | tee "$RUNNER_TEMP/split-report.md"
+
+      - name: Put the table in the job summary
+        if: always()
+        run: cat "$RUNNER_TEMP/split-report.md" >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desk-split-dry-run
+          path: ${{ runner.temp }}/split-report.md
+          if-no-files-found: warn
