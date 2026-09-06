@@ -451,6 +451,28 @@ def test_the_scope_rule_is_structural_not_a_list_of_chrome_words():
     assert df.field_read(card, url="u", as_of=AS_OF).when == "2026-09-06T21:00:00"
 
 
+def test_plumbing_inside_plumbing_does_not_re_open_the_page():
+    """Self-caught while probing the fix for this class before pushing it.
+
+    A card's own `<footer>` nested inside the PAGE `<footer>` used to decrement
+    a counter it never raised — so the rest of the page footer stopped being
+    plumbing, and "Last updated September 3, 2026" came back as the show's day
+    (`2026-09-03`). Whether an element OPENED plumbing is now remembered on the
+    stack, and only that element closes it.
+    """
+    page = """<!doctype html><html><body>
+    <article><h1>A Show</h1><p class="time">Doors 9:00PM</p></article>
+    <footer>
+      <article><footer>site links</footer></article>
+      <p>Last updated September 3, 2026</p>
+      <div class="address">PO Box 1</div>
+    </footer></body></html>"""
+    assert df.segments(page) == ["A Show", "Doors 9:00PM"]
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when is None
+    assert read.place_text is None
+
+
 def test_the_fabricated_instant_cannot_reach_a_row():
     """End to end, through `follow`: the row keeps its hole rather than carrying
     a date that page never stated about it."""

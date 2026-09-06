@@ -192,19 +192,26 @@ class _SegmentScanner(HTMLParser):
         self._parts = []
 
     def _in_sectioning(self) -> bool:
-        return any(tag in SECTIONING_TAGS for tag in self._open)
+        return any(tag in SECTIONING_TAGS for tag, _ in self._open)
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         if tag in _SKIP_TEXT_TAGS:
             self._skip += 1
             return
+        # Whether this element OPENED plumbing is remembered on the stack, and
+        # only the elements that opened it close it. Deciding again at the close
+        # tag gets it wrong the moment plumbing nests: a card's own `<footer>`
+        # inside the page `<footer>` would decrement a counter it never raised,
+        # and the rest of the page footer would stop being plumbing — putting
+        # the site's "last updated" stamp back in play as a show's day. Found by
+        # probing my own fix for this class before pushing it.
         furniture = tag in FURNITURE_TAGS or (
             tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning())
         if furniture:
             self._flush()
             self._furniture += 1
-        self._open.append(tag)
+        self._open.append((tag, furniture))
         if tag in _BLOCK_TAGS:
             self._flush()
         if tag == "time" and not self._furniture and not self._skip:
@@ -225,14 +232,14 @@ class _SegmentScanner(HTMLParser):
             return
         if tag in _BLOCK_TAGS:
             self._flush()
-        if tag in self._open:
+        if any(open_tag == tag for open_tag, _ in self._open):
             while self._open:
-                closed = self._open.pop()
+                closed, opened_furniture = self._open.pop()
+                if opened_furniture:
+                    self._parts = []   # anything buffered in plumbing is dropped
+                    self._furniture = max(0, self._furniture - 1)
                 if closed == tag:
                     break
-        if tag in FURNITURE_TAGS or tag in SCOPED_FURNITURE_TAGS:
-            self._parts = []          # anything buffered inside plumbing is dropped
-            self._furniture = max(0, self._furniture - 1)
 
     def handle_data(self, data):
         if not self._skip and not self._furniture:
@@ -326,17 +333,21 @@ class _PlaceScanner(HTMLParser):
                    for name in ("class", "id"))
 
     def _in_sectioning(self) -> bool:
-        return any(tag in SECTIONING_TAGS for tag in self._open)
+        return any(tag in SECTIONING_TAGS for tag, _ in self._open)
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         if tag in _SKIP_TEXT_TAGS:
             self._skip += 1
             return
-        if tag in FURNITURE_TAGS or (
-                tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning()):
+        # Same stack discipline as the segment scanner: only the element that
+        # opened plumbing closes it, so nested `<footer>`s cannot un-suppress
+        # the page footer around them.
+        furniture = tag in FURNITURE_TAGS or (
+            tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning())
+        if furniture:
             self._furniture += 1
-        self._open.append(tag)
+        self._open.append((tag, furniture))
         if self._depth:
             self._depth += 1
             return
@@ -357,13 +368,13 @@ class _PlaceScanner(HTMLParser):
         if tag in _SKIP_TEXT_TAGS:
             self._skip = max(0, self._skip - 1)
             return
-        if tag in self._open:
+        if any(open_tag == tag for open_tag, _ in self._open):
             while self._open:
-                closed = self._open.pop()
+                closed, opened_furniture = self._open.pop()
+                if opened_furniture:
+                    self._furniture = max(0, self._furniture - 1)
                 if closed == tag:
                     break
-        if tag in FURNITURE_TAGS or tag in SCOPED_FURNITURE_TAGS:
-            self._furniture = max(0, self._furniture - 1)
         if not self._depth:
             return
         self._depth -= 1

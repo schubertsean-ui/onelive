@@ -46,7 +46,7 @@ $ python -c "from tools import arming_runtime as a; fs=sorted(a.runtime_files())
 
 ## 3. The founder's three tests
 
-`tests/test_permalink_follow.py` — 47 tests, none of which opens a socket.
+`tests/test_permalink_follow.py` — 56 tests, none of which opens a socket.
 
 | ticket case | test | result |
 |---|---|---|
@@ -117,7 +117,63 @@ is parametrised over all five statuses.
    fixture dry run died on `AttributeError: 'DeskWalk' object has no attribute
    'all_readable'`. Caught by the wiring test, not by reading.
 
-## 7. Dry ingest — FIXTURE run
+## 7. Evaluator round 1 — a page's own timestamp is not a show's day
+
+`adversarial-review` (v2 panel, po seed `a54968c…`) returned REQUEST-CHANGES.
+Three of four lenses APPROVE; `openai/absence-only` found one blocking defect,
+and it is real. Reproduced against my own code before fixing:
+
+```
+footer "Last updated September 3, 2026" + the event's "Doors 9:00PM"
+   -> 2026-09-03T21:00:00
+the event's "Sat Sep 5" + footer "Box office opens 10:00AM daily"
+   -> 2026-09-05T10:00:00
+```
+
+Both well-formed. Neither stated by anybody. The read had no **event-scope**
+check: "the only date anywhere on the page" and "the only clock anywhere on the
+page" were joined into this happening's start — and the tick runs before the
+union, so `--real --write` would have published them.
+
+Two rules close it, both **structural** rather than a list of chrome words
+("updated", "posted", "box office" are English, and an enumeration of them looks
+complete right up until the next one):
+
+* **The page's own plumbing is not a statement about this happening.** Text
+  inside `<nav>`/`<aside>`, or a PAGE-level `<header>`/`<footer>`, is dropped —
+  HTML's own sectioning rule, and the same tag sets `desk_read` already uses to
+  keep a nav link from becoming a listing. Those sets are now public, so there is
+  one definition rather than two that drift.
+* **A clock joins a day only from the SAME statement.** One block, however it is
+  marked up inside, is one statement; two sibling blocks are two. Where the clock
+  is elsewhere the DAY still stands at `date` precision — refusing the time is
+  not refusing the date.
+
+A schema.org `Event.startDate` and an ICS `DTSTART` are exempt: they say whose
+start they are, and are the one carrier needing no locality check.
+
+| page | before | after |
+|---|---|---|
+| footer "updated" stamp + event clock | `2026-09-03T21:00:00` | `None` |
+| event day + footer box-office clock | `2026-09-05T10:00:00` | `2026-09-05` (day stands) |
+| one statement, "Sat Sep 5 • 9:00PM" | `2026-09-05T21:00:00` | unchanged |
+| `<time>` in the article | dated | unchanged |
+| `<time>` in a nav | dated | `None` |
+| footer `class="address"` (publisher's office) | read as the venue | `None` |
+
+The same defect one field over came with it: a `<footer class="address">` holding
+the publisher's office would have given every happening on that desk the desk's
+own address.
+
+Both NITs from the approving lenses are answered. `fill_holes` no longer lets a
+row imply a field came from a detail page that never stated it (a row names ONE
+detail page, so a field merged from a second reading's page keeps its value and
+makes no provenance claim). The third — comparing scheme/port in `followable()`
+— is **declined on the record**: it would refuse a desk printing `http://` links
+on an `https` page, narrowing coverage for no trust gain on what is a data-trust
+boundary, not a security one (we send no credentials and never fetch cross-host).
+
+## 8. Dry ingest — FIXTURE run
 
 `$ python tools/desk_ingest.py --dry-run`
 
@@ -137,13 +193,13 @@ broken.** The committed fixtures are served from a test host, and no row in
 a committed pattern calls a single happening. Committing a test host to the
 production pattern table to make this column non-zero would put a fixture inside
 the data that decides what a live page's links mean. The tick is proven instead
-by the 47 hermetic tests above and by the LIVE run in §8; the dry run prints the
+by the 56 hermetic tests above and by the LIVE run in §8; the dry run prints the
 reason in place of the number.
 
 `dated_n` here is what the LIST cards stated, unchanged by this PR — the same
 17/16 rows Ticket B produced.
 
-## 8. Dry ingest — LIVE run
+## 9. Dry ingest — LIVE run
 
 The build sandbox cannot produce this: its egress proxy answers 403 to CONNECT
 for both desks. `.github/workflows/desk-split-dryrun.yml` (manual dispatch, any
@@ -152,7 +208,7 @@ PR adds a `follow_budget` input to it.
 
 <!-- LIVE TABLE: pasted verbatim from the dispatched run; see the PR body -->
 
-## 9. What this ticket did NOT do
+## 10. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,
   no login, no Planomato, no touching PRs #230/#231/#232.
