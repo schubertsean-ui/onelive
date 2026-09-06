@@ -522,7 +522,7 @@ def _foreign_sections(link_marks, subject, url, patterns,
             inner = sections[depth:]
             if not inner:
                 continue      # the page's own subject heading, or a sibling of it
-            if not _same_name(text, subject_name):
+            if not _claims_this_name(text, subject_name):
                 foreign.add(inner[0])
     return frozenset(foreign)
 
@@ -903,7 +903,8 @@ def _named_urls(event: Dict[str, object], url: str) -> FrozenSet[str]:
 _TITLE_RE = re.compile(r"<title\b[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 
 
-def _headings(html: str) -> List[str]:
+def _headings(html: str, *, url: Optional[str] = None,
+              patterns: Sequence[IdentityPattern] = ()) -> List[str]:
     """What this page calls ITSELF, strongest evidence only.
 
     THE VISIBLE SUBJECT WINS, AND `<title>` IS ONLY A FALLBACK. Feeding both
@@ -922,6 +923,16 @@ def _headings(html: str) -> List[str]:
 
     Subheadings of a page that HAS an `<h1>` stay out: a promotional `<h2>`
     naming another show must not become a name this page answers to.
+
+    AND SO DOES A HEADING AT THE STRONGEST LEVEL THAT IS NOT THE PAGE'S OWN.
+    Returning every `<h1>` on the page was the same rule expressed twice —
+    `_pick_subject` decides which heading is the page's SUBJECT for the card
+    boundary, and this returned all of them for the identity check, so a stale
+    page headed "Some Other Show" with a nested related `<h1>Dominic Fike</h1>`
+    answered to both names: the row/page check passed and the stale page's date
+    and venue filled the Dominic row (evaluator, PR #235 r19,
+    openai/absence-only). A heading inside a sub-card excluded by
+    `_foreign_sections` is that card's name, not this page's.
     """
     scanner = _SegmentScanner()
     try:
@@ -930,9 +941,16 @@ def _headings(html: str) -> List[str]:
     except Exception as exc:  # noqa: BLE001 — a pathological page names itself nothing
         log.debug("heading scan raised on a followed page: %s", exc)
         return []
+    subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
+    foreign = _foreign_sections(
+        scanner.link_marks, subject, url, patterns,
+        heading_marks=scanner.heading_marks,
+        subject_name=_subject_name(scanner.heading_marks))
     for tag in _HEADING_TAGS:
-        named = [text for mark_tag, _sections, text in scanner.heading_marks
-                 if mark_tag == tag and text]
+        named = [text for mark_tag, sections, text in scanner.heading_marks
+                 if mark_tag == tag and text
+                 and _inside_the_card(sections, subject)
+                 and not foreign.intersection(sections)]
         if named:
             return named
     title = _TITLE_RE.search(html or "")
@@ -1068,6 +1086,46 @@ def _names_within(text: str, name: str) -> bool:
                for i in range(len(haystack) - span + 1))
 
 
+def _claims_this_name(claim: str, name: str) -> bool:
+    """Does this claim NAME the thing, rather than merely mention part of it?
+
+    The POSITIVE half of the identity question, split out at r19 for the reason
+    this repo has now recorded twice (`destructive-normalization` r9, applied
+    once at r15 and not swept for): one helper, two callers, and their dangerous
+    answers point opposite ways. A positive bind fails badly on a false YES — a
+    foreign node publishes its date and venue onto this row. A denial fails
+    badly on a false NO — a legitimate page is refused and a row keeps its
+    holes. `_same_name`'s loose containment is right for the denial and wrong
+    here.
+
+    A page headed "Dominic Fike at The Other Room" carries a lone JSON-LD Event
+    named "The Other Room", and loose containment called that the page's name —
+    the node names the VENUE inside the heading, not the happening, and with no
+    visible date to contradict it the structured tier published its `startDate`
+    and `location` (evaluator, PR #235 r19, openai/attacker-smuggle).
+
+    So a claim must OPEN the name it claims to be, or be it exactly. That is
+    r13's single-token rule, which was always the general rule and got applied
+    to one arity: headings read `<name> <qualifier>` — "Prodigal Sun at
+    Saengerrunde Hall", "Gandahar (1988)", "Dominic Fike — tickets" — and never
+    `<qualifier> <name>`, so a claim that opens the heading is plausibly what it
+    names and one buried inside it is a fragment of it.
+
+    The `<presenter> presents <title>` shape a desk really does print stays
+    readable, because it reaches the DENIAL side (`_page_denies_this_row`),
+    where loose containment is the correct and fail-closed direction.
+    """
+    left, right = _name_tokens(claim), _name_tokens(name)
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
+    if len(shorter) < 2 and len(shorter[0]) < 2:
+        return False
+    return longer[:len(shorter)] == shorter
+
+
 def _same_name(a: str, b: str) -> bool:
     """Two names for the same thing, compared the way a reader would.
 
@@ -1178,7 +1236,7 @@ def _names_this_page(event: Dict[str, object], headings: Sequence[str]) -> bool:
     name = _node_name(event)
     if not name:
         return False
-    return any(_same_name(name, heading) for heading in headings)
+    return any(_claims_this_name(name, heading) for heading in headings)
 
 
 def speaks_for(events: Sequence[Dict[str, object]], url: str,
@@ -1435,7 +1493,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     # address the identity table cannot classify speaks for this page only when
     # it names the thing this page names.
     said = segments(html, url=url, patterns=patterns or ())
-    headings = _headings(html)
+    headings = _headings(html, url=url, patterns=patterns or ())
     mine = speaks_for(ld_events, url, patterns, headings=headings)
     if ld_events and not mine:
         # Name the addresses. "A different address" is a verdict; WHICH address

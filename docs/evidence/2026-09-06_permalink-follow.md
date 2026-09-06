@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-132 passed in 0.45s
+134 passed in 0.47s
 ```
 
 | ticket case | test | result |
@@ -1780,6 +1780,85 @@ segment scan does, because it must ask this question about ITS OWN section ids
 to agree, which is the class this ticket has paid for seven times.
 `_subject_name` derives the subject's text by the same precedence
 `_pick_subject` uses for its sections: one walk, one precedence, two questions.
+
+### 13u. Round 19 — the same lesson in the two places I did not sweep
+
+Both openai seats blocking, both gemini APPROVE, both reproduced first. **And
+both findings are one recorded lesson each, in a place I already applied it
+somewhere else and stopped.**
+
+**(1) `_same_name` served the positive bind and the denial, and their dangerous
+answers point opposite ways.** That is `destructive-normalization` r9 —
+*"when one helper serves two callers, check whether their failure modes point
+the same way; if they do not, they share a NAME rather than a helper"* — which
+I applied at r15 to split `_names_within` out for places, and did not sweep for
+elsewhere.
+
+```
+page: <h1>Dominic Fike at The Other Room</h1>
+node: {"name":"The Other Room","startDate":"2026-12-25T20:00:00-06:00", …}
+PRE-FIX  when=2026-12-25T20:00:00-06:00  place='The Other Room'  codes=()
+```
+
+The node names the **venue inside the heading**, not the happening. A positive
+bind fails badly on a false YES; a denial fails badly on a false NO. So a claim
+must now OPEN the name it claims to be — which is r13's single-token rule,
+always the general rule, applied to one arity.
+
+| caller | question | rule |
+|---|---|---|
+| `_names_this_page` | does this node claim to be the page? | strict — must open |
+| `_foreign_sections` | is this sub-card the page's own? | strict — must open |
+| `_contradicts_this_page` | does this node deny the page? | loose containment |
+| `_page_denies_this_row` | does this page deny the row? | loose containment |
+
+The `<presenter> presents <title>` shape a desk really prints stays readable
+**because it reaches the denial side**, where loose is both correct and
+fail-closed. That is the split doing its job rather than a tuning that trades
+one caller's safety for the other's.
+
+**(2) `_headings` returned every heading at the strongest level.**
+`_pick_subject` decides which heading is the page's SUBJECT for the card
+boundary; `_headings` returned all of them for the identity check. One question,
+two answers — `one-rule-expressed-twice`, and this ticket's **eighth** instance.
+
+```
+page: <h1>Some Other Show</h1> … <section class="related"><h1>Dominic Fike</h1></section>
+PRE-FIX  _headings(...) == ['Some Other Show', 'Dominic Fike']
+         → the r17 row/page check passed on the NESTED one, and the stale
+           page's date and venue filled the Dominic row
+```
+
+A heading inside a sub-card that `_foreign_sections` excludes is that card's
+name, not this page's. `_headings` now reads the subject and the card, by the
+same walk and the same exclusions everything else uses.
+
+**What rounds 15–19 say together.** Five rounds, and three of the findings were
+a lesson already written in this repo, applied once, not swept: r15's
+one-helper-two-callers (again at r19), r16's comment-claims-a-mechanism (third
+instance), r18's record-trigger-is-a-claim. **Writing the lesson is not the
+work; sweeping the tree for it is** — and the commit that opens a class should
+grep for its own symptom before it lands, which is what
+`one-rule-expressed-twice` has said since r7 and what I have now failed to do
+twice more.
+
+**So the sweep was done in this round rather than left to r20.** Every helper in
+`desk_follow` with two or more call sites, asked the r15 question — do its
+callers' *wrong* answers point the same way?
+
+| helper | callers | verdict |
+|---|---|---|
+| `_inside_the_card` (5) | all ask "is this statement in the card" | same direction |
+| `_others_on_this_page` (2) | foreign-section marking; `place-among-other-happenings` | same direction |
+| `_clocks_printed` (3) | `_clock_claim`; the contradiction check | same direction both ways (under-report is a trust risk for both, over-report a cost for both) |
+| `_clock_claim` (2) | the page-level diagnostic; the near-clock that sets the time | same direction |
+| `_named` (2) | the bind; the refusal message | one is a diagnostic and publishes nothing |
+| `_node_name`, `_name_tokens` (2, 6) | extractors, not verdicts — the split sits above them | n/a |
+| `_address`, `_host` (8, 5) | comparison primitives; `same_identity` is the asymmetric layer (r13) | n/a |
+
+Nothing else is shared across callers whose failure modes disagree. That is a
+checked result rather than an intention, which is the difference this ticket has
+been paying to learn.
 
 ## 14. What this ticket did NOT do
 

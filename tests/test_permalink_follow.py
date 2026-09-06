@@ -2062,6 +2062,100 @@ def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
     assert read.when == "2026-09-18T23:00:00", read.refusals
 
 
+def test_a_node_naming_a_fragment_of_the_heading_does_not_claim_the_page():
+    """Evaluator, PR #235 r19, openai/attacker-smuggle — and it is r15's lesson
+    arriving in the place I applied it once and did not sweep for.
+
+    `_same_name`'s loose containment served BOTH the positive bind and the
+    denial, and their dangerous answers point opposite ways: a positive bind
+    fails badly on a false YES (a foreign node publishes onto this row), a
+    denial fails badly on a false NO (a legitimate page is refused). A page
+    headed "Dominic Fike at The Other Room" carrying a lone JSON-LD Event named
+    "The Other Room" passed the positive check — the node names the VENUE inside
+    the heading, not the happening:
+
+        PRE-FIX   when=2026-12-25T20:00:00-06:00  place='The Other Room'  codes=()
+
+    A claim must now OPEN the name it claims to be, or be it exactly. That is
+    r13's single-token rule, which was always the general rule and had been
+    applied to one arity."""
+    def page(node_name):
+        return """<html><head><script type="application/ld+json">
+        {"@type":"Event","name":"%s","startDate":"2026-12-25T20:00:00-06:00",
+         "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+        <body><article><h1>Dominic Fike at The Other Room</h1></article>
+        </body></html>""" % node_name
+
+    def read(node_name):
+        return df.field_read(page(node_name), url=HERE, as_of=AS_OF,
+                             patterns=PATTERNS)
+
+    assert read("The Other Room").when is None            # the venue fragment
+    assert read("Dominic Fike").when == "2026-12-25T20:00:00-06:00"
+    assert read("Dominic Fike at The Other Room").when == "2026-12-25T20:00:00-06:00"
+
+    assert not df._claims_this_name("The Other Room",
+                                    "Dominic Fike at The Other Room")
+    assert df._claims_this_name("Dominic Fike", "Dominic Fike at The Other Room")
+    assert df._claims_this_name("Gandahar", "Gandahar (1988)")
+
+    # THE DENIAL SIDE STAYS LOOSE, and that is the whole point of the split:
+    # a desk really does print "<presenter> presents <title>", and refusing it
+    # would hole every such page. `_same_name` is the denial's rule.
+    assert df._same_name("The Yellow Wallpaper",
+                         "Trinity Street Theatre presents The Yellow Wallpaper")
+    assert df._same_name("Prodigal Sun", "Prodigal Sun at Saengerrunde Hall")
+    presented = """<html><body><article>
+      <h1>Trinity Street Theatre presents The Yellow Wallpaper</h1>
+      <p>Friday, December 25, 2026 8:00PM</p>
+      <div class="venue">Trinity Street Theatre</div></article></body></html>"""
+    kept = df.follow([row("The Yellow Wallpaper")], fetcher({
+        "https://desk.test/event/dominic-fike-1": presented}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert kept.rows[0].when == "2026-12-25T20:00:00", kept.reads[0].refusals
+
+
+def test_only_the_pages_own_heading_is_a_name_it_answers_to():
+    """Evaluator, PR #235 r19, openai/absence-only — `_headings()` returned EVERY
+    visible heading at the strongest level, and `_pick_subject()` decides which
+    heading is the page's SUBJECT for the card boundary. The same question,
+    answered two ways.
+
+    So a stale page headed "Some Other Show" with a nested related
+    `<h1>Dominic Fike</h1>` answered to both names: the r17 row/page check
+    passed on the nested one and the stale page's date and venue filled the
+    Dominic row.
+
+        PRE-FIX   _headings(...) == ['Some Other Show', 'Dominic Fike']
+                  published 2026-12-25T20:00:00 at 'The Other Room'
+
+    A heading inside a sub-card that `_foreign_sections` excludes is that
+    card's name, not this page's."""
+    nested = """<html><body><article><h1>Some Other Show</h1>
+      <p>Friday, December 25, 2026 8:00PM</p>
+      <div class="venue">The Other Room</div>
+      <section class="related"><h1>Dominic Fike</h1></section>
+    </article></body></html>"""
+    assert df._headings(nested, url=HERE, patterns=PATTERNS) == ["Some Other Show"]
+    denied = df.follow([row("Dominic Fike")], fetcher({
+        "https://desk.test/event/dominic-fike-1": nested}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert denied.rows[0].when is None, denied.rows[0].when
+    assert denied.rows[0].place_text is None
+
+    # The converse: the page's OWN heading is still the name it answers to, and
+    # a page with several headings of the strongest level inside its own card
+    # keeps them all.
+    plain = ('<html><body><article><h1>Dominic Fike</h1>'
+             '<p>Friday, December 25, 2026 8:00PM</p>'
+             '<div class="venue">The Hall</div></article></body></html>')
+    assert df._headings(plain, url=HERE, patterns=PATTERNS) == ["Dominic Fike"]
+    ok = df.follow([row("Dominic Fike")], fetcher({
+        "https://desk.test/event/dominic-fike-1": plain}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert ok.rows[0].when == "2026-12-25T20:00:00", ok.reads[0].refusals
+
+
 def test_an_unlinked_sub_card_with_its_own_heading_is_not_this_happening():
     """Evaluator, PR #235 r18, openai/absence-only — and this is R-114, the
     residual opened ONE ROUND EARLIER and blocked on the next. Third time in
