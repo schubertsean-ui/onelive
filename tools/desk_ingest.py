@@ -308,21 +308,30 @@ def what_the_pages_said(follows: Mapping[str, FollowResult]) -> str:
                f"are the whole surface on which an unreadable word clock "
                f"(R-115) could disagree — so this count, not the record's "
                f"prose, is the residual's size on this desk.")
-    # R-116's EXPOSURE, on the same principle. A date or place read from the
-    # page's own prose is tied to this happening by ONE thing: the page is about
-    # it. That is right for a card stating its own date, and it is also how an
-    # unheaded, unlinked promotional block would reach a reader — and no signal
-    # HTML offers separates the two, so they are counted together.
-    untied = sum(1 for result in follows.values()
-                 for read in result.reads if read.untied_statement)
+    # R-116's EXPOSURE, on the same principle — but SPLIT BY FIELD, because
+    # merging them answered neither question. r27 counted "a date or a place
+    # read without a structural tie" as one number and reported 8 of 40; nearly
+    # every desk states its venue in a labelled element, so that number was
+    # mostly PLACES and said almost nothing about the date exposure the finding
+    # is actually about. A count that merges two questions is the
+    # `diagnostics-as-data` defect in the diagnostic itself.
+    reads = [read for result in follows.values() for read in result.reads]
+    untied_when = sum(1 for read in reads if read.untied_when)
+    untied_place = sum(1 for read in reads if read.untied_place)
     out.append("")
-    out.append(f"**{untied} of {pages}** opened page(s) filled a field from the "
-               f"page's own PROSE, tied to this happening only by the page "
-               f"being about it — no structured node naming the address, no "
-               f"heading, no classified link. Those rows are right whenever the "
-               f"card states its own date or venue, and they are the whole "
-               f"surface on which an unheaded, unlinked block (R-116) could "
-               f"substitute another happening's.")
+    out.append(f"**{untied_when} of {pages}** opened page(s) took their DATE "
+               f"from the page's own prose, tied to this happening only by the "
+               f"page being about it — no structured node naming the address, "
+               f"no heading, no classified link. That is right whenever the "
+               f"card states its own date, and it is the whole surface on which "
+               f"an unheaded, unlinked block (R-116) could substitute another "
+               f"happening's night.")
+    out.append("")
+    out.append(f"**{untied_place} of {pages}** took their PLACE from a labelled "
+               f"element rather than a bound structured node. Counted apart "
+               f"from the date on purpose: a labelled venue is how most desks "
+               f"state an address, so this number is large by design and is a "
+               f"far weaker signal than the one above.")
     # The codes say WHICH repair; the sentences say what the pages actually
     # printed. A code counted at 100% and never quoted is still not something a
     # person can act on — the next ticket needs the desk's own words.

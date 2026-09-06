@@ -941,7 +941,16 @@ class FieldRead:
     #: this ticket already gave R-115 at r22 — a residual with no available
     #: close becomes a measured quantity on real desks instead of an argument in
     #: a record (evaluator, PR #235 r26, both openai seats).
-    untied_statement: bool = False
+    untied_when: bool = False
+    #: The same question asked of the PLACE, and counted SEPARATELY because the
+    #: two are not the same read. r27 counted them together and the number was
+    #: dominated by places: a labelled venue element is how nearly every desk
+    #: states its address, so a page whose DATE came from a bound structured
+    #: node still counted as "untied". The date exposure — which is what R-116's
+    #: harm is about — was hidden inside a place statistic (evaluator, PR #235
+    #: r28; the defect is in the diagnostic, and it is the `diagnostics-as-data`
+    #: class again: a count that merges two questions answers neither).
+    untied_place: bool = False
     #: What this page calls ITSELF — the visible subject, or `<title>` where it
     #: prints none. Carried so `apply_read` can ask whether the page is about
     #: the row it is being applied to WITHOUT computing the headings a second
@@ -2452,9 +2461,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # page is about it. Structured carriers name the address they speak for
         # and are tied; visible prose is not, and no signal in HTML separates
         # the card's own paragraph from an unheaded promotional block beside it.
-        untied_statement=bool(
-            (when and (when_carrier or "").startswith("visible"))
-            or (place_text and place_carrier == "labelled")),
+        untied_when=bool(when and (when_carrier or "").startswith("visible")),
+        untied_place=bool(place_text and place_carrier == "labelled"),
     )
 
 

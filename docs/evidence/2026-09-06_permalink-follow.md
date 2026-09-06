@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-145 passed in 0.64s
+145 passed in 0.98s
 ```
 
 | ticket case | test | result |
@@ -2352,6 +2352,47 @@ mod twelve and collapsing them would settle a question the page left open.
 `clocks-ambiguous` fired on 2 of 40 opened pages in this run, so the fix is
 worth roughly that on this desk — measured, not estimated, and the next run's
 table will say exactly.
+
+### 13ad. Round 28 — the number I reported was two questions in a trench coat
+
+Both openai seats block on R-116 alone; R-115 has dropped to a gemini NIT that
+calls it bounded and measured. Both gemini seats APPROVE.
+
+**The finding I acted on is one I found while answering them.** r27's exposure
+count set `untied_statement` when the DATE came from prose **or** the PLACE came
+from a labelled element. A labelled venue is how nearly every desk states an
+address — so "R-116: 8 of 40" was mostly places, and a page whose date came from
+a bound JSON-LD node counted toward it. One probe shows it:
+
+```
+date carrier: jsonld | place carrier: labelled
+untied_statement: True   <-- date came from JSON-LD
+```
+
+That number went into the evidence doc, the record, and a report to the founder
+before it was checked against a case whose answer I already knew. The two are now
+counted and printed separately.
+
+**And the seat was right about my test.** `test_the_bound_on_an_unheaded_unlinked_block_r116`
+asserted the defect first and read as an endorsement — the suite appeared to
+certify R-116's behaviour as contract. It is renamed for the INVARIANT, the four
+guards are asserted first because that is what the module promises, and the
+open shape is last, labelled, with the message `R-116 closed? invert this and
+update the record`.
+
+**What I did not do, and why.** Both seats ask for a fail-closed refusal of
+untied prose fields. `ONE-LIVE-TRUST.md` gives a field three answers, not two —
+"confirmed enough to print as fact, or a hole / uncertain" — and it says plainly
+that *holes are expected* and *a missing minute is not a missing night*. Coverage
+Law forbids dropping a legally seen row. The discriminators that would separate a
+promo block from a card's own paragraph are each already refused on this repo's
+record (an English class-name list at r1/r23; refusing every prose-stated date,
+measured at r22 as 33 of 136 tests and the founder's own acceptance case (a); a
+block-depth rule at r12). R-116 stays open, bounded, and now honestly counted.
+
+**The lesson.** r22 said a residual argued is worth less than a residual
+measured. This is its missing corollary: **a measurement is a claim.** Derive it
+once against a case whose answer you already know before you quote it to anyone.
 
 ## 14. What this ticket did NOT do
 

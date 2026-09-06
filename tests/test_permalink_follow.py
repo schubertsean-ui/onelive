@@ -2455,14 +2455,28 @@ def test_silence_is_silence_in_every_language():
         assert read("Dominic Fike", "<p>An evening of songs</p>", lang).when == P
 
 
-def test_the_bound_on_an_unheaded_unlinked_block_r116():
-    """Evaluator, PR #235 r25, openai/attacker-smuggle — an unheaded, unlinked
-    block can still supply the only date on a page whose own card states none:
+def test_an_untied_block_must_not_publish_and_currently_does_r116():
+    """THE INVARIANT THIS ASSERTS IS THE ONE WE DO NOT YET HOLD, and it is named
+    that way on purpose (evaluator, PR #235 r28, openai/absence-only, and the
+    seat was right): the previous name and shape read as an endorsement — "the
+    bound on..." — so the suite appeared to certify the defect as correct
+    behaviour rather than record it as open. A characterisation test that does
+    not say it is characterising one is indistinguishable from a contract.
+
+    THE CONTRACT: a block with no structural tie to this happening must not
+    supply its date or place. It is HELD everywhere a signal exists — a heading,
+    a classified link, a sectioning element, a bound structured node — and each
+    of those is asserted below, first, because that is what the module promises.
+
+    IT IS NOT HELD for a block with none of them, and the last assertion in this
+    test exists to keep that visible and MUST BE INVERTED the day R-116 closes.
+
+    Evaluator, PR #235 r25, openai/attacker-smuggle — reproduced:
 
         row 'Dominic Fike' + <div class="promo">December 25, 2026 8:00PM</div>
         -> when=2026-12-25T20:00:00
 
-    NOT closed, and the reason is checked rather than asserted. Every
+    Why it is not closed is checked rather than asserted. Every
     discriminator this module has is a STRUCTURAL one — a heading, a link to
     another happening, a sectioning element, structured markup naming its
     subject — and this block has none of them. What is left is a class-name or
@@ -2482,11 +2496,8 @@ def test_the_bound_on_an_unheaded_unlinked_block_r116():
             f"<html><head>{head}</head><body>{body}</body></html>",
             url=HERE, as_of=AS_OF, patterns=PATTERNS)
 
-    # The residual itself, pinned at its current behaviour.
-    assert read(f'<h1>Dominic Fike</h1><p>An evening.</p>{promo}').when \
-        == "2026-12-25T20:00:00"
-
-    # AND THE FOUR GUARDS THAT BOUND IT, each verified to fire.
+    # THE CONTRACT FIRST — the four guards, each verified to fire. This is what
+    # the module promises and what a reader should take from this test.
     # 1. The card states a date of its own -> two dates, refused.
     both = read(f'<h1>Dominic Fike</h1>'
                 f'<p>Friday, September 18, 2026 8:00PM</p>{promo}')
@@ -2505,6 +2516,14 @@ def test_the_bound_on_an_unheaded_unlinked_block_r116():
     assert read('<h1>Dominic Fike</h1><p>An evening.</p>'
                 '<section><a href="https://desk.test/event/other-9">More</a>'
                 '<p>December 25, 2026 8:00PM</p></section>').when is None
+
+    # THE OPEN DEFECT, LAST AND LABELLED. With none of those four signals the
+    # block still supplies the date, and this assertion records that fact — it
+    # is NOT the contract. When R-116 closes, this line becomes
+    # `assert ... .when is None` and the record's status changes with it; until
+    # then every run prints how many real pages this could reach.
+    assert read(f'<h1>Dominic Fike</h1><p>An evening.</p>{promo}').when \
+        == "2026-12-25T20:00:00", "R-116 closed? invert this and update the record"
 
 
 def test_the_report_counts_the_rows_r116_could_reach():
@@ -2542,7 +2561,13 @@ def test_the_report_counts_the_rows_r116_could_reach():
         "https://desk.test/event/show-1": untied})},
         budget=40, as_of=AS_OF, patterns=PATTERNS)
     table = tool.what_the_pages_said(follows)
-    assert "**1 of 2**" in table, table
+    # SPLIT BY FIELD at r28: merging them made the number meaningless. One page
+    # took its date from prose; the other's date came from a bound node. Neither
+    # states a place, so the place count is 0 — and it is printed anyway,
+    # because a residual whose size is only shown when it is large is not being
+    # measured, it is being advertised.
+    assert "**1 of 2** opened page(s) took their DATE" in table, table
+    assert "**0 of 2** took their PLACE" in table, table
     assert "R-116" in table
 
 
