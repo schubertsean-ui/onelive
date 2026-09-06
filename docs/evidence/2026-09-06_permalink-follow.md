@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-87 passed in 0.29s
+91 passed in 0.44s
 ```
 
 | ticket case | test | result |
@@ -592,6 +592,40 @@ year, so it resolves to no date at all, so the segment never becomes the
 carrier's owner and the test went green without reaching the defect. Printing
 the year is what makes it reproduce. That is `false-confidence-gate` in a test I
 wrote to close a finding, which is the most expensive place to have one.
+
+### 13a. The same round, second pass — the place path had no entity tie
+
+The review of the next head found the class one field over. Rounds 1-4 gave
+DATES their scope, their locality and their per-node binding; the place
+fallback still took "the one labelled venue anywhere in the content". A page
+whose own listing carries no venue markup, beside a related card that does:
+
+```
+PRE-FIX   when=2026-09-06T21:00:00  place='The Other Room'  codes=()
+POST-FIX  when=2026-09-06T21:00:00  place=None              codes=('place-among-other-happenings',)
+```
+
+Cardinality of one, so nothing to refuse as ambiguous, and no code recorded.
+
+The tie is the one the split ladder already uses: a related card links to
+another happening's PERMALINK, which is exactly what the committed identity
+table matches. The page's content links are now collected by the SAME scanner
+pass that finds the places, under the same plumbing rule — two passes would be
+two definitions of "this page's content" and they would drift.
+
+A first attempt did this per SEGMENT and broke 13 tests at once, which was the
+useful answer: `segments()` returns TEXT, so a scanner that needs `class="venue"`
+markup finds nothing in it. That is also why the residual below cannot be closed
+the obvious way.
+
+**What this does NOT close, recorded as R-112 rather than implied:** a
+promotional block carrying venue markup and NO link is still read as this row's
+place. Separating it from the page's own venue block needs a notion of CARD this
+module does not have, and the two available substitutes are both refused on the
+record — a chrome-word list (r1: "related", "more", "also" are English) and a
+title match (brittle across punctuation and truncation). The bound is narrow: a
+bound node's venue is read first and is unaffected, two labelled places already
+refuse, and the live desk resolves its places through bound nodes.
 
 ## 14. What this ticket did NOT do
 

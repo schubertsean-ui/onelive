@@ -371,6 +371,80 @@ def test_a_day_without_a_time_still_records_the_clock_complaint():
     assert "clocks-ambiguous" in read.codes, read.refusals
 
 
+def test_a_related_cards_venue_is_not_this_happenings_place():
+    """Evaluator, PR #235 r4 second pass, openai/attacker-smuggle — reproduced
+    before fixing.
+
+    The date path got its scope, its locality and its per-node binding across
+    four rounds. The place fallback still took "the one labelled venue anywhere
+    in the content", so a page whose own listing carries no venue markup, beside
+    a related card that does, published that card's room as this happening's:
+
+        PRE-FIX   when=2026-09-06T21:00:00  place='The Other Room'  codes=()
+
+    Cardinality of one, so nothing to refuse as ambiguous, and no code recorded.
+    The unbound fallback has no way to say whose venue it found — so when the
+    page's content also points at other happenings, one labelled venue is a coin
+    flip between this row and the card beside it."""
+    page = """<html><body><main>
+      <article><h1>Dominic Fike</h1>
+        <time datetime="2026-09-06T21:00">Sun Sep 6</time></article>
+      <section class="related"><h2>You might also like</h2>
+        <a href="/event/other-99">Some Other Show</a>
+        <div class="venue">The Other Room</div></section>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-06T21:00:00"      # the date path is unaffected
+    assert read.place_text is None
+    assert "place-among-other-happenings" in read.codes, read.refusals
+    assert any("other-99" in r for r in read.refusals), read.refusals
+
+
+def test_a_page_that_states_its_own_venue_still_states_it():
+    """The converse. A page carrying its own venue markup is unaffected by the
+    rule above — the fallback is refused only where another happening is on the
+    page to be confused with."""
+    page = """<html><body><main>
+      <article><h1>Dominic Fike</h1>
+        <time datetime="2026-09-06T21:00">Sun Sep 6</time>
+        <div class="venue">The Hall</div></article>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text == "The Hall"
+    assert "place-among-other-happenings" not in read.codes
+
+
+def test_this_pages_own_address_is_not_another_happening():
+    """A permalink page linking to ITSELF — a share button, a canonical link, a
+    breadcrumb back to the listing — names no other happening, so it must not
+    cost the page its own venue."""
+    page = f"""<html><body><main>
+      <article><h1>Dominic Fike</h1>
+        <a href="{HERE}">Permalink</a>
+        <time datetime="2026-09-06T21:00">Sun Sep 6</time>
+        <div class="venue">The Hall</div></article>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text == "The Hall", read.refusals
+
+
+def test_a_bound_nodes_venue_beats_a_related_card_entirely():
+    """The refusal above is the UNBOUND fallback's. A structured node that
+    speaks for this row states the venue on its own authority, and a related
+    card on the same page cannot take it away — otherwise closing the finding
+    would have cost every page that markup its venue properly."""
+    page = f"""<html><head><script type="application/ld+json">
+    {{"@type":"Event","name":"Dominic Fike","url":"{HERE}",
+      "startDate":"2026-09-06T21:00:00-05:00",
+      "location":{{"@type":"Place","name":"The Hall"}}}}</script></head>
+    <body><main><article><h1>Dominic Fike</h1></article>
+      <section class="related"><a href="/event/other-99">Other</a>
+        <div class="venue">The Other Room</div></section>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text == "The Hall", read.refusals
+
+
 def test_two_labelled_places_name_no_place():
     page = """<!doctype html><html><body><h1>A Show</h1>
     <time datetime="2026-09-06">Sun Sep 6</time>

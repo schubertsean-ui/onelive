@@ -374,6 +374,11 @@ class _PlaceScanner(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.places: List[str] = []
+        #: Every address this page's CONTENT links to, under exactly the same
+        #: plumbing rule the places are read by — so "does this page's content
+        #: point at another happening" can be asked without a second parse and
+        #: without a second definition of what counts as content.
+        self.links: List[str] = []
         self._depth = 0
         self._parts: List[str] = []
         self._skip = 0
@@ -403,6 +408,11 @@ class _PlaceScanner(HTMLParser):
         if furniture:
             self._furniture += 1
         self._open.append((tag, furniture))
+        if tag == "a" and not self._skip and not self._furniture:
+            href = " ".join(
+                (dict((k.lower(), v or "") for k, v in attrs).get("href") or "").split())
+            if href and not href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                self.links.append(href)
         if self._depth:
             self._depth += 1
             return
@@ -620,18 +630,51 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
     return list(events)
 
 
-def _labelled_places(html: str) -> List[str]:
+def _scan_places(html: str) -> Tuple[List[str], List[str]]:
+    """(places this page labels, addresses its content links to) — one pass.
+
+    Both answers come from the SAME walk under the SAME plumbing rule, because
+    the second is used to judge the first: two passes would be two definitions
+    of what counts as this page's content, and they would drift.
+    """
     scanner = _PlaceScanner()
     try:
         scanner.feed(html)
         scanner.close()
     except Exception as exc:  # noqa: BLE001 — a pathological page loses its place, not its row
         log.debug("place scan raised on a followed page: %s", exc)
-        return []
+        return [], []
     out: List[str] = []
     for place in scanner.places:
         if place not in out:
             out.append(place)
+    return out, list(scanner.links)
+
+
+def _labelled_places(html: str) -> List[str]:
+    return _scan_places(html)[0]
+
+
+def _others_on_this_page(links: Sequence[str], url: str,
+                         patterns: Sequence[IdentityPattern]) -> List[str]:
+    """The OTHER happenings this page's content points at.
+
+    A related-events card, a "you might also like" tile, a next-show promo: the
+    thing that makes one another happening's is what the split ladder already
+    uses to find it — a link to that happening's PERMALINK, which is exactly
+    what the committed identity table matches (ONE-LIVE-ENTITY-SPLIT-LAW.md §2
+    tier 2). Host knowledge stays in the data; this asks the table.
+    """
+    from urllib.parse import urljoin
+    here = _address(url)
+    out: List[str] = []
+    for raw in links:
+        target = (raw if raw.lower().startswith(("http://", "https://"))
+                  else urljoin(url, raw))
+        if _address(target) == here:
+            continue
+        if match_identity(target, patterns) is not None and target not in out:
+            out.append(target)
     return out
 
 
@@ -947,10 +990,13 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     place_text = place_carrier = None
     ld_places: List[str] = []
     for ev in mine:
-        stated = ev.get("venue_name") or ev.get("venue_address") or ev.get("venue_city")
-        stated = " ".join((stated or "").split())
-        if stated and stated not in ld_places:
-            ld_places.append(stated)
+        # NOT `stated` — that name holds this page's date carriers, read above.
+        # A loop variable that shadows the read it depends on is how an earlier
+        # round of this ticket produced an AttributeError at the report edge.
+        venue = ev.get("venue_name") or ev.get("venue_address") or ev.get("venue_city")
+        venue = " ".join((venue or "").split())
+        if venue and venue not in ld_places:
+            ld_places.append(venue)
     if len(ld_places) == 1:
         place_text, place_carrier = ld_places[0], "jsonld"
     elif len(ld_places) > 1:
@@ -960,8 +1006,32 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
             f"different places ({'; '.join(ld_places[:3])}) — which one this "
             f"happening is at is not stated")
     else:
-        labelled = _labelled_places(html)
-        if len(labelled) == 1:
+        labelled, links = _scan_places(html)
+        others = _others_on_this_page(links, url, patterns)
+        if len(labelled) == 1 and others:
+            # THE PLACE PATH NEEDS THE ENTITY TIE THE DATE PATH HAS.
+            # Rounds 1-4 gave dates their scope (plumbing excluded
+            # structurally), their locality (a clock comes from the statement
+            # that gave the day) and their per-node binding. The place fallback
+            # still took "the one labelled venue anywhere in the content" — so a
+            # page whose own listing carries no venue markup, beside a related
+            # card that does, published that card's room as this happening's:
+            # cardinality of one, nothing ambiguous to refuse, nothing to notice
+            # (evaluator, PR #235 r4 second pass, openai/attacker-smuggle).
+            #
+            # A structured node that speaks for this row is bound and is read
+            # above; this is the UNBOUND fallback, and it has no way to say
+            # whose venue it found. So when the page's content also points at
+            # other happenings, one labelled venue is not evidence — it is a
+            # coin flip between this row and the card beside it, and the hole
+            # is the honest answer.
+            refuse(
+                "place-among-other-happenings",
+                f"page labels one place ({labelled[0]}) and its content also "
+                f"links to {len(others)} other happening(s) "
+                f"({', '.join(_address(o)[1] for o in others[:3])}) — nothing "
+                f"on the page says the venue is this one's rather than theirs")
+        elif len(labelled) == 1:
             place_text, place_carrier = labelled[0], "labelled"
         elif len(labelled) > 1:
             refuse(
