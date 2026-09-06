@@ -79,7 +79,11 @@ _EVENT_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]*Event\b", re.I)
 # the wrapper's text is every listing concatenated. Identity is DECLARED by the
 # page (structured data, or a permalink in the committed identity table) or, at
 # tier 3, by a selector committed for that one door. Nothing is guessed.
-_PLACEISH_RE = re.compile(r"venue|location|place|where", re.I)
+#: What a page LABELS as a place — a class, an id, an itemprop. Public because
+#: the field tick (`worker/locale/desk_follow.py`) asks the same question of an
+#: event's own page, and two definitions of "the page called this a venue" would
+#: drift into two different answers about the same markup.
+PLACEISH_RE = re.compile(r"venue|location|place|where", re.I)
 #: Where a card may STATE its own category. Every one of these is a DECLARATION
 #: — a `rel` the page wrote, a schema.org property, a class the page named after
 #: its own taxonomy. None of it is a guess from the title, which is why a card
@@ -148,6 +152,15 @@ class Happening:
     #: scope, or the `other` fallback. On the row, so a table can never present
     #: a fallback as a reading.
     kind_source: str = "door_scope"
+    #: The happening's OWN page, when the field tick opened it
+    #: (`worker/locale/desk_follow.py`). None means nobody asked — never "that
+    #: page said nothing", which is a different fact and is counted separately.
+    detail_url: Optional[str] = None
+    #: Which fields on this row came from `detail_url` rather than from the list
+    #: card. Provenance, on the row: a table showing a date must be able to say
+    #: which page stated it, and a filled hole must never look like a field the
+    #: list page printed.
+    filled_from_detail: Tuple[str, ...] = ()
 
 
 @dataclass
@@ -612,7 +625,7 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                 in_place=(
                     in_place
                     or itemprop in ("location", "address")
-                    or bool(_PLACEISH_RE.search(child.attrs.get("class") or ""))
+                    or bool(PLACEISH_RE.search(child.attrs.get("class") or ""))
                 ),
                 in_category=child_category,
             )
@@ -765,6 +778,15 @@ def fill_holes(kept: Happening, incoming: Happening) -> Happening:
         patch["kind"] = incoming.kind
         patch["kind_source"] = incoming.kind_source
         patch["category_text"] = incoming.category_text
+    if kept.detail_url is None and incoming.detail_url is not None:
+        # Provenance follows the FIELDS it explains, never the reading it came
+        # from: the merged row may claim a field came from an event page only
+        # where that field was actually taken from this incoming row. Copying
+        # the whole tuple would put the other reading's page behind a value the
+        # kept row stated itself.
+        patch["detail_url"] = incoming.detail_url
+        patch["filled_from_detail"] = tuple(
+            name for name in incoming.filled_from_detail if name in patch)
     return replace(kept, **patch) if patch else kept
 
 

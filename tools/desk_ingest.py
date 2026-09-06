@@ -54,7 +54,7 @@ Two guards worth knowing before you run it:
     while still looking settled.
 
 Exit codes: 0 ran clean, 1 ran but left a published row mislabelled (a dispute
-write failed — see section 5), 2 refused before writing anything (bad door, bad
+write failed — see section 6), 2 refused before writing anything (bad door, bad
 locale, a fixture union, no DSN).
 """
 from __future__ import annotations
@@ -69,6 +69,12 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
+from worker.locale.desk_follow import (  # noqa: E402
+    DEFAULT_BUDGET,
+    FollowResult,
+    follow,
+    followable,
+)
 from worker.locale.desk_publish import (  # noqa: E402
     DESK_KEY,
     CandidateWrite,
@@ -84,6 +90,7 @@ from worker.locale.desk_publish import (  # noqa: E402
 )
 from worker.locale.desk_union import DeskUnion, bounded, union  # noqa: E402
 from worker.locale.desk_walk import DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, walk  # noqa: E402
+from worker.locale.identity_patterns import load_patterns  # noqa: E402
 from worker.locale.kind_map import KindMapError, load_kind_map, map_for_door  # noqa: E402
 from worker.locale.pack import LocalePackError, available_locales, load_pack  # noqa: E402
 
@@ -154,6 +161,134 @@ def split_table(walks: Sequence[DeskWalk]) -> str:
     return "\n".join(lines)
 
 
+def follow_walks(walks: Sequence[DeskWalk], fetchers: Mapping[str, object], *,
+                 budget: int, as_of, patterns=None) -> Dict[str, FollowResult]:
+    """The FIELD TICK: open each happening's own page and fill the holes it
+    states (ONE-LIVE-ENTITY-SPLIT-LAW.md §4, "fetch best door -> fields (when,
+    place, actors) same-page only").
+
+    The walk's rows are REPLACED by the filled ones, so everything downstream —
+    the union, the write plan, the counts — sees what the event pages said. The
+    budget is per desk, and the rows it does not reach are counted rather than
+    quietly presented as dateless.
+    """
+    out: Dict[str, FollowResult] = {}
+    for one in walks:
+        fetch = fetchers.get(one.door_id)
+        if fetch is None or not one.rows:
+            continue
+        result = follow(one.rows, fetch, door_id=one.door_id, budget=budget,
+                        as_of=as_of, patterns=patterns)
+        one.rows = result.rows
+        out[one.door_id] = result
+    return out
+
+
+def null_reasons(one: DeskWalk, result: Optional[FollowResult], *, patterns
+                 ) -> Dict[str, int]:
+    """WHY each row still has no clock, derived from the rows themselves.
+
+    `still_null_n` is the number a table would misread first: it holds rows
+    whose own page was read and stated no date, rows whose page we were refused,
+    and rows nobody asked because the budget ran out — three different facts, and
+    only the first is about the desk. Counting them apart is what stops a bounded
+    run from reading as a finding (RED_CLASSES: pagination-integrity-gap).
+    """
+    queued = {url for url, _ in (result.queued if result else ())}
+    counts = {"page stated no date": 0, "page could not be read": 0,
+              "not asked (budget)": 0, "no followable address": 0}
+    for row in one.rows:
+        if row.when:
+            continue
+        if row.detail_url:
+            counts["page stated no date"] += 1
+        elif (row.listing_url or "").strip() in queued:
+            counts["page could not be read"] += 1
+        elif followable(row, patterns=patterns)[0]:
+            counts["not asked (budget)"] += 1
+        else:
+            counts["no followable address"] += 1
+    return counts
+
+
+def follow_table(walks: Sequence[DeskWalk], follows: Mapping[str, FollowResult],
+                 *, budget: int, patterns) -> str:
+    """The founder's Ticket C table, exactly these five columns.
+
+      rows_n        happenings this desk yielded (unchanged by the follow — a
+                    field tick never creates or destroys a happening)
+      dated_n       rows carrying a clock a page STATED, after the follow
+      still_null_n  rows with none. Decomposed below, because it is not one fact
+      403_n         pages walled, list walk AND event pages, ours or theirs
+      mash_n        rows whose address is a list URL — must be 0 (§2 Forbidden)
+    """
+    lines = ["| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |",
+             "|---|---:|---:|---:|---:|---:|"]
+    for one in walks:
+        result = follows.get(one.door_id)
+        dated = sum(1 for r in one.rows if r.when)
+        walled = one.walled_n + (result.walled if result else 0)
+        lines.append(
+            f"| `{one.door_id}` | {one.count} | {dated} | {one.count - dated} | "
+            f"{walled} | {one.mash_n} |")
+    total_mash = sum(w.mash_n for w in walks)
+    lines.append("")
+    lines.append(
+        f"`mash_n` totals **{total_mash}**: a row whose address is the list's "
+        f"own URL keys a whole desk to one identity (§2 Forbidden), and the "
+        f"field tick opens a row's address — so a mashed row would have sent "
+        f"every fetch at the list page and written one page's date onto every "
+        f"happening on the desk. Following permalinks is only safe while this "
+        f"is 0.")
+    lines.append("")
+    lines.append("**Why the rest are still NULL** — three different facts, and "
+                 "only the first is about the desk:")
+    lines.append("")
+    lines.append("| desk | pages opened | page stated no date | page could not be read | "
+                 "not asked (budget) | no followable address |")
+    lines.append("|---|---:|---:|---:|---:|---:|")
+    for one in walks:
+        result = follows.get(one.door_id)
+        why = null_reasons(one, result, patterns=patterns)
+        lines.append(
+            f"| `{one.door_id}` | {result.fetched if result else 0} | "
+            f"{why['page stated no date']} | {why['page could not be read']} | "
+            f"{why['not asked (budget)']} | {why['no followable address']} |")
+    unasked = sum(null_reasons(one, follows.get(one.door_id), patterns=patterns)
+                  ["not asked (budget)"] for one in walks)
+    lines.append("")
+    lines.append(
+        f"The budget for this tick is **{budget} event pages per desk** (the "
+        f"founder's cap for this ticket). **{unasked}** happening(s) with a "
+        f"followable address were NOT opened by it: their clocks are UNASKED, "
+        f"not absent, so `dated_n` is a FLOOR and `still_null_n` is a CEILING "
+        f"on what these desks actually leave dateless. Raising the cap is the "
+        f"next ticket's decision, not this table's finding.")
+    return "\n".join(lines)
+
+
+def sample_rows(walks: Sequence[DeskWalk], n: int = 3) -> str:
+    """A few rows as a person would read them: the address, the clock, the place.
+
+    Rows the field tick actually opened come first — those are the ones this
+    ticket is evidence about — and each says which page stated what, so a filled
+    hole can never be mistaken for something the list card printed.
+    """
+    picked = [r for one in walks for r in one.rows if r.detail_url and r.when]
+    picked += [r for one in walks for r in one.rows if r.detail_url and not r.when]
+    picked += [r for one in walks for r in one.rows if not r.detail_url]
+    out = ["| # | listing_url | start_time | place | filled from the event page |",
+           "|---:|---|---|---|---|"]
+    for i, row in enumerate(picked[:n], 1):
+        out.append(
+            f"| {i} | {_cell(row.listing_url)} | {_cell(row.when)} | "
+            f"{_cell(row.place_text)} | "
+            f"{_cell(', '.join(row.filled_from_detail) or '—')} |")
+    if not picked:
+        out.append("| — | _no rows_ | — | — | — |")
+    return "\n".join(out)
+
+
 def count_events(cur) -> int:
     """`GET /events`'s population: every scheduled event, no confidence filter
     (api/public.py returns disputed rows too — shown as disputed, never
@@ -216,7 +351,8 @@ def counts_table(before: Mapping[str, int], after: Mapping[str, int],
 
 def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
                max_pages: int, timeout: int, min_interval: float
-               ) -> Tuple[List[DeskWalk], Dict[str, DeskRegistration], object, str]:
+               ) -> Tuple[List[DeskWalk], Dict[str, DeskRegistration], object, str,
+                          Dict[str, object]]:
     """Walk each named door and resolve every one of them to a catalog row.
 
     Registration happens BEFORE any write is planned, so a door that cannot be
@@ -245,6 +381,10 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
 
     walks: List[DeskWalk] = []
     registrations: Dict[str, DeskRegistration] = {}
+    # The SAME fetcher walks the list and, later, opens each happening's own
+    # page: one politeness delay, one user agent, one wall classifier. A second
+    # fetcher for the field tick would be a second answer to "was that a wall?".
+    fetchers: Dict[str, object] = {}
     fetch_live = live_fetcher(timeout_s=timeout, min_interval_s=min_interval) if real else None
 
     for door_id in door_ids:
@@ -262,9 +402,10 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
             fetch, start_url = fetch_live, None
         else:
             fetch, start_url, _ = fixture_fetcher(door.door_id)
+        fetchers[door.door_id] = fetch
         walks.append(walk(door, fetch, max_pages=max_pages, start_url=start_url,
                           kind_map=kind_map))
-    return walks, registrations, tz, pack.timezone
+    return walks, registrations, tz, pack.timezone, fetchers
 
 
 # --------------------------------------------------------------------------
@@ -565,7 +706,15 @@ def main(argv=None) -> int:
     ap.add_argument("--city", default="Austin", help="city the /tonight counts are taken for")
     ap.add_argument("--hours", type=int, default=168,
                     help="the wide /tonight window to count (default 168 = this week)")
-    ap.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES)
+    ap.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES,
+                    help="page ceiling for the LIST walk (unchanged by this ticket)")
+    ap.add_argument("--follow-budget", type=int, default=DEFAULT_BUDGET,
+                    help="event pages the field tick may open PER DESK "
+                         f"(default {DEFAULT_BUDGET}); rows past it are counted "
+                         f"as unasked, never as dateless")
+    ap.add_argument("--no-follow", action="store_true",
+                    help="do not open any event page; rows keep whatever the "
+                         "list card stated")
     ap.add_argument("--timeout", type=int, default=20)
     ap.add_argument("--min-interval", type=float, default=2.0,
                     help="politeness delay between live page fetches, seconds")
@@ -583,13 +732,27 @@ def main(argv=None) -> int:
               "database.", file=sys.stderr)
         return 2
 
+    if args.follow_budget < 0:
+        print("ERROR: --follow-budget must be zero or more.", file=sys.stderr)
+        return 2
+
     try:
-        walks, registrations, tz, tz_id = walk_doors(
+        walks, registrations, tz, tz_id, fetchers = walk_doors(
             args.locale, door_ids, real=args.real, max_pages=args.max_pages,
             timeout=args.timeout, min_interval=args.min_interval)
     except (LocalePackError, DeskWalkError, DeskPublishError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+    # The field tick, before the union: the union keys on the night, so a date
+    # an event page states has to be on the row BEFORE two desks are compared —
+    # otherwise one desk's dated row and another's hole never meet.
+    patterns = load_patterns()
+    follows: Dict[str, FollowResult] = {}
+    if not args.no_follow:
+        follows = follow_walks(
+            walks, fetchers, budget=args.follow_budget,
+            as_of=datetime.now(tz).date(), patterns=patterns)
 
     mode = "LIVE" if args.real else "FIXTURE"
     one = union(walks, timezone=tz, timezone_id=tz_id, mode=mode)
@@ -621,7 +784,34 @@ def main(argv=None) -> int:
     print()
     print(split_table(walks))
     print()
-    print("## 3. The write plan")
+    print("## 3. Following the permalink — date and place from the event page")
+    print()
+    if args.no_follow:
+        print("`--no-follow`: no event page was opened. Every clock below is "
+              "whatever the LIST card stated, which for most rows is a hole.")
+    else:
+        print(follow_table(walks, follows, budget=args.follow_budget,
+                           patterns=patterns))
+        print()
+        print("Three sample rows, as a person would read them:")
+        print()
+        print(sample_rows(walks))
+        for each in walks:
+            result = follows.get(each.door_id)
+            if result is None:
+                continue
+            for note in result.notes:
+                print(f"- `{each.door_id}`: {note}")
+            if not result.eligible:
+                print(f"- `{each.door_id}`: no row on this desk carries an "
+                      f"address a committed identity pattern calls one "
+                      f"happening on this host, so the field tick opened "
+                      f"nothing. That is a pattern-table fact, not a finding "
+                      f"about the desk.")
+            for url, why in result.queued[:5]:
+                print(f"- `{each.door_id}` queued: {url} — {why}")
+    print()
+    print("## 4. The write plan")
     print()
     print(plan_table(writes))
     print()
@@ -641,7 +831,7 @@ def main(argv=None) -> int:
     print()
 
     if not args.write:
-        print("## 4. Nothing was written")
+        print("## 5. Nothing was written")
         print()
         print("This was a dry run" + ("" if args.real else " over COMMITTED FIXTURES")
               + ". Re-run with `--real --write` on a machine that can reach the "
@@ -670,7 +860,7 @@ def main(argv=None) -> int:
         with conn.cursor() as cur:
             after = snapshot(cur, city=args.city, hours=args.hours)
 
-    print("## 5. What happened to each row")
+    print("## 6. What happened to each row")
     print()
     print(outcome_table(result))
     for bucket in ("changed", "held", "failed"):
@@ -681,7 +871,7 @@ def main(argv=None) -> int:
             for w, why in result[bucket]:
                 print(f"- `{w.ingest_key}` — {w.title}: {why}")
     print()
-    print("## 6. Before / after — what the site serves")
+    print("## 7. Before / after — what the site serves")
     print()
     print(counts_table(before, after, city=args.city, hours=args.hours))
     print()
@@ -700,7 +890,7 @@ def main(argv=None) -> int:
     # non-zero, name the events, and say what a person has to do.
     if result["dispute_failures"]:
         print()
-        print("## 7. FAILED — published rows are live and mislabelled")
+        print("## 8. FAILED — published rows are live and mislabelled")
         print()
         for event_id, why in result["dispute_failures"]:
             print(f"- `{event_id}` — {why}")

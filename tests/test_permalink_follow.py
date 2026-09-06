@@ -1,0 +1,623 @@
+"""The field tick, as tests that can fail — ONE-LIVE-ENTITY-SPLIT-LAW.md §4.
+
+A happening whose `listing_url` is an identity permalink gets its date and place
+from THAT page. Never from a guess, never from another page, never from a clock
+with no day beside it.
+
+The three cases the ticket names:
+  (a) a list card with no date + an event page saying "Sat Sep 6 - 9:00PM"
+      -> the row is DATED, from the event page
+  (b) an event page printing a clock and no date -> the row stays NULL
+  (c) a date from the LIST page must not attach to the event page's clock —
+      cross-page assembly is the exact thing "same page" forbids, and it is the
+      one that would look right in every table while being an instant nobody
+      published
+
+Nothing here is desk-specific: every host is a test host, the patterns are
+passed in as the same DATA a live run reads from
+`sources/identity_patterns.json`, and no test opens a socket.
+"""
+from __future__ import annotations
+
+import os
+from datetime import date
+
+import pytest
+
+from worker.locale import desk_follow as df
+from worker.locale import identity_patterns as ip
+from worker.locale.desk_read import Happening
+from worker.locale.desk_walk import PageFetch
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: The day the pages were fetched on. Every test that needs a weekday-pinned
+#: year states it, because the module refuses to pin one without an anchor —
+#: there is no "today" inside it.
+AS_OF = date(2026, 9, 1)
+
+PATTERNS = (ip.IdentityPattern(
+    pattern_id="test-event", host_family="desk.test", path_re=r"/event/[^/]+-\d+",
+    grade="fixture_shape", owned=False, note="test"),)
+
+
+def row(title="Dominic Fike", *, when=None, when_text=None, place_text=None,
+        listing_url="https://desk.test/event/dominic-fike-1",
+        source_url="https://desk.test/events/today") -> Happening:
+    """One happening as the LIST page left it — holes and all."""
+    return Happening(
+        title=title, when=when, when_text=when_text,
+        when_precision=("date" if when and len(when) == 10 else
+                        "datetime" if when else None),
+        place_text=place_text, via="Test Desk", kind="other",
+        door_id="test-desk", door_type="local_desk", locale_id="us-tx-capcog",
+        source_url=source_url, listing_url=listing_url,
+    )
+
+
+def fetcher(pages, *, calls=None):
+    """A fetcher over committed page text. Records every URL it is asked for, so
+    a test can assert that a page was opened ONCE and never retried."""
+    def fetch(url: str) -> PageFetch:
+        if calls is not None:
+            calls.append(url)
+        page = pages.get(url)
+        if page is None:
+            return PageFetch(url=url, status=404)
+        if isinstance(page, PageFetch):
+            return page
+        return PageFetch(url=url, status=200, body=page, final_url=url)
+    return fetch
+
+
+# --- (a) the event page dates the row ---------------------------------------
+
+EVENT_PAGE_DATED = """<!doctype html><html><body>
+<h1>Dominic Fike</h1>
+<p class="date-line">Sat Sep 5 &bull; 9:00PM</p>
+<div class="venue">Moody Amphitheater</div>
+<p>Doors open early. All ages.</p>
+</body></html>"""
+
+#: The founder's example string, verbatim. Kept as its own case rather than
+#: edited into the fixture above, because what it does is a REAL finding about
+#: this rule and not a typo to tidy away — see the test below.
+EVENT_PAGE_FOUNDER_EXAMPLE = EVENT_PAGE_DATED.replace("Sat Sep 5", "Sat Sep 6")
+
+
+def test_a_list_card_with_no_date_is_dated_by_its_own_event_page():
+    """(a) The list card printed a title and a link. The event page printed the
+    day and the time. The row comes out dated, and says which page dated it."""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.fetched == 1
+    got = result.rows[0]
+    assert got.when == "2026-09-05T21:00:00"
+    assert got.when_precision == "datetime"
+    assert got.detail_url == "https://desk.test/event/dominic-fike-1"
+    assert got.filled_from_detail == ("when", "place_text")
+    assert result.dated == 1
+
+
+def test_the_day_comes_from_the_page_and_the_year_from_the_page_s_own_weekday():
+    """"Sat Sep 5" states no year. The year is not assumed: it is the ONE year
+    in the fetch-anchored window where Sep 5 really IS a Saturday (R-030) —
+    2026 here, because 2027-09-05 is a Sunday. No "this year", no next
+    occurrence."""
+    assert date(2026, 9, 5).weekday() == 5
+    assert date(2027, 9, 5).weekday() == 6
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when.startswith("2026-09-05")
+
+
+def test_a_weekday_that_contradicts_the_day_dates_nothing():
+    """The founder's example string run LITERALLY: "Sat Sep 6 - 9:00PM".
+
+    Sep 6 2026 is a SUNDAY. A page printing "Sat Sep 6" has therefore
+    contradicted itself about which day it means, and the weekday is a checksum
+    rather than decoration: R-030 supplies a missing year only where exactly ONE
+    year in the fetch-anchored window carries that month/day on that weekday,
+    and refuses otherwise. Nothing here reaches for "the next Sep 6".
+
+    So this string yields a HOLE, and that is the rule working: the alternative
+    is publishing 2026-09-06 for a page that said Saturday, which is a wrong day
+    on a public row. A page whose weekday matches (the fixture above), one that
+    prints a year, or one carrying `<time datetime>`/JSON-LD all date normally.
+    """
+    assert date(2026, 9, 6).weekday() == 6
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_FOUNDER_EXAMPLE}),
+        patterns=PATTERNS, as_of=AS_OF)
+    got = result.rows[0]
+    assert got.when is None
+    assert got.place_text == "Moody Amphitheater"     # the place still fills
+    assert any("no date" in r for r in result.reads[0].refusals)
+
+
+def test_the_same_page_with_a_year_printed_dates_without_any_pinning():
+    """No weekday arithmetic is involved when the page simply says the year."""
+    page = EVENT_PAGE_FOUNDER_EXAMPLE.replace("Sat Sep 6", "September 6, 2026")
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": page}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when == "2026-09-06T21:00:00"
+
+
+def test_with_no_fetch_day_a_weekday_only_page_cannot_pin_a_year_and_stays_null():
+    """No anchor, no pinning — R-030 turns weekday resolution OFF rather than
+    reaching for "this year", and so does the tick that calls it."""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}),
+        patterns=PATTERNS, as_of=None)
+    assert result.rows[0].when is None
+    assert result.dated == 0
+
+
+def test_the_place_comes_from_the_event_page_too():
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].place_text == "Moody Amphitheater"
+    assert result.placed == 1
+
+
+def test_a_structured_event_page_states_its_own_instant():
+    """A page publishing schema.org is read as data first: the instant is the
+    one it published, not one assembled from prose."""
+    page = """<!doctype html><html><head><script type="application/ld+json">
+    {"@type": "MusicEvent", "name": "Dominic Fike",
+     "startDate": "2026-09-06T21:00:00-05:00",
+     "location": {"@type": "Place", "name": "The Hall"}}
+    </script></head><body><p>Sat Sep 6 &bull; 9:00PM</p></body></html>"""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": page}),
+        patterns=PATTERNS, as_of=AS_OF)
+    got = result.rows[0]
+    assert got.when == "2026-09-06T21:00:00-05:00"
+    assert got.place_text == "The Hall"
+
+
+def test_an_ics_body_at_the_permalink_is_read_as_the_page_s_own_statement():
+    page = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Dominic Fike\r\n"
+            "DTSTART:20260906T210000\r\nLOCATION:The Hall\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n")
+    read = df.field_read(page, url="https://desk.test/event/dominic-fike-1",
+                         as_of=AS_OF)
+    assert read.when_carrier == "ics"
+    assert read.when.startswith("2026-09-06T21:00")
+
+
+# --- (b) a clock with no date stays NULL -------------------------------------
+
+EVENT_PAGE_CLOCK_ONLY = """<!doctype html><html><body>
+<h1>Dominic Fike</h1>
+<p class="time">Doors 9:00PM</p>
+<div class="venue">Moody Amphitheater</div>
+</body></html>"""
+
+
+def test_an_event_page_stating_a_clock_and_no_date_leaves_the_row_null():
+    """(b) A time with no day is not a moment. The row keeps its hole, the place
+    is still filled, and the refusal says why in the page's own terms."""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_CLOCK_ONLY}),
+        patterns=PATTERNS, as_of=AS_OF)
+    got = result.rows[0]
+    assert got.when is None
+    assert got.when_precision is None
+    assert result.dated == 0
+    assert got.place_text == "Moody Amphitheater"      # the other field still fills
+    read = result.reads[0]
+    assert any("clock" in r and "no date" in r for r in read.refusals), read.refusals
+
+
+def test_the_clock_only_page_is_not_rescued_by_the_run_s_own_calendar():
+    """The anchor day exists (as_of), and it still does not become the event's
+    day. `as_of` may only PIN a year onto a date the page printed — it is never
+    a date of its own."""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_CLOCK_ONLY}),
+        patterns=PATTERNS, as_of=date(2026, 9, 6))
+    assert result.rows[0].when is None
+
+
+# --- (c) no cross-page assembly ----------------------------------------------
+
+def test_a_date_from_the_list_page_never_attaches_to_the_event_page_s_clock():
+    """(c) The list card stated the day. The event page states only a clock.
+    Joining them would produce 2026-09-06T21:00 — an instant NEITHER page
+    published, and one that would look correct in every table we print.
+
+    The row keeps exactly what the list card said, at the precision the list
+    card said it, and the event page contributes no date at all.
+    """
+    listed = row(when="2026-09-06", when_text="Sun Sep 6")
+    result = df.follow([listed], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_CLOCK_ONLY}),
+        patterns=PATTERNS, as_of=AS_OF)
+    got = result.rows[0]
+    assert got.when == "2026-09-06"                     # unchanged
+    assert got.when_precision == "date"                 # NOT upgraded to a time
+    assert got.when_text == "Sun Sep 6"                 # the list's own words
+    assert "when" not in got.filled_from_detail
+    assert result.dated == 0
+    # And the page itself is read as stating no date, so nothing downstream can
+    # mistake the list's day for the event page's word.
+    assert result.reads[0].when is None
+
+
+def test_the_event_page_never_overwrites_a_date_the_list_page_stated():
+    """Two doors disagreeing is not this tick's to settle: correcting a
+    published field is `worker/listing_update.py`'s reviewed seam. The follow
+    fills holes, and only holes."""
+    listed = row(when="2026-09-06T20:00:00", place_text="The Other Hall")
+    result = df.follow([listed], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}),
+        patterns=PATTERNS, as_of=AS_OF)
+    got = result.rows[0]
+    assert got.when == "2026-09-06T20:00:00"
+    assert got.place_text == "The Other Hall"
+    assert result.dated == 0 and result.placed == 0
+
+
+def test_a_row_with_both_fields_is_not_opened_at_all():
+    """It has nothing to fill, and the budget belongs to the rows that do."""
+    calls = []
+    listed = row(when="2026-09-06T20:00:00", place_text="The Hall")
+    result = df.follow([listed], fetcher({}, calls=calls), patterns=PATTERNS,
+                       as_of=AS_OF)
+    assert calls == []
+    assert result.eligible == 1 and result.skipped_complete == 1
+    assert result.fetched == 0
+
+
+def test_when_text_travels_with_the_instant_it_justifies():
+    """A filled row must be COHERENT, not merely filled: the words beside the
+    date are the words that produced it. A list card's prose left sitting next
+    to an event page's instant is the same cross-page mixture as (c), one field
+    over."""
+    listed = row(when_text="this weekend")
+    result = df.follow([listed], fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}),
+        patterns=PATTERNS, as_of=AS_OF)
+    got = result.rows[0]
+    assert got.when.startswith("2026-09-05")
+    assert "this weekend" not in (got.when_text or "")
+    assert "Sat Sep 5" in got.when_text
+
+
+# --- cardinality: one page, one happening ------------------------------------
+
+def test_a_page_stating_two_different_days_dates_nothing():
+    """RED_CLASSES missing-cardinality-check: more than one is not a longer list
+    to pick from. Which day this happening is on is exactly what is not stated,
+    and the first one would be a real, well-formed, wrong date."""
+    page = """<!doctype html><html><body><h1>Dominic Fike</h1>
+    <time datetime="2026-09-06T21:00">Sun Sep 6</time>
+    <time datetime="2026-09-07T21:00">Mon Sep 7</time>
+    <div class="venue">The Hall</div></body></html>"""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": page}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when is None
+    assert any("2 different dates" in r for r in result.reads[0].refusals)
+
+
+def test_zero_one_and_many_dates_are_three_different_outcomes():
+    """The same class, asserted as the three-way split it actually is."""
+    none_stated = df.field_read(
+        "<html><body><h1>A Show</h1></body></html>", url="u", as_of=AS_OF)
+    one = df.field_read(
+        '<html><body><time datetime="2026-09-06">Sun</time></body></html>',
+        url="u", as_of=AS_OF)
+    many = df.field_read(
+        '<html><body><time datetime="2026-09-06">a</time>'
+        '<time datetime="2026-09-08">b</time></body></html>', url="u", as_of=AS_OF)
+    assert (none_stated.when, one.when, many.when) == (None, "2026-09-06", None)
+    assert any("no date" in r for r in none_stated.refusals)
+    assert any("2 different dates" in r for r in many.refusals)
+    assert one.when_precision == "date"
+
+
+def test_a_page_printing_two_clocks_keeps_the_day_and_holes_the_time():
+    """"Doors 7pm, show 9pm" does not say which one this happening starts at.
+    The day the page stated still stands — refusing the time is not refusing the
+    date."""
+    page = """<!doctype html><html><body><h1>A Show</h1>
+    <p>Sat Sep 5 &mdash; doors 7:00PM, show 9:00PM</p>
+    <div class="venue">The Hall</div></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when == "2026-09-05"
+    assert read.when_precision == "date"
+    assert any("different clocks" in r for r in read.refusals)
+
+
+def test_two_labelled_places_name_no_place():
+    page = """<!doctype html><html><body><h1>A Show</h1>
+    <time datetime="2026-09-06">Sun Sep 6</time>
+    <div class="venue">The Hall</div><div class="venue">The Park</div>
+    </body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.place_text is None
+    assert any("2 different places" in r for r in read.refusals)
+
+
+def test_a_nested_location_markup_is_one_place_not_two():
+    page = """<!doctype html><html><body>
+    <div itemprop="location">The Hall <span itemprop="address">100 Main St</span></div>
+    <time datetime="2026-09-06">Sun Sep 6</time></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.place_text == "The Hall 100 Main St"
+    assert read.place_carrier == "labelled"
+
+
+# --- which URLs may be opened at all -----------------------------------------
+
+def test_an_off_origin_permalink_is_not_opened_and_the_row_is_not_dropped():
+    """On-origin only, this ticket. The address stays on the row as the next
+    step it always was: nothing is dropped, no door is demoted
+    (RED_CLASSES: hygiene-narrows-coverage)."""
+    calls = []
+    off = row(listing_url="https://vendor.test/event/dominic-fike-1")
+    result = df.follow([off], fetcher({}, calls=calls),
+                       patterns=PATTERNS + (ip.IdentityPattern(
+                           pattern_id="vendor", host_family="vendor.test",
+                           path_re=r"/event/[^/]+-\d+", grade="fixture_shape",
+                           owned=False, note="test"),), as_of=AS_OF)
+    assert calls == []
+    assert result.skipped_off_origin == 1
+    assert result.rows[0] is off               # untouched, still in the catalog
+    assert result.rows[0].listing_url == "https://vendor.test/event/dominic-fike-1"
+
+
+def test_an_address_no_committed_pattern_claims_is_not_opened():
+    """A category page, a venue's homepage, the desk's own list — none of them
+    is one happening, and this tick has no business opening them."""
+    calls = []
+    other = row(listing_url="https://desk.test/section/music")
+    result = df.follow([other], fetcher({}, calls=calls), patterns=PATTERNS,
+                       as_of=AS_OF)
+    assert calls == [] and result.skipped_no_identity == 1
+    assert result.eligible == 0
+
+
+def test_a_row_with_no_address_of_its_own_is_left_alone():
+    result = df.follow([row(listing_url=None)], fetcher({}), patterns=PATTERNS,
+                       as_of=AS_OF)
+    assert result.eligible == 0 and result.fetched == 0
+    assert result.rows[0].when is None
+
+
+def test_a_redirect_off_the_origin_is_not_read():
+    """A redirect to another host is a different door. Reading fields off it
+    would attach a stranger's page to this happening."""
+    landed = PageFetch(url="https://desk.test/event/dominic-fike-1", status=200,
+                       body=EVENT_PAGE_DATED,
+                       final_url="https://vendor.test/checkout/1")
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": landed}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when is None
+    assert result.unread == 1
+    assert any("redirected off-origin" in why for _, why in result.queued)
+
+
+# --- walls: knock once, queue, keep the happening -----------------------------
+
+@pytest.mark.parametrize("status", [401, 402, 403, 407, 429])
+def test_a_wall_is_a_hole_queued_never_a_retry_and_never_a_deletion(status):
+    """The founder's rule, all five statuses: fail closed, queue it, do not
+    retry, do not delete the happening."""
+    calls = []
+    walled = PageFetch(url="https://desk.test/event/dominic-fike-1", status=status)
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": walled}, calls=calls),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert calls == ["https://desk.test/event/dominic-fike-1"]   # ONE knock
+    assert result.walled == 1
+    assert len(result.rows) == 1 and result.rows[0].title == "Dominic Fike"
+    assert result.rows[0].when is None
+    assert result.queued and "class D" in result.queued[0][1]
+
+
+def test_a_proxy_wall_with_no_http_status_is_still_counted_as_a_wall():
+    """The sandbox's own 403 arrives as a transport error with no status. A wall
+    that shows up as 0 in the 403 column is exactly the number that lets a
+    walled desk be reported as an empty calendar."""
+    blocked = PageFetch(url="https://desk.test/event/dominic-fike-1",
+                        error="ProxyError: Tunnel connection failed: 403 Forbidden",
+                        walled=True)
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": blocked}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.walled == 1 and result.unread == 1
+    assert result.rows[0].when is None
+
+
+def test_a_404_is_triage_not_an_answer_about_the_happening():
+    result = df.follow([row()], fetcher({}), patterns=PATTERNS, as_of=AS_OF)
+    assert result.unread == 1
+    assert any("triage" in why for _, why in result.queued)
+    assert result.rows[0].title == "Dominic Fike"
+
+
+def test_a_fetcher_that_raises_costs_one_page_not_the_run():
+    def boom(url):
+        raise RuntimeError("socket died")
+    result = df.follow([row(), row("Second", listing_url="https://desk.test/event/second-2")],
+                       boom, patterns=PATTERNS, as_of=AS_OF)
+    assert result.unread == 2 and len(result.rows) == 2
+
+
+def test_nothing_is_ever_fetched_twice():
+    """No retry anywhere, and rows sharing one address share one fetch."""
+    calls = []
+    same = [row(), row("Same show, second card")]
+    result = df.follow(same, fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED}, calls=calls),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert calls == ["https://desk.test/event/dominic-fike-1"]
+    assert result.fetched == 1
+    assert all(r.when.startswith("2026-09-05") for r in result.rows)
+
+
+# --- the budget is a floor ----------------------------------------------------
+
+def test_the_budget_bounds_the_pages_and_the_rest_are_UNASKED():
+    """RED_CLASSES pagination-integrity-gap: a cap is a runaway backstop, never
+    a measurement. The rows past it are not dateless — nobody asked them."""
+    rows = [row(f"Show {i}", listing_url=f"https://desk.test/event/show-{i}")
+            for i in range(5)]
+    pages = {f"https://desk.test/event/show-{i}": EVENT_PAGE_DATED for i in range(5)}
+    calls = []
+    result = df.follow(rows, fetcher(pages, calls=calls), budget=2,
+                       patterns=PATTERNS, as_of=AS_OF)
+    assert len(calls) == 2
+    assert result.fetched == 2 and result.not_followed == 3
+    assert result.dated == 2 and result.still_null_n == 3
+    assert result.budget_spent
+    assert any("UNASKED" in n for n in result.notes)
+
+
+def test_a_zero_budget_opens_nothing_and_says_so():
+    calls = []
+    result = df.follow([row()], fetcher({}, calls=calls), budget=0,
+                       patterns=PATTERNS, as_of=AS_OF)
+    assert calls == [] and result.not_followed == 1 and result.eligible == 1
+
+
+@pytest.mark.parametrize("bad", [-1, 1.5, "40", None])
+def test_a_budget_that_is_not_a_count_raises(bad):
+    with pytest.raises(df.DeskFollowError):
+        df.follow([row()], fetcher({}), budget=bad, patterns=PATTERNS)
+
+
+def test_a_fetcher_returning_something_unclassifiable_raises():
+    with pytest.raises(df.DeskFollowError):
+        df.follow([row()], lambda url: "<html>", patterns=PATTERNS, as_of=AS_OF)
+
+
+# --- the module holds no host knowledge --------------------------------------
+
+def test_the_place_label_rule_has_exactly_one_definition():
+    """Two definitions of "the page called this a venue" would drift into two
+    different answers about the same markup."""
+    from worker.locale import desk_read
+    assert df.PLACEISH_RE is desk_read.PLACEISH_RE
+
+
+# --- the tick as the tool runs it ---------------------------------------------
+
+def _tool():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_tool_desk_ingest", os.path.join(REPO, "tools", "desk_ingest.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _walk(rows):
+    from worker.locale.desk_walk import DeskWalk, PageVisit
+    one = DeskWalk(door_id="test-desk", door_type="local_desk", via="Test Desk",
+                   start_url="https://desk.test/events/today", rows=list(rows))
+    one.pages.append(PageVisit(n=1, url=one.start_url, status=200,
+                               rows_seen=len(rows), new_rows=len(rows),
+                               identity_tier="permalink"))
+    one.stopped_because = "no_next_link"
+    return one
+
+
+def test_the_tool_puts_the_filled_rows_back_on_the_walk():
+    """Everything downstream — the union, the write plan, the counts — reads the
+    walk's rows. A tick that filled a hole and left it in a side result would be
+    a table nobody's catalog agrees with."""
+    tool = _tool()
+    one = _walk([row()])
+    tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    assert one.rows[0].when == "2026-09-05T21:00:00"
+    assert one.rows[0].place_text == "Moody Amphitheater"
+
+
+def test_the_founders_five_columns_are_the_five_columns():
+    tool = _tool()
+    one = _walk([row(), row("Second", listing_url="https://desk.test/event/second-2")])
+    follows = tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED,
+        "https://desk.test/event/second-2": EVENT_PAGE_CLOCK_ONLY})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    table = tool.follow_table([one], follows, budget=40, patterns=PATTERNS)
+    header = table.splitlines()[0]
+    assert header == "| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |"
+    assert "| `test-desk` | 2 | 1 | 1 | 0 | 0 |" in table
+    assert "mash_n` totals **0**" in table
+
+
+def test_the_table_separates_unasked_rows_from_dateless_ones():
+    """The number a reader would misread first. A budget-capped run must not
+    print "still_null_n" as a finding about the desk."""
+    tool = _tool()
+    rows = [row(f"Show {i}", listing_url=f"https://desk.test/event/show-{i}")
+            for i in range(4)]
+    pages = {f"https://desk.test/event/show-{i}": EVENT_PAGE_CLOCK_ONLY
+             for i in range(4)}
+    one = _walk(rows)
+    follows = tool.follow_walks([one], {"test-desk": fetcher(pages)}, budget=1,
+                                as_of=AS_OF, patterns=PATTERNS)
+    why = tool.null_reasons(one, follows["test-desk"], patterns=PATTERNS)
+    assert why == {"page stated no date": 1, "page could not be read": 0,
+                   "not asked (budget)": 3, "no followable address": 0}
+    table = tool.follow_table([one], follows, budget=1, patterns=PATTERNS)
+    assert "UNASKED" in table and "is a FLOOR" in table
+
+
+def test_a_walled_page_is_counted_apart_from_a_page_that_said_nothing():
+    tool = _tool()
+    walled = PageFetch(url="https://desk.test/event/show-0", status=403)
+    one = _walk([row("Show 0", listing_url="https://desk.test/event/show-0"),
+                 row("Show 1", listing_url="https://desk.test/event/show-1")])
+    follows = tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/show-0": walled,
+        "https://desk.test/event/show-1": EVENT_PAGE_CLOCK_ONLY})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    why = tool.null_reasons(one, follows["test-desk"], patterns=PATTERNS)
+    assert why["page could not be read"] == 1
+    assert why["page stated no date"] == 1
+    assert "| `test-desk` | 2 | 0 | 2 | 1 | 0 |" in tool.follow_table(
+        [one], follows, budget=40, patterns=PATTERNS)
+
+
+def test_the_sample_rows_say_which_page_stated_the_date():
+    tool = _tool()
+    one = _walk([row()])
+    tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/dominic-fike-1": EVENT_PAGE_DATED})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    table = tool.sample_rows([one])
+    assert "https://desk.test/event/dominic-fike-1" in table
+    assert "2026-09-05T21:00:00" in table
+    assert "Moody Amphitheater" in table
+    assert "when, place_text" in table
+
+
+def test_the_fixture_dry_run_still_runs_and_no_follow_opens_nothing(capsys):
+    """The committed-fixture path, both ways. Hermetic: no socket, no DSN."""
+    tool = _tool()
+    assert tool.main(["--dry-run", "--no-follow"]) == 0
+    printed = capsys.readouterr().out
+    assert "no event page was opened" in printed
+    assert "Nothing was written" in printed
+    assert tool.main(["--dry-run"]) == 0
+    printed = capsys.readouterr().out
+    assert "| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |" in printed
+
+
+def test_a_negative_budget_is_refused_before_anything_is_walked(capsys):
+    tool = _tool()
+    assert tool.main(["--dry-run", "--follow-budget", "-1"]) == 2
+    assert "must be zero or more" in capsys.readouterr().err

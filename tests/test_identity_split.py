@@ -538,7 +538,8 @@ def test_no_reader_module_names_a_host():
     """The Chronicle-only function the ticket forbids cannot exist if no host
     appears in the readers' code at all. Host knowledge lives in
     `sources/identity_patterns.json` and in the locale pack — as data."""
-    for name in ("desk_read.py", "desk_walk.py", "identity_patterns.py"):
+    for name in ("desk_read.py", "desk_walk.py", "identity_patterns.py",
+                 "desk_follow.py"):
         code = _code_only(os.path.join(REPO, "worker", "locale", name))
         for host in ("austinchronicle", "do512", "eventbrite", "chronicle"):
             assert host not in code, f"{name} names {host} in code, not in data"
