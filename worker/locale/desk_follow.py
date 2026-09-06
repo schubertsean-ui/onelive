@@ -131,7 +131,15 @@ _HAS_CLOCK_RE = re.compile(r"\d:[0-5]\d|T[0-2]\d[0-5]\d")
 _PLACE_ITEMPROPS = frozenset({"location", "address"})
 
 #: Elements whose text is never a place (or anything else printed).
-_SKIP_TEXT_TAGS = frozenset({"script", "style", "template"})
+#: Elements whose text is never a place (or anything else this page STATES).
+#: Form controls earn their place here from the live run: a `<select>` of
+#: restaurant categories sitting inside a venue-labelled block was read as one of
+#: the page's two "places". A picker offers choices; it does not say where this
+#: happening is.
+_SKIP_TEXT_TAGS = frozenset({
+    "script", "style", "template", "select", "option", "optgroup", "datalist",
+    "textarea", "button", "label",
+})
 
 #: Block-level containers. A page's printed text is cut into SEGMENTS on these,
 #: and a segment is the closest thing a page has to "one statement": inline
@@ -565,12 +573,16 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
                                 f"statements were still read")
     mine = speaks_for(ld_events, url)
     if ld_events and not mine:
+        # Name the addresses. "A different address" is a verdict; WHICH address
+        # is the evidence, and it is the difference between a sidebar event and
+        # this desk addressing one happening two ways.
+        named = sorted({a for ev in ld_events for _, a in _addresses_named(ev)})
         refuse(
             "structured-not-bound",
-            f"page publishes {len(ld_events)} schema.org event(s) and every one "
-            f"names a different address than this happening's — a sidebar, a "
-            f"featured show, or a stale node. None of them speaks for this row, "
-            f"so none of them dates or places it")
+            f"page publishes {len(ld_events)} schema.org event(s), and they name "
+            f"{', '.join(named[:3]) or 'no address'} while this happening's "
+            f"address is {_address(url)[1]} — so none of them speaks for this "
+            f"row, and none of them dates or places it")
 
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
