@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-119 passed in 0.39s
+121 passed in 0.40s
 ```
 
 | ticket case | test | result |
@@ -1280,6 +1280,85 @@ added a tracking parameter. Neither was wrong about its own page. The question
 that would have caught both is the one `hygiene-narrows-coverage` asks in
 reverse — not "whose sites does this refuse?" but **"what does the input look
 like one step past my example, and does the sentence I wrote still hold?"**
+
+### 13n. Round 12 — a day is not a fingerprint, and a boundary that varied by markup style
+
+Both openai seats blocking, both gemini APPROVE with one NIT that turned out to
+be a coverage regression **round 11 introduced**. All three reproduced against
+`bd5b2b9` before a line changed.
+
+**(1) An unbound node could lend this row its clock.** `owned_by_this_happening`
+had three arms, and the third was "a hit whose DAY appears among the days the
+card states is ours". A day is not a fingerprint. R-030 reports each date under
+the strongest carrier that stated it, so when a card prints a bare "September
+18, 2026" and an unrelated sidebar node names `2026-09-18T23:00`, the document
+scan returns **one** hit — kind `jsonld`, carrying the sidebar's clock:
+
+```
+PRE-FIX  when=2026-09-18T23:00:00  codes=('structured-not-bound', …)
+POST-FIX when=2026-09-18  precision=date  carrier=visible-date  codes=('structured-not-bound', 'no-clock', …)
+```
+
+The other show's time, published as this row's, **beside a refusal saying none
+of the nodes dates this row**. A behaviour and its own diagnostic disagreeing
+about one page is `diagnostics-as-data` on top of the smuggle.
+
+*And deleting that arm alone was wrong* — the suite said so in one run, before
+any live run could. The arm was doing two jobs: rescuing an unbound node by day
+(the defect), and recovering the card's own printed date when the document-wide
+scan lost it (real). A page printing "Sat Sep 5 • 9:00PM" in its article beside
+a 31-cell calendar widget comes back from the whole-document scan with the
+widget's days and **not its own**. So the fix is two parts: `jsonld` is refused
+outright (a `<script>` payload owns no statement — the comment has said so since
+r4, and now it is a line), and `card_dates()` reads the card's segments
+directly. **Third time in this ticket a document-wide scan had to become a
+per-card one** — r8's card days, r10's clock comparison, this — always because
+R-030 credits a date to its strongest carrier and the card's own words vanish
+under it.
+
+The r8 test then caught the fallback going too far: on a desk contradicting
+itself, r8 empties both tiers, and the new fallback quietly re-supplied the
+card's half of the disagreement as the answer. Gated on the contradiction flag.
+
+**(2) The card boundary failed closed or open depending on markup STYLE.** r9
+answered the heading-less page with `()` — "page level only, every section
+excluded" — which is restrictive on a page built from sectioning elements and
+the exact opposite on a page built from `<div>`s. `<div>` is a block boundary
+and not a sectioning tag, so such a page has no top-level sections, every
+statement sits at page level, and `()` admitted all of them:
+
+```
+PRE-FIX  when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+```
+
+`()` and `None` were two different answers wearing one value. `()` now means
+**the page level IS the subject** (a heading exists, in no section — r6,
+tested); `None` means **no subject could be identified**, and admits nothing.
+
+**Blast radius, stated rather than discovered later** (the `hygiene-narrows-coverage`
+rule): the VISIBLE-TEXT path is now refused on a page with no visible heading
+and no sectioning element. The STRUCTURED path is untouched — a title-only
+div-soup page publishing its own schema.org node still fills both fields, which
+the test pins. Three existing fixtures broke and all three were scaffolding for
+other rules (cardinality, nested place markup, clock locality) that had been
+relying on the permissive default; each now carries a heading, with the reason
+written in.
+
+**(3) The gemini NIT was a regression r11 introduced.** `field_read` was called
+with the LANDED url. Harmless while `_address` dropped the query — and the
+moment r11 stopped dropping it, a desk redirecting to `?ref=cal` made every node
+naming the canonical address stop matching. Fail-closed, so a hole rather than a
+wrong field, but a hole for no reason. The row's own address is the identity
+inside `field_read`: `same_identity` has already established the landed page IS
+this happening's page. Proven as a regression against `bd5b2b9`, and pinned.
+
+**What rounds 10–12 have in common.** Six findings across three rounds, five of
+them in code this ticket wrote, and every one is the same sentence: *a rule
+correct about the example in front of me, silent one step outside it.* One clock
+became two (r11). One query value became another (r11). One markup style became
+another (r12). A day shared by two carriers became a day claimed by the wrong
+one (r12). The counter-measure is not another guard — it is asking, of every
+rule, **what the input looks like one step past the fixture that motivated it**.
 
 ## 14. What this ticket did NOT do
 

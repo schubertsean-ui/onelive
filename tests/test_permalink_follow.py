@@ -308,14 +308,20 @@ def test_a_page_stating_two_different_days_dates_nothing():
 
 
 def test_zero_one_and_many_dates_are_three_different_outcomes():
-    """The same class, asserted as the three-way split it actually is."""
+    """The same class, asserted as the three-way split it actually is.
+
+    Each fixture carries a heading because since r12 a page printing none, in
+    no sectioning element, identifies no subject and states nothing at all —
+    which is a different refusal from the three under test here."""
     none_stated = df.field_read(
         "<html><body><h1>A Show</h1></body></html>", url="u", as_of=AS_OF)
     one = df.field_read(
-        '<html><body><time datetime="2026-09-06">Sun</time></body></html>',
+        '<html><body><h1>A Show</h1>'
+        '<time datetime="2026-09-06">Sun</time></body></html>',
         url="u", as_of=AS_OF)
     many = df.field_read(
-        '<html><body><time datetime="2026-09-06">a</time>'
+        '<html><body><h1>A Show</h1>'
+        '<time datetime="2026-09-06">a</time>'
         '<time datetime="2026-09-08">b</time></body></html>', url="u", as_of=AS_OF)
     assert (none_stated.when, one.when, many.when) == (None, "2026-09-06", None)
     assert any("no date" in r for r in none_stated.refusals)
@@ -474,9 +480,11 @@ def test_two_labelled_places_name_no_place():
 
 
 def test_a_nested_location_markup_is_one_place_not_two():
-    page = """<!doctype html><html><body>
+    # The `<article><h1>` is scaffolding (see r12): a page with no heading and
+    # no sectioning element identifies no subject and states nothing.
+    page = """<!doctype html><html><body><article><h1>A Show</h1>
     <div itemprop="location">The Hall <span itemprop="address">100 Main St</span></div>
-    <time datetime="2026-09-06">Sun Sep 6</time></body></html>"""
+    <time datetime="2026-09-06">Sun Sep 6</time></article></body></html>"""
     read = df.field_read(page, url="u", as_of=AS_OF)
     assert read.place_text == "The Hall 100 Main St"
     assert read.place_carrier == "labelled"
@@ -523,11 +531,19 @@ def test_a_box_office_clock_elsewhere_is_not_the_shows_time():
 
 def test_the_clock_must_come_from_the_statement_that_gave_the_day():
     """Two blocks are two statements. One block — however it is marked up
-    inside — is one."""
-    apart = ('<html><body><div class="date">Sat Sep 5</div>'
-             '<div class="clock">9:00PM</div></body></html>')
-    together = ('<html><body><div><span class="date">Sat Sep 5</span> '
-                '<span class="t">9:00PM</span></div></body></html>')
+    inside — is one.
+
+    The `<article><h1>` is scaffolding, not the rule under test: since r12 a
+    page printing NO heading and NO sectioning element identifies no subject
+    and states nothing, so a fixture testing the CLOCK rule has to give the
+    page a card to state its clock in. The heading-less case has its own test
+    (`test_a_page_with_no_heading_and_no_sections_states_nothing`)."""
+    apart = ('<html><body><article><h1>A Show</h1>'
+             '<div class="date">Sat Sep 5</div>'
+             '<div class="clock">9:00PM</div></article></body></html>')
+    together = ('<html><body><article><h1>A Show</h1>'
+                '<div><span class="date">Sat Sep 5</span> '
+                '<span class="t">9:00PM</span></div></article></body></html>')
     assert df.field_read(apart, url="u", as_of=AS_OF).when == "2026-09-05"
     assert df.field_read(together, url="u", as_of=AS_OF).when == "2026-09-05T21:00:00"
 
@@ -1022,7 +1038,13 @@ def test_a_same_origin_redirect_to_another_page_is_not_read_either():
 
 def test_a_tracking_parameter_on_the_redirect_is_the_same_page():
     """A desk that appends its own `?ref=` has sent us where we asked. Refusing
-    that would hole a page we actually read."""
+    that would hole a page we actually read.
+
+    Extended at r12 (gemini/spec-vs-contract NIT): the row's OWN address is the
+    identity inside `field_read`, not the landed one. Passing `landed` was
+    harmless while `_address` dropped the query and became a coverage loss the
+    moment r11 stopped — a node naming the canonical address stopped matching
+    on any desk that redirects with a tracking parameter."""
     landed = PageFetch(url="https://desk.test/event/dominic-fike-1", status=200,
                        body=EVENT_PAGE_DATED,
                        final_url="https://desk.test/event/dominic-fike-1/?ref=cal")
@@ -1030,6 +1052,24 @@ def test_a_tracking_parameter_on_the_redirect_is_the_same_page():
         "https://desk.test/event/dominic-fike-1": landed}),
         patterns=PATTERNS, as_of=AS_OF)
     assert result.rows[0].when == "2026-09-05T21:00:00"
+
+    # And a node naming the CANONICAL address still speaks for the row after
+    # that redirect — the half r11 broke without noticing.
+    spoken = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike",
+     "url":"https://desk.test/event/dominic-fike-1",
+     "startDate":"2026-09-05T21:00:00-05:00",
+     "location":{"@type":"Place","name":"The Hall"}}</script></head>
+    <body><article><h1>Dominic Fike</h1></article></body></html>"""
+    redirected = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": PageFetch(
+            url="https://desk.test/event/dominic-fike-1", status=200,
+            body=spoken,
+            final_url="https://desk.test/event/dominic-fike-1?ref=cal")}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert redirected.rows[0].when == "2026-09-05T21:00:00-05:00", \
+        redirected.reads[0].refusals
+    assert redirected.rows[0].place_text == "The Hall"
 
 
 # --- whose event is this structured node about? -------------------------------
@@ -1810,6 +1850,97 @@ def test_a_query_naming_another_night_is_another_page():
     assert read.place_text is None
     # The refusal has to SHOW which night, or a correct refusal reads like a bug.
     assert any("date=2026-09-19" in r for r in read.refusals), read.refusals
+
+
+def test_an_unbound_node_sharing_the_cards_day_cannot_lend_it_a_clock():
+    """Evaluator, PR #235 r12, BOTH openai seats, and the absence-only seat asked
+    for this test by name: "unbound JSON-LD node shares the visible card day but
+    names another happening".
+
+    `owned_by_this_happening` had a third arm — a hit whose DAY appears among the
+    days the card states is ours. A day is not a fingerprint. R-030 reports each
+    date under the STRONGEST carrier that stated it, so when a card prints a bare
+    "September 18, 2026" and an unrelated sidebar node names 2026-09-18T23:00,
+    the document scan returns ONE hit: kind `jsonld`, carrying the SIDEBAR'S
+    CLOCK. The day-match arm found that day in the card and called the hit ours:
+
+        PRE-FIX   when=2026-09-18T23:00:00  codes=('structured-not-bound', …)
+
+    — the other show's time published as this row's, beside a refusal saying
+    none of the nodes dates this row. The behaviour and its own diagnostic
+    disagreeing about one page is `diagnostics-as-data` as well as a smuggle.
+
+    The card's own day must SURVIVE the node being refused, which is why the fix
+    is not "drop the hit" alone: `card_dates()` reads the card directly, so the
+    row keeps the bare day the page actually printed."""
+    smuggle = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Some Other Show",
+     "url":"https://desk.test/event/some-other-show-99",
+     "startDate":"2026-09-18T23:00:00",
+     "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h1>Dominic Fike</h1>
+    <p>Friday, September 18, 2026</p></article></body></html>"""
+    read = df.field_read(smuggle, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-18", read.when
+    assert read.when_precision == "date"          # the clock did NOT come with it
+    assert read.when_carrier == "visible-date"    # and it is the CARD's statement
+    assert "structured-not-bound" in read.codes
+    assert read.place_text is None                # nor the other room
+
+    # The converse, and it is the reason the day-match arm existed: a page whose
+    # own card prints its date beside a calendar widget the document scan
+    # attributes elsewhere still keeps its own day.
+    plain = ("""<html><body><article><h1>A Show</h1>"""
+             """<p>Sat Sep 5 &bull; 9:00PM</p></article></body></html>""")
+    assert df.field_read(plain, url="u", as_of=AS_OF).when == "2026-09-05T21:00:00"
+
+
+def test_a_page_with_no_heading_and_no_sections_states_nothing():
+    """Evaluator, PR #235 r12, openai/attacker-smuggle — r9 closed the
+    heading-less page by returning `()` ("page level only, every section
+    excluded"), which is restrictive on a page built from sectioning elements
+    and the OPPOSITE on a page built from `<div>`s: `<div>` is a block boundary
+    and not a sectioning tag, so such a page has no top-level sections, every
+    statement sits at page level, and `()` admitted all of them.
+
+        PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+
+    Whether the boundary failed closed or open depended on the desk's markup
+    STYLE, which is the worst way for a trust rule to vary. `()` now means "the
+    page level IS the subject" (a heading exists, in no section — r6, tested)
+    and `None` means "no subject could be identified", which admits nothing.
+
+    THE COST IS STATED AND IT IS BOUNDED: the VISIBLE-TEXT path is refused on
+    such a page, and the STRUCTURED path is untouched — a title-only div-soup
+    page that publishes its own schema.org node still fills both fields, which
+    the second half of this test pins."""
+    promo = """<html><head><title>Dominic Fike</title></head><body>
+    <div class="promo"><p>Christmas Special — December 25, 2026 8:00PM</p>
+      <div class="venue">The Other Room</div></div>
+    <div class="main"><p>Dominic Fike</p></div></body></html>"""
+    read = df.field_read(promo, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None, read.place_text
+
+    # Bounded: the same page, with a node that speaks for this row, still reads.
+    spoken = """<html><head><title>Dominic Fike</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike","url":"%s",
+     "startDate":"2026-09-05T21:00:00-05:00",
+     "location":{"@type":"Place","name":"The Hall"}}</script></head>
+    <body><div class="promo"><p>Christmas Special — December 25, 2026 8:00PM</p>
+      <div class="venue">The Other Room</div></div>
+    <div>Dominic Fike</div></body></html>""" % HERE
+    ok = df.field_read(spoken, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert ok.when == "2026-09-05T21:00:00-05:00", ok.refusals
+    assert ok.place_text == "The Hall"
+
+    # And r6's case is NOT swept up in it: a heading outside any section still
+    # makes the page level the subject, so its own statements come through.
+    sectionless = ("""<html><body><h1>A Show</h1>"""
+                   """<p>Sat Sep 5 &bull; 9:00PM</p></body></html>""")
+    assert df.field_read(sectionless, url="u", as_of=AS_OF).when \
+        == "2026-09-05T21:00:00"
 
 
 def test_a_card_agreeing_with_its_own_markup_settles_the_day():

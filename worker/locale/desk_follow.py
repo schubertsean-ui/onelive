@@ -168,16 +168,34 @@ def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...], str]],
     But page-level-only is too blunt, and the tests said so: a heading-less page
     whose content sits in ONE `<article>` would lose everything. So when the
     page has exactly one top-level card, that card is the subject — it is the
-    only thing the page could be about. Two or more and there is nothing to
-    choose between them, so only page-level statements count and every section
-    is excluded, which is the seat's case exactly.
+    only thing the page could be about.
+
+    Two or more, and r9 answered `()` — page level only, every section
+    excluded. That reads as restrictive and IS restrictive on a page built from
+    sectioning elements. It is the opposite on a page built from `<div>`s:
+    `<div>` is a block boundary and not a sectioning tag, so such a page has NO
+    top-level sections, every statement on it sits at page level, and `()`
+    admits all of them — an unrelated promo `<div>` on a title-only page
+    published its date and venue with no refusal at all (evaluator, PR #235
+    r12, openai/attacker-smuggle; reproduced as `2026-12-25T20:00:00` at 'The
+    Other Room'). Whether the rule fail-closed or fail-open depended on the
+    desk's markup STYLE, which is the worst way for a trust boundary to vary.
+
+    So the two situations are told apart, because they were never the same
+    question. `()` means THE PAGE LEVEL IS THE SUBJECT — a heading exists and
+    sits in no section, so its own statements are page-level ones (r6, tested).
+    `None` means NO SUBJECT COULD BE IDENTIFIED — no heading at all, and no
+    single card to fall back on — and nothing on such a page is inside a card
+    this module can name. Not knowing what a page is about is a reason to trust
+    it less, and that has to hold for every markup style, not just the one the
+    fixture used.
     """
     for tag in _HEADING_TAGS:
         for mark_tag, sections, _text in marks:
             if mark_tag == tag:
                 return sections
     alone = set(top_sections)
-    return (top_sections[0],) if len(alone) == 1 else ()
+    return (top_sections[0],) if len(alone) == 1 else None
 
 
 def _inside_the_card(sections: Tuple[int, ...],
@@ -1211,13 +1229,82 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         return hit.kind == "jsonld" and _instant_key(hit.raw) in bound_instants
 
     def owned_by_this_happening(hit) -> bool:
+        """Is this date a statement THIS HAPPENING'S OWN CARD makes?
+
+        Two ways to be ours, and until r12 there was a third that was not.
+
+        (1) The carrier says whose start it is (`event_scoped`) — a bound
+        schema.org node, or an ICS file served at this address.
+
+        (2) The carrier's own text SITS IN the card. That is positional, not
+        semantic: `hit.raw` is the page's own characters, and the segment
+        scanner keeps a `<time datetime>` attribute in the segment it appeared
+        in, so a machine carrier inside this card is found here and one in the
+        page's plumbing is not.
+
+        A `<script>` payload can be NEITHER. It is refused explicitly rather
+        than left to fail the text test by luck: the comment beside `stated`
+        has claimed since r4 that a document-level carrier owns no statement,
+        and prose claiming a mechanism the code does not have is exactly what
+        r4's other finding was. Now it is a line, not a sentence.
+
+        What stood here until r12 had a THIRD way to be ours — matching a
+        hit's DAY against the days the card states — and that was the hole. A
+        day is not a fingerprint. R-030 reports each date under the STRONGEST
+        carrier that stated it, so a day the card prints AND an unrelated
+        sidebar node also names comes back as ONE `jsonld` hit CARRYING THE
+        SIDEBAR'S CLOCK; the day-match arm found that day in the card, called
+        the hit ours, and let `_HAS_CLOCK_RE` publish another show's time onto
+        this row — beside a `structured-not-bound` refusal saying none of the
+        nodes dates this row (evaluator, PR #235 r12, both openai seats;
+        reproduced as `2026-09-18T23:00:00`). A diagnostic and a behaviour
+        disagreeing about one page is the `diagnostics-as-data` half of it.
+
+        Removing that arm alone would have cost a real page, and the suite said
+        so before any live run: `card_dates()` below is what it was doing that
+        still has to happen.
+        """
         if event_scoped(hit):
             return True
-        return any((hit.raw and hit.raw in s)
-                   or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}
-                   for s in said)
+        if hit.kind == "jsonld":
+            return False
+        return any(hit.raw and hit.raw in s for s in said)
+
+    def card_dates() -> List:
+        """The dates this happening's own card states, read FROM THE CARD.
+
+        The document-wide scan does not always find them. A page printing "Sat
+        Sep 5 • 9:00PM" in its article beside a 31-cell calendar widget comes
+        back from the whole-document scan with the widget's days and NOT its
+        own — so the day-match arm removed above was doing two jobs, and only
+        one of them was the defect. This is the other job, done positionally
+        instead of by day: scan each of the card's own segments.
+
+        Third time in this ticket that a document-wide scan had to become a
+        per-card one (r8's card days, r10's clock comparison, this) — always
+        for the same reason, that R-030 attributes a date to its strongest
+        carrier and the card's own words go missing under it.
+
+        Deduplicated by DAY: a card printing its date in a header and again in
+        a body line has stated one date, not two, and cardinality below must
+        not read that as ambiguity.
+        """
+        out, seen = [], set()
+        for segment in said:
+            for found in same_page_dates(segment, as_of=as_of):
+                if found.date not in seen:
+                    seen.add(found.date)
+                    out.append(found)
+        return out
 
     stated = same_page_dates(html, as_of=as_of)
+    #: Set when the card and the bound markup name different days. It is not
+    #: the same as "no structured hit": r8 EMPTIES both tiers on a
+    #: contradiction because a desk disagreeing with itself has not stated a
+    #: day, and the card fallback below must not then quietly re-supply the
+    #: card's half of the disagreement as the answer (its own r8 test caught
+    #: exactly that while this fallback was being written).
+    contradicted = False
     # NEVER MIX TIERS (ONE-LIVE-ENTITY-SPLIT-LAW.md §2, the ladder's own rule,
     # here applied to fields rather than identities). A schema.org
     # `Event.startDate` or an ICS `DTSTART` states WHOSE start it is; printed
@@ -1284,10 +1371,23 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 f"day it is on is not settled and the date stays NULL")
             structured = []
             stated = []
+            contradicted = True
     if structured:
         stated = structured
     dates = [hit for hit in stated if owned_by_this_happening(hit)]
-    in_plumbing = [hit for hit in stated if hit not in dates]
+    if not structured and not contradicted:
+        # A DAY THE CARD PRINTS IS THIS ROW'S EVEN WHEN THE DOCUMENT SCAN LOST
+        # IT. Owned carriers come first — they are the stronger statement and
+        # they carry the clock — and the card's own reading supplies only days
+        # nothing owned has already stated. Not consulted at all when a bound
+        # node speaks: that tier has already answered, and the card's words are
+        # then a CHECK on it (`card-contradicts-its-own-markup`), never an
+        # addition to it.
+        owned_days = {hit.date for hit in dates}
+        dates = dates + [hit for hit in card_dates()
+                         if hit.date not in owned_days]
+    in_plumbing = [hit for hit in stated
+                   if hit.date not in {d.date for d in dates}]
     if len(dates) > 1:
         # RED_CLASSES: missing-cardinality-check. Three outcomes, three
         # behaviours — and "more than one" is not a longer list to pick from.
@@ -1738,7 +1838,18 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
             result.queued.append((url, "empty body — nothing read (not 'nothing stated')"))
             continue
 
-        read = field_read(page.body, url=landed, as_of=as_of,
+        # THE ROW'S OWN ADDRESS IS THE IDENTITY, not wherever the desk sent us.
+        # `same_identity` above has already established that `landed` IS this
+        # happening's page, so what is left to decide inside is which node
+        # speaks for THIS ROW — and the row's address is the one the identity
+        # ladder chose. Passing `landed` was harmless while `_address` dropped
+        # the query and became a coverage loss the moment r11 stopped: a desk
+        # redirecting to `?ref=cal` made every node naming the canonical
+        # address stop matching (gemini/spec-vs-contract NIT, r12; fail-closed,
+        # a hole rather than a wrong field, but a hole this desk need not have).
+        # Nothing else in `field_read` prefers `landed`: `same_identity` pins
+        # host and path, so relative links resolve identically against either.
+        read = field_read(page.body, url=url, as_of=as_of,
                           patterns=patterns)
         result.reads.append(read)
         moved = False
