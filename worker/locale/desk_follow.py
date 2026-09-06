@@ -727,6 +727,14 @@ class FieldRead:
     #: instead of a number (ONE-LIVE-ENTITY-SPLIT-LAW.md §9.3: record it as
     #: data, not chat).
     codes: Tuple[str, ...] = ()
+    #: True when a PRECISE time was taken from markup and the card printed no
+    #: clock agreeing with it. Not a refusal — the row is dated and correct on
+    #: every desk whose card simply says nothing about time — but it is the
+    #: exposure surface of R-115: the only way a word clock in a language this
+    #: repo cannot read reaches a reader is through a row counted here. Printed
+    #: on every run so the residual is a MEASURED quantity on real desks rather
+    #: than an argument in a record (r22).
+    clock_uncorroborated: bool = False
     #: What this page calls ITSELF — the visible subject, or `<title>` where it
     #: prints none. Carried so `apply_read` can ask whether the page is about
     #: the row it is being applied to WITHOUT computing the headings a second
@@ -1601,6 +1609,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
 
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
+    clock_uncorroborated = False
     page_clock, clock_refusal = _clock_claim(" ".join(said))
 
     # WHOSE DATE IT IS IS ASKED FIRST, AND CARDINALITY OVER THE ANSWER.
@@ -1931,6 +1940,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 verdicts = [v for v in (
                     _clock_agrees(token, stated_wall, day, as_of)
                     for token in _clocks_printed(said_text)) if v is not None]
+                clock_uncorroborated = not verdicts
                 if verdicts and not any(verdicts):
                     shown = ", ".join(_clocks_printed(said_text)[:4])
                     refuse(
@@ -2094,6 +2104,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         when_carrier=when_carrier, place_text=place_text,
         place_carrier=place_carrier, refusals=tuple(refusals),
         codes=tuple(codes), headings=tuple(headings),
+        clock_uncorroborated=clock_uncorroborated,
     )
 
 

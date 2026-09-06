@@ -2120,6 +2120,41 @@ def test_a_word_clock_the_parser_cannot_read_cannot_agree_with_the_markup():
     assert read("<p>September 18, 2026</p>").when == "2026-09-18T19:30:00-05:00"
 
 
+def test_the_report_counts_the_rows_r115_could_reach():
+    """r22: R-115's residual, printed as a NUMBER on every run instead of argued
+    in a record for a fifth round.
+
+    Both openai seats blocked on the narrowed R-115 (non-English word clocks),
+    and the only vocabulary-free close — requiring the card to CORROBORATE every
+    structured clock — was built and measured: it broke 33 of 136 tests, because
+    "the card says nothing about time" is the dominant shape and those rows are
+    correct. That is a measured cost, not an argument, and it is why the residual
+    stays.
+
+    What ships instead is its exposure: a precise time taken from markup on a
+    page whose card printed no clock is the entire surface on which an
+    unreadable word clock could disagree. Counting it makes the residual's size
+    a fact about real desks rather than a claim in prose."""
+    tool = _tool()
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            '"name":"Dominic Fike","url":"https://desk.test/event/show-0",'
+            '"startDate":"2026-09-18T19:30:00-05:00"}</script>')
+    quiet = (f"<html><head>{node}</head><body><article><h1>Dominic Fike</h1>"
+             f"<p>An evening of songs.</p></article></body></html>")
+    corroborated = quiet.replace("<p>An evening of songs.</p>",
+                                 "<p>September 18, 2026 — 7:30PM</p>")
+    one = _walk([row("Dominic Fike", listing_url="https://desk.test/event/show-0"),
+                 row("Dominic Fike", listing_url="https://desk.test/event/show-1")])
+    follows = tool.follow_walks([one], {"test-desk": fetcher({
+        "https://desk.test/event/show-0": quiet,
+        "https://desk.test/event/show-1": corroborated.replace("show-0", "show-1")})},
+        budget=40, as_of=AS_OF, patterns=PATTERNS)
+    table = tool.what_the_pages_said(follows)
+    # One of the two pages printed no clock of its own; the other corroborated.
+    assert "**1 of 2**" in table, table
+    assert "R-115" in table
+
+
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
     """Evaluator, PR #235 r20, openai/attacker-smuggle — r18's sub-card rule
     excluded nested SECTIONING elements, and `<div>` is a block boundary and not

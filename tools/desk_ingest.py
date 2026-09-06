@@ -292,6 +292,22 @@ def what_the_pages_said(follows: Mapping[str, FollowResult]) -> str:
     out.append(f"{pages} event page(s) opened. A page can carry more than one "
                f"reason (a date refusal and a place refusal are separate), so "
                f"these do not sum to the page count.")
+    # R-115's EXPOSURE, printed rather than argued. A precise time taken from
+    # markup on a page whose card printed no clock at all is correct on every
+    # desk that simply says nothing about time — and it is also the only way a
+    # word clock in a language this repo cannot read reaches a reader. Nothing
+    # is refused here; the number is the size of the residual on real desks,
+    # which is what the record needs and what four rounds of arguing it did not
+    # produce.
+    lonely = sum(1 for result in follows.values()
+                 for read in result.reads if read.clock_uncorroborated)
+    out.append("")
+    out.append(f"**{lonely} of {pages}** opened page(s) took a PRECISE time from "
+               f"markup while their own card printed no clock at all. Those rows "
+               f"are right whenever the card says nothing about time, and they "
+               f"are the whole surface on which an unreadable word clock "
+               f"(R-115) could disagree — so this count, not the record's "
+               f"prose, is the residual's size on this desk.")
     # The codes say WHICH repair; the sentences say what the pages actually
     # printed. A code counted at 100% and never quoted is still not something a
     # person can act on — the next ticket needs the desk's own words.

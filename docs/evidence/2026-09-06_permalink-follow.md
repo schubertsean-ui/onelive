@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-136 passed in 0.51s
+137 passed in 0.82s
 ```
 
 | ticket case | test | result |
@@ -1963,6 +1963,52 @@ home is unchanged and still checked: the armed parser cannot read those either,
 Must-do 1 names that file imported-never-edited, and the first ticket authorised
 to edit it teaches the parser every language at once — the detector and the
 comparator being the same import.
+
+### 13x. Round 22 — building the fix instead of arguing about it
+
+Both openai seats block on the NARROWED R-115: non-English word clocks
+("mediodía", "Mittag", "正午"). Fifth reopening of a residual in this ticket.
+
+**So this round I built the close rather than writing a sixth argument.** The
+only close that needs no language knowledge is to require the card to
+CORROBORATE every structured clock — publish a precise time only when the page
+prints one that agrees. One line. Then run the suite:
+
+```
+33 failed, 103 passed
+```
+
+**A third of the module.** Because "the card says nothing about time" is the
+dominant shape on real pages, and those rows are *correct* — including case (a)
+of the founder's own acceptance list, where the list card has no date and the
+event page states day and time, the time routinely coming from markup.
+
+That is the answer, and it is a measurement rather than an argument: the
+vocabulary-free close is not available at an acceptable price, and the
+language-by-language close is unbounded and arbitrary in which languages it
+picks. The English half stays closed (r21).
+
+**What ships instead is the residual's SIZE.** Every run now prints how many
+opened pages took a precise time from markup while their own card printed no
+clock at all:
+
+> **N of M** opened page(s) took a PRECISE time from markup while their own
+> card printed no clock at all.
+
+That set is the entire surface on which an unreadable word clock could
+disagree — a row outside it either has no structured clock or has a card clock
+that was checked. So the number is the residual's exposure on real desks, and
+it is printed beside the refusal table every run rather than asserted in a
+record. Pinned in the suite.
+
+**What five reopenings have actually taught.** R-112, R-113, R-114, R-115 (twice)
+— every deferral in this ticket was reopened by the next review, and each time
+the reviewer was right about something: the bound, the harm class, the trigger,
+the reasons, and now the price. The pattern is not that residuals are always
+wrong; it is that **a residual argued is worth less than a residual measured**,
+and the cheapest way to find out which I have is to build the thing I was about
+to explain away and read what breaks. That took ten minutes this round and
+produced a number three rounds of prose did not.
 
 ## 14. What this ticket did NOT do
 
