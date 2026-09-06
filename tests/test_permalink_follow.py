@@ -677,6 +677,118 @@ def test_a_calendar_widget_outside_the_card_does_not_poison_the_page():
     assert read.when == "2026-09-05T21:00:00", read.refusals
 
 
+def test_a_promo_heading_above_the_article_does_not_become_the_subject():
+    """Evaluator, PR #235 r6, openai/attacker-smuggle — reproduced before fixing.
+
+    The card boundary took the FIRST heading of any of h1/h2/h3 as the page's
+    subject. A promotional block placed above the real article carries its own
+    `<h2>`, date and venue — so it became the subject, and the real event
+    content was pushed OUTSIDE the card:
+
+        PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+
+    `<h1>` is the page's subject by HTML's own semantics. A subheading is not a
+    subject while a subject exists."""
+    page = """<html><body><main>
+      <section class="promo"><h2>Some Other Show</h2>
+        <p>Friday, December 25, 2026 &mdash; 8:00PM</p>
+        <div class="venue">The Other Room</div></section>
+      <article><h1>Dominic Fike</h1>
+        <p>Saturday, September 5, 2026 &mdash; 9:00PM</p>
+        <div class="venue">The Hall</div></article>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+    assert read.place_text == "The Hall"
+
+
+def test_a_page_whose_only_heading_is_an_h2_still_has_a_card():
+    """The converse of the rule above: h2/h3 stand in for a page that prints no
+    `<h1>` at all, so such a page keeps its boundary rather than losing it."""
+    page = """<html><body><main>
+      <article><h2>Dominic Fike</h2>
+        <p>Saturday, September 5, 2026 &mdash; 9:00PM</p>
+        <div class="venue">The Hall</div></article>
+      <section class="promo"><p>Friday, December 25, 2026</p>
+        <div class="venue">The Other Room</div></section>
+    </main></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+    assert read.place_text == "The Hall"
+
+
+def test_a_sectionless_heading_does_not_disable_the_boundary():
+    """Evaluator, PR #235 r6, openai/attacker-smuggle — reproduced before fixing.
+
+    "A page whose heading is in no section is ONE card" was a permissive
+    fallback, and it disabled the boundary for the whole page: an unlinked promo
+    `<section>` elsewhere in the body supplied the only date and venue.
+
+        PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+
+    When the heading sits in no section, the card IS the page level — and a
+    section is a different card."""
+    page = """<html><body>
+      <h1>Dominic Fike</h1><p>Tickets at the door.</p>
+      <section class="promo"><p>Friday, December 25, 2026 &mdash; 8:00PM</p>
+        <div class="venue">The Other Room</div></section>
+    </body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None
+
+
+def test_a_sectionless_page_still_states_its_own_day_and_venue():
+    """The converse, so the clause above cannot be read as "a sectionless page
+    states nothing": statements at the page level, beside the heading, are the
+    page's own."""
+    page = """<html><body>
+      <h1>Dominic Fike</h1>
+      <p>Saturday, September 5, 2026 &mdash; 9:00PM</p>
+      <div class="venue">The Hall</div>
+    </body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+    assert read.place_text == "The Hall"
+
+
+def test_an_h2_subject_is_a_heading_the_identity_check_can_read():
+    """Evaluator, PR #235 r6, openai/absence-only — reproduced before fixing.
+
+    Two definitions of "the page's heading" had drifted: the card boundary
+    already treated `<h2>` as a page subject, while `_headings` read only
+    `<h1>`/`<title>`. So a page whose visible subject is an `<h2>` had NOTHING
+    for the contradiction check to compare against, and a poisoned node
+    claiming this URL while naming another show sailed through:
+
+        PRE-FIX   when=2026-12-25T20:00:00-06:00  place='The Other Room'  codes=()
+    """
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Some Other Show",
+      "url":"https://desk.test/event/dominic-fike-1",
+      "startDate":"2026-12-25T20:00:00-06:00",
+      "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h2>Dominic Fike</h2></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None
+    assert "structured-not-bound" in read.codes
+
+
+def test_a_promo_subheading_is_not_a_name_this_page_answers_to():
+    """A page WITH an `<h1>` does not adopt its subheadings as names. Otherwise
+    the fix above would hand a poisoned node an easier target: a promotional
+    `<h2>` naming another show would be a heading the node could match."""
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Some Other Show",
+      "url":"https://desk.test/event/dominic-fike-1",
+      "startDate":"2026-12-25T20:00:00-06:00"}</script></head>
+    <body><article><h1>Dominic Fike</h1>
+    <h2>Some Other Show</h2></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+
+
 def test_a_calendar_widget_INSIDE_the_card_still_refuses():
     """The other direction, so the boundary cannot be read as "widgets are
     always ignored". Put the same grid inside the article and the page really

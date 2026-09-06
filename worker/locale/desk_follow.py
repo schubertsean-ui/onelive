@@ -133,9 +133,67 @@ _HAS_CLOCK_RE = re.compile(r"\d:[0-5]\d|T[0-2]\d[0-5]\d")
 #: schema.org properties that name where a happening is.
 _PLACE_ITEMPROPS = frozenset({"location", "address"})
 
-#: What a page uses to say what it is ABOUT. The first one outside plumbing is
-#: the page's own subject, and the section holding it is the page's own card.
-_HEADING_TAGS = frozenset({"h1", "h2", "h3"})
+#: What a page uses to say what it is ABOUT, STRONGEST FIRST. `<h1>` is the
+#: page's subject by HTML's own semantics; `<h2>`/`<h3>` are subheadings and
+#: stand in only for a page that prints no `<h1>` at all.
+#:
+#: The order matters and is the r6 finding: taking the FIRST heading of ANY of
+#: these let a promotional block placed above the real article — carrying its
+#: own `<h2>`, date and venue — become the page's subject and push the real
+#: event content outside the card (evaluator, PR #235 r6,
+#: openai/attacker-smuggle). A subheading is not a subject while a subject
+#: exists.
+_HEADING_TAGS = ("h1", "h2", "h3")
+
+
+def _pick_subject(marks: Sequence[Tuple[str, Tuple[int, ...]]]
+                  ) -> Optional[Tuple[int, ...]]:
+    """The sectioning elements enclosing the page's SUBJECT heading.
+
+    ONE definition, used by both scanners and mirrored by `_headings` for the
+    text side — the r6 absence-only finding was exactly these two drifting: the
+    card boundary already treated `<h2>` as a page subject while the identity
+    check still read only `<h1>`/`<title>`, so a page whose visible subject is
+    an `<h2>` had NO headings to contradict a poisoned node with.
+
+    None when the page prints no heading at all: nothing is known about what it
+    is about, so nothing is excluded on that basis.
+    """
+    for tag in _HEADING_TAGS:
+        for mark_tag, sections in marks:
+            if mark_tag == tag:
+                return sections
+    return None
+
+
+def _inside_the_card(sections: Tuple[int, ...],
+                     subject: Optional[Tuple[int, ...]]) -> bool:
+    """Is a statement printed inside the page's own card?
+
+    The card is the innermost sectioning element holding the page's subject
+    heading — or, when the heading sits in none, the page level itself.
+
+    Both halves are r6 findings and they pull opposite ways, so the rule needs
+    both clauses:
+
+      * a statement OUTSIDE the heading's section is not the page's own (a
+        month-grid `<table>` at body level beside an `<article>` that states
+        the show's day) — so the heading's sections must be a PREFIX of the
+        statement's, which also admits a subsection of the card;
+      * a statement inside ANY section when the heading is in none is not the
+        page's own either (an unlinked promo `<section>` supplying the only
+        date on a page whose heading sits directly in `<body>`). Treating a
+        sectionless heading as "no boundary at all" left exactly that open
+        (evaluator, PR #235 r6, openai/attacker-smuggle).
+
+    A page printing no heading has said nothing about what it is about, so
+    nothing is excluded on that basis.
+    """
+    if subject is None:
+        return True
+    if not subject:
+        return not sections
+    return sections[:len(subject)] == subject
 
 #: Elements whose text is never a place (or anything else this page STATES).
 #: Form controls earn their place here from the live run: a `<select>` of
@@ -218,15 +276,14 @@ class _SegmentScanner(HTMLParser):
         #: The card each segment was printed in, same scheme as the place scan:
         #: the ids of every element open when the segment started.
         self.segment_scopes: List[Tuple[int, ...]] = []
-        self.subject_scope: Optional[int] = None
+        #: (tag, enclosing sectioning ids) for every heading outside plumbing.
+        self.heading_marks: List[Tuple[str, Tuple[int, ...]]] = []
         self._parts: List[str] = []
         self._skip = 0
         self._furniture = 0
         self._open: List[str] = []
         self._next_id = 0
-        self._here: List[int] = []
         self._started_in: Tuple[int, ...] = ()
-        self._saw_heading = False
 
     def _flush(self) -> None:
         text = " ".join(" ".join(self._parts).split())
@@ -234,10 +291,14 @@ class _SegmentScanner(HTMLParser):
             self.segments.append(text)
             self.segment_scopes.append(self._started_in)
         self._parts = []
-        self._started_in = tuple(self._here)
+        self._started_in = self._sections()
+
+    def _sections(self) -> Tuple[int, ...]:
+        """The sectioning elements currently open, outermost first."""
+        return tuple(sid for _tag, _f, sid in self._open if sid is not None)
 
     def _in_sectioning(self) -> bool:
-        return any(tag in SECTIONING_TAGS for tag, _ in self._open)
+        return any(tag in SECTIONING_TAGS for tag, _f, _s in self._open)
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -256,19 +317,16 @@ class _SegmentScanner(HTMLParser):
         if furniture:
             self._flush()
             self._furniture += 1
-        self._next_id += 1
-        mine = self._next_id
-        self._open.append((tag, furniture))
-        self._here.append(mine)
-        if tag in _HEADING_TAGS and not self._saw_heading and not self._furniture:
-            # The page's own subject, and the section holding it is the card
-            # this page is ABOUT — the same boundary the place scan reads.
-            self._saw_heading = True
-            for (open_tag, _f), ident in zip(reversed(self._open),
-                                             reversed(self._here)):
-                if open_tag in SECTIONING_TAGS:
-                    self.subject_scope = ident
-                    break
+        section_id = None
+        if tag in SECTIONING_TAGS:
+            self._next_id += 1
+            section_id = self._next_id
+        self._open.append((tag, furniture, section_id))
+        if tag in _HEADING_TAGS and not self._furniture:
+            # Every heading is RECORDED; which one is the page's subject is
+            # decided at close by `_pick_subject`, because a streaming scan
+            # cannot know whether an <h1> is still coming.
+            self.heading_marks.append((tag, self._sections()))
         if tag in _BLOCK_TAGS:
             self._flush()
         if tag == "time" and not self._furniture and not self._skip:
@@ -289,17 +347,15 @@ class _SegmentScanner(HTMLParser):
             return
         if tag in _BLOCK_TAGS:
             self._flush()
-        if any(open_tag == tag for open_tag, _ in self._open):
+        if any(open_tag == tag for open_tag, _f, _s in self._open):
             while self._open:
-                closed, opened_furniture = self._open.pop()
-                if self._here:
-                    self._here.pop()
+                closed, opened_furniture, _section = self._open.pop()
                 if opened_furniture:
                     self._parts = []   # anything buffered in plumbing is dropped
                     self._furniture = max(0, self._furniture - 1)
                 if closed == tag:
                     break
-            self._started_in = tuple(self._here)
+            self._started_in = self._sections()
 
     def handle_data(self, data):
         if not self._skip and not self._furniture:
@@ -334,10 +390,9 @@ def segments(html: str) -> List[str]:
     except Exception as exc:  # noqa: BLE001 — a pathological page states nothing, it never crashes
         log.debug("segment scan raised on a followed page: %s", exc)
         return []
-    if scanner.subject_scope is None:
-        return scanner.segments
+    subject = _pick_subject(scanner.heading_marks)
     return [text for text, scope in zip(scanner.segments, scanner.segment_scopes)
-            if scanner.subject_scope in scope]
+            if _inside_the_card(scope, subject)]
 
 
 def _host(url: Optional[str]) -> str:
@@ -431,17 +486,13 @@ class _PlaceScanner(HTMLParser):
         self._skip = 0
         self._furniture = 0
         self._open: List[str] = []
-        #: A monotonic id per opened element, so an ancestor can be named
-        #: without buffering its subtree.
+        #: A monotonic id per opened SECTIONING element, so a card can be
+        #: named without buffering its subtree.
         self._next_id = 0
-        #: The id of the sectioning element the page's FIRST heading sits in —
-        #: the page's own card. None until a heading is seen, and None forever
-        #: on a page whose heading is in no section at all, which means the
-        #: whole page is one card.
-        self.subject_scope: Optional[int] = None
-        self._saw_heading = False
-        #: Open element ids at the moment each place was captured.
-        self._here: List[int] = []
+        #: (tag, enclosing sectioning ids) for every heading outside plumbing.
+        self.heading_marks: List[Tuple[str, Tuple[int, ...]]] = []
+        #: Enclosing sectioning ids at the moment each place was captured.
+        self._opened_in: Tuple[int, ...] = ()
         self.place_scopes: List[Tuple[int, ...]] = []
 
     @staticmethod
@@ -451,8 +502,12 @@ class _PlaceScanner(HTMLParser):
         return any(PLACEISH_RE.search(attrs.get(name) or "")
                    for name in ("class", "id"))
 
+    def _sections(self) -> Tuple[int, ...]:
+        """The sectioning elements currently open, outermost first."""
+        return tuple(sid for _tag, _f, sid in self._open if sid is not None)
+
     def _in_sectioning(self) -> bool:
-        return any(tag in SECTIONING_TAGS for tag, _ in self._open)
+        return any(tag in SECTIONING_TAGS for tag, _f, _s in self._open)
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
@@ -466,20 +521,16 @@ class _PlaceScanner(HTMLParser):
             tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning())
         if furniture:
             self._furniture += 1
-        self._next_id += 1
-        mine = self._next_id
-        self._open.append((tag, furniture))
-        self._here.append(mine)
-        if tag in _HEADING_TAGS and not self._saw_heading and not self._furniture:
-            # The page's own subject. Its nearest sectioning ancestor is the
-            # card this page is ABOUT; a venue outside that card belongs to
-            # whatever else the page happens to carry.
-            self._saw_heading = True
-            for (open_tag, _f), ident in zip(reversed(self._open),
-                                             reversed(self._here)):
-                if open_tag in SECTIONING_TAGS:
-                    self.subject_scope = ident
-                    break
+        section_id = None
+        if tag in SECTIONING_TAGS:
+            self._next_id += 1
+            section_id = self._next_id
+        self._open.append((tag, furniture, section_id))
+        if tag in _HEADING_TAGS and not self._furniture:
+            # Every heading is RECORDED; which one is the page's subject is
+            # decided at close by `_pick_subject`, because a streaming scan
+            # cannot know whether an <h1> is still coming.
+            self.heading_marks.append((tag, self._sections()))
         if tag == "a" and not self._skip and not self._furniture:
             href = " ".join(
                 (dict((k.lower(), v or "") for k, v in attrs).get("href") or "").split())
@@ -494,7 +545,7 @@ class _PlaceScanner(HTMLParser):
         if self._labelled(flat):
             self._depth = 1
             self._parts = []
-            self._opened_in = tuple(self._here)
+            self._opened_in = self._sections()
             # schema.org may state the value in `content` when the visible text
             # is something else; that stated value is the place.
             stated = " ".join((flat.get("content") or "").split())
@@ -506,11 +557,9 @@ class _PlaceScanner(HTMLParser):
         if tag in _SKIP_TEXT_TAGS:
             self._skip = max(0, self._skip - 1)
             return
-        if any(open_tag == tag for open_tag, _ in self._open):
+        if any(open_tag == tag for open_tag, _f, _s in self._open):
             while self._open:
-                closed, opened_furniture = self._open.pop()
-                if self._here:
-                    self._here.pop()
+                closed, opened_furniture, _section = self._open.pop()
                 if opened_furniture:
                     self._furniture = max(0, self._furniture - 1)
                 if closed == tag:
@@ -605,16 +654,34 @@ def _named_urls(event: Dict[str, object], url: str) -> FrozenSet[str]:
 
 
 _HEADING_RE = re.compile(
-    r"<(h1|title)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
+    r"<(h1|h2|h3|title)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
 
 
 def _headings(html: str) -> List[str]:
-    """What this page calls ITSELF: its `<h1>`s and its `<title>`."""
-    out: List[str] = []
-    for _tag, inner in _HEADING_RE.findall(html or ""):
+    """What this page calls ITSELF — its subject heading(s) and its `<title>`.
+
+    ONE definition of "the page's heading", shared with the card boundary by
+    construction: the same `_HEADING_TAGS` precedence picks the subject here as
+    picks the card there. The r6 absence-only finding was these two drifting —
+    the boundary already treated `<h2>` as a page subject while this read only
+    `<h1>`/`<title>`, so a page whose visible subject is an `<h2>` had NOTHING
+    for `_contradicts_this_page` to compare against, and a poisoned node
+    claiming this URL sailed through.
+
+    Subheadings of a page that HAS an `<h1>` are deliberately not included: a
+    promotional `<h2>` naming another show must not become a name this page
+    answers to.
+    """
+    found: Dict[str, List[str]] = {}
+    for tag, inner in _HEADING_RE.findall(html or ""):
         text = " ".join(_TAG_RE.sub(" ", inner).split())
         if text:
-            out.append(text)
+            found.setdefault(tag.lower(), []).append(text)
+    out = list(found.get("title", []))
+    for tag in _HEADING_TAGS:
+        if found.get(tag):
+            out.extend(found[tag])
+            break
     return out
 
 
@@ -801,9 +868,10 @@ def _scan_places(html: str) -> Tuple[List[str], List[str]]:
     except Exception as exc:  # noqa: BLE001 — a pathological page loses its place, not its row
         log.debug("place scan raised on a followed page: %s", exc)
         return [], []
+    subject = _pick_subject(scanner.heading_marks)
     out: List[str] = []
     for place, scope in zip(scanner.places, scanner.place_scopes):
-        if scanner.subject_scope is not None and scanner.subject_scope not in scope:
+        if not _inside_the_card(scope, subject):
             continue
         if place not in out:
             out.append(place)

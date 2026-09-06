@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-100 passed in 0.33s
+106 passed in 0.45s
 ```
 
 | ticket case | test | result |
@@ -825,6 +825,50 @@ The `date-in-plumbing` sentence is also corrected. The counter token keeps its
 name so its history stays continuous, but a reason that says "plumbing" about a
 promotional card sends the next reader at the wrong repair, so it now names
 both: the page's own plumbing, or another card beside its own.
+
+### 13f. Round 6 — the boundary's own two ends, and a definition that drifted
+
+Three findings, both openai seats; both gemini APPROVE. All three reproduced
+before fixing.
+
+| | pre-fix | post-fix |
+|---|---|---|
+| a promo `<h2>` above the article | `2026-12-25T20:00:00` / The Other Room | `2026-09-05T21:00:00` / The Hall |
+| sectionless heading + promo `<section>` | `2026-12-25T20:00:00` / The Other Room | `None` |
+| `<h2>` subject + node claiming this URL | `2026-12-25T20:00:00-06:00` / The Other Room | `None` |
+
+**(a) The subject was the first heading of ANY level.** A promotional block
+placed above the real article carries its own `<h2>`, date and venue — so it
+became the page's subject and pushed the real content outside the card. `<h1>`
+is the subject by HTML's own semantics; `h2`/`h3` stand in only for a page that
+prints no `<h1>` at all, and a page like that keeps its boundary (its own test).
+
+**(b) A sectionless heading disabled the boundary entirely.** "One card" was a
+permissive fallback, and it let an unlinked promo `<section>` supply the only
+date on a page whose heading sits directly in `<body>`. The card rule now has
+two clauses that pull opposite ways and needs both:
+
+* a statement OUTSIDE the heading's section is not the page's own — the
+  heading's sections must be a PREFIX of the statement's (which still admits a
+  subsection of the card);
+* a statement inside ANY section when the heading is in none is not the page's
+  own either.
+
+The first clause is what keeps the month-grid case from §13e working; the
+second is the r6 finding. Writing only one of them breaks the other, which is
+how the first attempt at this failed its own earlier test.
+
+**(c) Two definitions of "the page's heading" had drifted.** The boundary
+already treated `<h2>` as a page subject while `_headings` read only
+`<h1>`/`<title>` — so a page whose visible subject is an `<h2>` had NOTHING for
+`_contradicts_this_page` to compare against, and a poisoned node claiming this
+URL sailed through. Both now come from `_HEADING_TAGS` with the same
+precedence. Subheadings of a page that HAS an `<h1>` are deliberately excluded,
+so the fix cannot hand a poisoned node an easier target — its own test.
+
+That is the third time this ticket has been bitten by one rule expressed twice
+(the r3 UTC/local instant keys, the r4 heading sets, this). The pattern is in
+the red classes.
 
 ## 14. What this ticket did NOT do
 
