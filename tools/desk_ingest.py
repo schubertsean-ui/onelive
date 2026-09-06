@@ -292,6 +292,21 @@ def what_the_pages_said(follows: Mapping[str, FollowResult]) -> str:
     out.append(f"{pages} event page(s) opened. A page can carry more than one "
                f"reason (a date refusal and a place refusal are separate), so "
                f"these do not sum to the page count.")
+    # The codes say WHICH repair; the sentences say what the pages actually
+    # printed. A code counted at 100% and never quoted is still not something a
+    # person can act on — the next ticket needs the desk's own words.
+    seen: List[str] = []
+    for result in follows.values():
+        for read in result.reads:
+            for code, sentence in zip(read.codes, read.refusals):
+                line = f"- `{code}` — {read.url}: {sentence}"
+                if line not in seen and len(seen) < 6:
+                    seen.append(line)
+    if seen:
+        out.append("")
+        out.append("What that looked like, in the pages' own words:")
+        out.append("")
+        out.extend(seen)
     return "\n".join(out)
 
 

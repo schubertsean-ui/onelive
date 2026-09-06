@@ -762,6 +762,10 @@ def test_the_report_says_what_the_opened_pages_actually_said():
     assert "`clock-without-date` | 1 | 50%" in table
     assert "`date-in-plumbing` | 1 | 50%" in table
     assert "2 event page(s) opened" in table
+    # And the pages' own words, because a code counted at 100% and never quoted
+    # is still not something a person can act on.
+    assert "in the pages' own words" in table
+    assert "a time with no day is not a moment" in table
 
 
 def test_the_report_says_nothing_rather_than_zero_when_no_page_was_opened():
