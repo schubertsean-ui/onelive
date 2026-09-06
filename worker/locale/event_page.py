@@ -730,7 +730,21 @@ def _has_location_itemprop(root: _Node, marked: Set[int]) -> bool:
 def _read_ics(html: str, page_url: str,
               ics_fetch: Callable[[str], PageFetch]) -> Tuple[
                   Optional[str], Optional[str], Optional[str], List[str]]:
-    """DTSTART from an iCalendar file THIS page advertises, same host only."""
+    """DTSTART from an iCalendar file THIS page advertises, same host only.
+
+    The same-host test is asked TWICE, and the second time is the one that
+    matters (evaluator finding, PR #237, seat openai / lens absence-only): the
+    pre-fetch check judges the address the page ADVERTISED, and a redirect
+    happens after it. A `/event/foo-1.ics` link that 302s onto a third party's
+    calendar host would otherwise have its DTSTART adopted as this page's own
+    statement — a fabricated night on a public row, from a publisher this desk
+    does not speak for. Reproduced before fixing: the third party's
+    `2099-12-31` reached the row with `when_source="ics"`.
+
+    So the answer is judged the way `follow()` judges an event page: the ingest
+    loop's own wall authority, then the status, then WHERE IT LANDED. Anything
+    else is a hole with a note, never a parse.
+    """
     notes: List[str] = []
     try:
         links = discover_ics_links(html, page_url, limit=MAX_ICS_FETCHES + 2)
@@ -754,6 +768,24 @@ def _read_ics(html: str, page_url: str,
             continue
         if not isinstance(answer, PageFetch) or answer.error or not answer.body:
             notes.append(f"calendar file unreadable ({link})")
+            continue
+        verdict = demote_on_response(
+            DECLARED_PUBLIC, status=answer.status,
+            final_url=answer.final_url, error=answer.error)
+        if verdict.is_closed_door:
+            notes.append(f"calendar file is a closed door — {verdict.reason}")
+            continue
+        if answer.status is not None and answer.status >= 400:
+            notes.append(f"calendar file answered HTTP {answer.status}; no date taken")
+            continue
+        landed = answer.landed_url
+        if not _same_host(landed, page_url):
+            # The link was same-host; the REDIRECT was not. This is the check
+            # the pre-fetch one cannot make.
+            notes.append(
+                f"calendar file redirected off the desk's host "
+                f"({urlsplit(landed).netloc}) — not read; a stranger's calendar "
+                f"is not this page's statement")
             continue
         try:
             events = parse_ics(answer.body)

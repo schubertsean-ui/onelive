@@ -647,3 +647,65 @@ def test_the_table_separates_what_the_page_said_from_what_the_row_carries():
     assert run.dated_n == 2, "both pages stated a night"
     assert run.rows_dated_n == 1, "the contested row still carries a night"
     assert run.nulled_when_n == 1
+
+
+# --- the calendar file is judged like any other page (evaluator, PR #237) ------
+
+THIRD_PARTY_ICS = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:Somebody Else's Event
+DTSTART:20991231T235900Z
+END:VEVENT
+END:VCALENDAR"""
+
+
+def _ics_answer(**kwargs):
+    """A fetcher whose event page advertises a same-host .ics, and whose .ics
+    answers however the test says."""
+    def fetch(url: str) -> PageFetch:
+        if url == "https://desk.test/event/foo-1":
+            return PageFetch(url=url, status=200, body=ICS_PAGE, final_url=url)
+        if url == "https://desk.test/event/foo-1.ics":
+            return PageFetch(url=url, **kwargs)
+        return PageFetch(url=url, status=404, final_url=url, error="HTTP 404")
+    return fetch
+
+
+def test_a_calendar_file_that_redirects_off_host_is_not_this_pages_statement():
+    """The pre-fetch same-host check judges the ADVERTISED address; the
+    redirect happens after it. Without the landing check a third party's
+    DTSTART fills `when` as if the event page stated it."""
+    run = follow([row()], _ics_answer(
+        status=200, body=THIRD_PARTY_ICS,
+        final_url="https://calendars.thirdparty.test/x.ics"))
+    assert run.rows[0].when is None, "a stranger's calendar dated this row"
+    assert run.visits[0].statement.when_source is None
+    assert any("redirected off the desk's host" in n
+               for n in run.visits[0].statement.notes)
+
+
+def test_a_calendar_file_that_answers_a_wall_is_not_parsed():
+    run = follow([row()], _ics_answer(
+        status=403, body=THIRD_PARTY_ICS,
+        final_url="https://desk.test/event/foo-1.ics"))
+    assert run.rows[0].when is None
+    assert any("closed door" in n for n in run.visits[0].statement.notes)
+
+
+def test_a_calendar_file_that_answers_an_error_page_is_not_parsed():
+    """A 500 that still returns a body — checking only `error` parses it."""
+    run = follow([row()], _ics_answer(
+        status=500, body=THIRD_PARTY_ICS,
+        final_url="https://desk.test/event/foo-1.ics"))
+    assert run.rows[0].when is None
+    assert any("HTTP 500" in n for n in run.visits[0].statement.notes)
+
+
+def test_a_same_host_calendar_that_lands_where_it_said_still_works():
+    """The fix must refuse strangers, not calendars."""
+    run = follow([row()], fetcher({
+        "https://desk.test/event/foo-1": ICS_PAGE,
+        "https://desk.test/event/foo-1.ics": ICS_BODY}))
+    assert run.rows[0].when == "2026-09-11T20:00:00Z"
+    assert run.visits[0].statement.when_source == "ics"
