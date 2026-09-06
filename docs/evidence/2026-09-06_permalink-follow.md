@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-93 passed in 0.40s
+96 passed in 0.52s
 ```
 
 | ticket case | test | result |
@@ -666,6 +666,38 @@ says more than the node. This is the value of running the rule against the desk
 rather than only against the fixtures I wrote for it: every hermetic test passed
 on both versions, because I had not thought to write the case where a page and
 its own node disagree about which night.
+
+### 13c. Both seats then named the same thing, and one half was still open
+
+The review of `bb6380a` (the agreement version) came back with both openai
+seats independently describing the defect the live run had already shown me:
+
+> `_states_the_day()` only corroborates the day, not the event identity, title,
+> time, or place
+
+That half was already corrected in §13b. The other half was still live: the arm
+for a node naming NO address never got the identity check at all, because round
+2 had accepted it as "a permalink page publishing an Event about itself".
+
+> a lone unaddressed JSON-LD `Event` … can be treated as this happening without
+> checking title/content/entity identity
+
+They are right, and it is the same sentence as the vanity case: a promotional
+node that simply omits `url` is exactly as unidentified as one carrying a link
+the table cannot classify. **What the node names does not decide this. What it
+calls itself does.** The address check is gone from that condition entirely, so
+every lone node now faces the same question.
+
+Fixing it broke three fixtures, and both reasons were worth having:
+
+* Two nodes were named `"A"`. Containment either way makes a single letter match
+  "A Show", "A Completely Different Thing", and every heading with an article in
+  it. The comparison is now on whole WORDS with a floor — one token of two or
+  more characters, or two tokens — and `test_a_single_letter_names_nothing`
+  pins it.
+* One fixture page had no `<h1>` and no `<title>` at all, so there was nothing to
+  compare against. That is an artifact of terse test HTML rather than a desk
+  shape; the fixtures now carry the heading a real page carries.
 
 ## 14. What this ticket did NOT do
 

@@ -171,7 +171,8 @@ def test_a_structured_event_page_states_its_own_instant():
     {"@type": "MusicEvent", "name": "Dominic Fike",
      "startDate": "2026-09-06T21:00:00-05:00",
      "location": {"@type": "Place", "name": "The Hall"}}
-    </script></head><body><p>Sat Sep 6 &bull; 9:00PM</p></body></html>"""
+    </script><title>Dominic Fike</title></head>
+    <body><p>Sat Sep 6 &bull; 9:00PM</p></body></html>"""
     result = df.follow([row()], fetcher({
         "https://desk.test/event/dominic-fike-1": page}),
         patterns=PATTERNS, as_of=AS_OF)
@@ -526,8 +527,9 @@ def test_a_time_tag_in_the_page_chrome_dates_nothing():
 def test_a_structured_event_needs_no_segment_to_own_it():
     """A schema.org `Event.startDate` says WHOSE start it is, so it is event
     scoped by construction — the one carrier that needs no locality check."""
-    page = """<html><head><script type="application/ld+json">
-    {"@type":"Event","name":"A","startDate":"2026-09-06T21:00:00-05:00",
+    page = """<html><head><title>A Show</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"A Show","startDate":"2026-09-06T21:00:00-05:00",
      "location":{"@type":"Place","name":"The Hall"}}</script></head>
     <body><footer>updated somewhere</footer></body></html>"""
     read = df.field_read(page, url="u", as_of=AS_OF)
@@ -599,7 +601,7 @@ def test_a_structured_start_date_is_not_outvoted_by_a_calendar_widget():
     on every page it opened.
     """
     page = f"""<html><head><script type="application/ld+json">
-    {{"@type":"Event","name":"A","startDate":"2026-09-06T21:00:00-05:00",
+    {{"@type":"Event","name":"A Show","startDate":"2026-09-06T21:00:00-05:00",
       "location":{{"@type":"Place","name":"The Hall"}}}}</script></head>
     <body><article><h1>A Show</h1></article>
     <table>{CALENDAR_WIDGET}</table></body></html>"""
@@ -1222,6 +1224,57 @@ def test_an_unrecognised_address_is_not_proof_the_node_is_ours():
     # The refusal says WHY, so a live run can tell this apart from a sidebar
     # naming another permalink.
     assert any("about something else" in r for r in read.refusals), read.refusals
+
+
+def test_a_lone_node_naming_no_address_is_no_more_ours_for_it():
+    """Evaluator, PR #235 r4 second review, BOTH openai seats — reproduced.
+
+    Round 2 accepted "the page's lone node naming no address at all" as a
+    permalink page publishing an Event about itself. It is not: a promotional
+    node that simply omits `url` is exactly as unidentified as one carrying a
+    vanity link, and it published its own day and venue here.
+
+    What the node names does not decide this. What it CALLS ITSELF does."""
+    page = """<html><head><title>Dominic Fike</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Some Other Show",
+      "startDate":"2026-12-25T20:00:00-06:00",
+      "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h1>Dominic Fike</h1>
+    <p>Tickets at the door.</p></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None
+    assert "structured-not-bound" in read.codes
+
+
+def test_a_lone_unaddressed_node_that_names_this_page_still_speaks():
+    """The converse — the shape round 2 was right about. A permalink page
+    publishing one Event about itself, with no `url` on the node, still dates
+    the row when it names what the page names."""
+    page = """<html><head><title>Dominic Fike</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike",
+      "startDate":"2026-09-06T21:00:00-05:00",
+      "location":{"@type":"Place","name":"The Hall"}}</script></head>
+    <body><article><h1>Dominic Fike</h1></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-06T21:00:00-05:00", read.refusals
+    assert read.place_text == "The Hall"
+
+
+def test_a_single_letter_names_nothing():
+    """The name comparison allows containment either way, so it needs a floor:
+    "A" is inside "A Show", inside "A Completely Different Thing", and inside
+    every heading with an article in it. One token of two or more characters,
+    or two tokens, is that floor."""
+    page = """<html><head><title>A Completely Different Thing</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"A","startDate":"2026-09-06T21:00:00-05:00",
+      "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h1>A Completely Different Thing</h1></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
 
 
 def test_a_run_of_performances_disagreeing_about_the_day_still_binds():

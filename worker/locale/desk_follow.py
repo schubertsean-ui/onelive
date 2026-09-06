@@ -545,16 +545,23 @@ def _headings(html: str) -> List[str]:
 def _same_name(a: str, b: str) -> bool:
     """Two names for the same thing, compared the way a reader would.
 
-    Case, punctuation and spacing are noise ("Boeing Boeing" / "boeing-boeing");
-    containment either way is deliberate, because a desk routinely heads a page
-    with more than the node's name ("Prodigal Sun at Saengerrunde Hall") or
-    less. The floor on length stops a short token matching everything.
+    Case, punctuation and spacing are noise ("Boeing Boeing" / "boeing-boeing").
+    Containment is on whole WORDS and either way round, because a desk routinely
+    heads a page with more than the node's name ("Prodigal Sun at Saengerrunde
+    Hall") or with less — but "A" must not match "A Show", so a single letter
+    names nothing. One token of two or more characters, or two tokens, is the
+    floor; below that there is no name to compare.
     """
-    left = " ".join(re.sub(r"[^0-9a-z]+", " ", a.casefold()).split())
-    right = " ".join(re.sub(r"[^0-9a-z]+", " ", b.casefold()).split())
-    if len(left) < 4 or len(right) < 4:
+    left = re.sub(r"[^0-9a-z]+", " ", a.casefold()).split()
+    right = re.sub(r"[^0-9a-z]+", " ", b.casefold()).split()
+    if not left or not right:
         return False
-    return left in right or right in left
+    shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
+    if len(shorter) < 2 and len(shorter[0]) < 2:
+        return False
+    span = len(shorter)
+    return any(longer[i:i + span] == shorter
+               for i in range(len(longer) - span + 1))
 
 
 def _names_this_page(event: Dict[str, object], headings: Sequence[str]) -> bool:
@@ -644,11 +651,16 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
     if any(match_identity(one, patterns) is not None for one in named):
         # It names another happening. That is a different row's statement.
         return []
-    if named and not _names_this_page(events[0], headings):
-        # It names SOMETHING, and the table cannot tell us what. Unrecognised is
-        # not the same as ours: unless the node says it is about the thing this
-        # page is about, it is an unidentified witness, and an unidentified
-        # witness dates nothing.
+    if not _names_this_page(events[0], headings):
+        # THE ADDRESS IT NAMES DOES NOT MATTER HERE; WHAT IT CALLS ITSELF DOES.
+        # An unrecognised address is not the same as ours, and naming NO address
+        # is not evidence either — a promotional Event node that omits `url` is
+        # exactly as unidentified as one carrying a vanity link (evaluator, PR
+        # #235 r4 second review, both openai seats: "a lone unaddressed JSON-LD
+        # Event ... can be treated as this happening without checking
+        # title/content/entity identity"). Unless the node says it is about the
+        # thing this page says it is about, it is an unidentified witness, and
+        # an unidentified witness dates nothing.
         return []
     return list(events)
 
