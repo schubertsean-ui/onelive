@@ -68,6 +68,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field, replace
 from datetime import date as _date, datetime, timezone as _tz
 from html.parser import HTMLParser
@@ -165,16 +166,15 @@ _WORD_CLOCKS_BY_LANGUAGE = {
     "nl": ("middag",),
 }
 
-#: Languages whose word clocks this module can read at all — the union of the
-#: always-on list and the per-language one. A page declaring anything else is
-#: telling us its time words are outside our vocabulary, which is the one case
-#: where "the card printed no clock" is not evidence of agreement.
-_LANGUAGES_WITH_WORD_CLOCKS = frozenset(
-    {"en", "es", "pt", "fr", "de", "it", "nl", "ja", "zh"})
-
 #: What the page says it is written in. Read from the document's own `lang`,
 #: primary subtag only ("pt-BR" -> "pt"), empty when it declares nothing —
 #: absence is not a claim, so an undeclared page keeps the behaviour it had.
+#:
+#: Used for ONE thing: which per-language words above the locator may find. r24
+#: also refused a precise time whenever the declaration named a language whose
+#: time words we cannot read, and r25 removed that — a document's language is
+#: not the language of the sentence in front of us, in either direction. What
+#: replaced it asks the card's own unread words which SCRIPT they are in.
 _LANG_ATTR_RE = re.compile(
     r"<html\b[^>]*?\b(?:xml:)?lang\s*=\s*[\"']?([A-Za-z]{2,3})", re.IGNORECASE)
 
@@ -182,6 +182,107 @@ _LANG_ATTR_RE = re.compile(
 def _declared_language(html: str) -> str:
     match = _LANG_ATTR_RE.search(html or "")
     return match.group(1).lower() if match else ""
+
+
+#: The scripts the word-clock vocabulary above is written in. A card written
+#: mostly in something else is written in a language whose time words this repo
+#: does not carry, whether or not the document declared one.
+_SCRIPTS_WITH_WORD_CLOCKS = frozenset(
+    {"LATIN", "CJK", "HIRAGANA", "KATAKANA"})
+
+
+def _script_without_word_clocks(text: str) -> str:
+    """The script this text is written in, when this repo reads no time words
+    in it — otherwise "".
+
+    r24 keyed the unreadable-clock refusal on `<html lang>`, and the next review
+    was right that a page declaring nothing keeps the hole (evaluator, PR #235
+    r25, openai/attacker-smuggle). This asks the SAME question of the text
+    itself, and it needs no vocabulary at all: a card written in Hangul, Cyrillic
+    or Devanagari is one whose time words are outside the list above, and Unicode
+    already says which script a character belongs to.
+
+    DOMINANCE, not presence, because an English card naming a Korean band is
+    still an English card — the failure this avoids is holing a good time over a
+    borrowed proper noun. What it does NOT reach is a Latin-script language the
+    vocabulary lacks (Polish, Turkish, Swedish) on a page that declares nothing;
+    that is what remains of R-115, and it stays recorded rather than papered
+    over.
+    """
+    counts: Dict[str, int] = {}
+    for char in text or "":
+        if not char.isalpha():
+            continue
+        try:
+            script = unicodedata.name(char).split()[0]
+        except ValueError:          # unnamed codepoint — counts as nothing
+            continue
+        counts[script] = counts.get(script, 0) + 1
+    total = sum(counts.values())
+    if not total:
+        return ""
+    unread = sorted(
+        ((n, s) for s, n in counts.items() if s not in _SCRIPTS_WITH_WORD_CLOCKS),
+        reverse=True)
+    if unread and unread[0][0] * 2 > total:
+        return unread[0][1].lower()
+    return ""
+
+
+def _unread_prose(card_text: str, read_already: Sequence[str]) -> str:
+    """The card's own words, minus every word we DID read.
+
+    SILENCE IS SILENCE IN EVERY LANGUAGE, and this is the whole difference
+    between r24's rule and a correct one. A card reading `<h1>Кино</h1>` and
+    nothing else has printed no time in Russian, English or anything else, so
+    withholding its markup's clock penalises the desk for our vocabulary — the
+    `hygiene-narrows-coverage` defect, and the r10 locale test says exactly that
+    in the suite. A card that prints words we could NOT read is a different
+    thing: a word clock could be sitting in one of them.
+
+    `read_already` is the name the card is headed with and the date text we
+    matched — both are words this repo understood, so neither is a hiding place.
+    A Cyrillic card printing "18 сентября 2026" and no clock is as silent about
+    time as an English one printing "September 18, 2026", and the first draft of
+    this helper refused it because it subtracted only the heading.
+    """
+    known = set()
+    for text in read_already or ():
+        known.update(_name_tokens(text))
+    rest = [word for word in _name_tokens(card_text) if word not in known]
+    return " ".join(rest)
+
+
+def _unreadable_time_words(card_text: str,
+                           read_already: Sequence[str] = ()) -> str:
+    """The script of the words this card printed and this repo could not read,
+    when it is one we carry no time words in — otherwise "".
+
+    ASKED OF THE WORDS THEMSELVES, never of the page's language, and r24 got
+    that wrong in both halves of one rule:
+
+      * It refused whenever the page DECLARED an unread language, so an
+        `<html lang="ru">` desk whose card is just its title lost the clock its
+        markup stated — punished for our vocabulary while an identical English
+        page kept it. `hygiene-narrows-coverage`, pinned by the r10 locale test,
+        which passed only because its fixture declares no `lang`.
+      * And the declaration cut the other way too: a `lang="ru"` page whose card
+        printed "September 18, 2026" — words this repo reads perfectly — was
+        refused for the language of the document rather than the language of the
+        sentence.
+
+    So: subtract every word we DID read (the card's own name, the date text we
+    matched), and ask what SCRIPT the rest is in. Silence leaves no residue and
+    corroborates nothing anywhere; Latin residue is words we can read for time;
+    Cyrillic or Hangul residue could be hiding a clock.
+
+    What this does NOT reach is a Latin-script language the vocabulary lacks
+    (Polish, Turkish, Swedish). That is what remains of R-115, and it stays
+    recorded rather than papered over.
+    """
+    rest = _unread_prose(card_text, read_already)
+    script = _script_without_word_clocks(rest)
+    return f"{script} script" if script else ""
 _WORD_CLOCK_LOCATOR = (
     r"\b(?:" + "|".join(re.escape(w) for w in _WORD_CLOCKS_LATIN) + r")\b"
     r"|(?:" + "|".join(re.escape(w) for w in _WORD_CLOCKS_UNSPACED) + r")")
@@ -537,12 +638,23 @@ class _SegmentScanner(HTMLParser):
             self.heading_marks.append((open_tag, sections, text))
             self._heading_open = None
             self._heading_parts = []
-            # A heading CLOSES the region before it and opens its own. The
-            # flush below carries the previous region's text; everything after
-            # is governed by this heading.
-            self._flush()
+            # A HEADING IS IN THE REGION IT OPENS, not the one it closes.
+            #
+            # r20 wrote "everything AFTER is governed by this heading" and
+            # flushed before advancing, which put the heading's OWN TEXT in the
+            # previous region — so `<h2>Christmas Special — December 25, 2026
+            # 8:00PM</h2>` nested in a card headed "Dominic Fike" published
+            # 2026-12-25T20:00:00 onto the Dominic row (evaluator, PR #235 r25,
+            # openai/absence-only, reproduced). A foreign region was correctly
+            # identified and then read from its own doorway.
+            #
+            # The previous region's text is already out: every heading is a
+            # block tag, so `handle_starttag` flushed it before this heading's
+            # characters were buffered. What is buffered NOW is the heading's,
+            # and it is attributed to the heading's own index.
             self._under = len(self.heading_marks) - 1
             self._started_under = self._under
+            self._flush()
         if tag in _BLOCK_TAGS:
             self._flush()
         if any(open_tag == tag for open_tag, _f, _s in self._open):
@@ -2113,23 +2225,27 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                         f"time, so the day stands and the clock stays a hole")
                     when, when_precision = hit.date.isoformat(), "date"
                     when_text = hit.raw
-                elif (clock_uncorroborated
-                      and lang and lang not in _LANGUAGES_WITH_WORD_CLOCKS):
-                    # THE PAGE TOLD US ITS TIME WORDS ARE OUTSIDE OUR
-                    # VOCABULARY, so "the card printed no clock" stops being
-                    # evidence that it agrees (evaluator, PR #235 r24,
-                    # openai/attacker-smuggle). Everywhere else silence is
-                    # silence — the dominant and CORRECT shape, measured at r22
-                    # as 33 of 136 tests — but a declared language we cannot
-                    # read time words in is a page whose clock we may simply
-                    # not have SEEN. The day stands; only the precision goes.
+                elif clock_uncorroborated and _unreadable_time_words(
+                        said_text, tuple(headings) + (hit.raw or "",)):
+                    # THE CARD PRINTED WORDS WE COULD NOT READ, in a language
+                    # whose time words are outside our vocabulary — so "no clock
+                    # on the card" stops being evidence that it agrees
+                    # (evaluator, PR #235 r24/r25, openai/attacker-smuggle).
+                    # Everywhere else silence is silence: for English, for every
+                    # language we read, and for a card that printed nothing but
+                    # its own name in ANY language — that last one is the r10
+                    # locale test, and r24's version of this rule failed it the
+                    # moment the page declared `lang`.
+                    told = _unreadable_time_words(
+                        said_text, tuple(headings) + (hit.raw or "",))
                     refuse(
                         "clock-unreadable-in-this-language",
-                        f"this page declares lang={lang!r}, whose time words "
-                        f"this repo cannot read, and its own card prints no "
-                        f"clock we recognise — so nothing here corroborates "
-                        f"the {when} its structured data states, and the "
-                        f"clock stays a hole while the day stands")
+                        f"this page is written in {told} — whose time words "
+                        f"this repo cannot read — and its own card prints "
+                        f"words we cannot check instead of a clock we "
+                        f"recognise, so nothing here corroborates the {when} "
+                        f"its structured data states, and the clock stays a "
+                        f"hole while the day stands")
                     when, when_precision = hit.date.isoformat(), "date"
                     when_text = hit.raw
             else:

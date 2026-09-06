@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-140 passed in 0.56s
+143 passed in 0.59s
 ```
 
 | ticket case | test | result |
@@ -2149,6 +2149,86 @@ already states about itself.** Five rounds of this residual were spent choosing
 between our vocabulary and an expensive corroboration rule, and the page had
 been declaring its own language the whole time, in an attribute every desk in
 this corpus already sets.
+
+### 13aa. Round 25 — the fixture that hid a defect in my own last fix
+
+Three blocking findings from the two openai seats; both gemini APPROVE.
+
+**(a) A heading was read from the wrong side of its own doorway.**
+
+```
+PRE-FIX   <h2>Christmas Special — December 25, 2026 8:00PM</h2> nested in a
+          card headed "Dominic Fike"  ->  when=2026-12-25T20:00:00
+```
+
+r20 made the card boundary element-agnostic — "a heading starts a region that
+runs until the next heading" — and flushed the buffered text *before* advancing
+the region index, so the heading's OWN text landed in the region it closed. The
+foreign card was correctly identified and then read from its title. A promo that
+puts its date in its heading, which is exactly how "Christmas Special — December
+25" is written, walked straight through.
+
+Safe to reorder because every heading is a block tag: the previous region's text
+is already flushed before this heading's characters are buffered.
+
+**(b) R-115's sixth round — and r24's fix had the defect it was closing.**
+
+The seat's finding was narrow: r24's refusal fired only on a DECLARED language,
+so an undeclared page kept the hole. Writing that converse exposed what r24's
+rule actually did, in both directions:
+
+```
+r24 RULE   <html lang="ru"> + card that is only <h1>Кино</h1>
+           -> when=2026-09-18  ('clock-unreadable-in-this-language')
+```
+
+A card printing nothing but its own title has stated no time in Russian, English
+or anything else. Withholding its markup's clock punishes the desk for OUR
+vocabulary while an identical English page keeps it — `hygiene-narrows-coverage`.
+**The r10 locale test pins that exact page, and passed only because its fixture
+declares no `lang`.** A fixture hid a defect the rule had. The declaration cut
+the other way too: a `lang="ru"` page whose card printed "September 18, 2026" —
+words this repo reads perfectly — was refused for the language of the *document*
+rather than the language of the *sentence*.
+
+The rule is now asked of the words, not the page: subtract everything we DID
+read (the card's own name, the matched date text) and ask what SCRIPT the residue
+is in. Silence leaves no residue and corroborates nothing anywhere; Latin residue
+is words we read for time; Cyrillic or Hangul residue could hide a clock.
+Dominance, not presence, so an English card naming a Korean band is still an
+English card.
+
+```
+ok  ru heading-only     -> 2026-09-18T19:30:00-05:00
+ok  ru date only        -> 2026-09-18T19:30:00-05:00
+ok  ru prose            -> 2026-09-18   clock-unreadable-in-this-language
+ok  undeclared prose    -> 2026-09-18   clock-unreadable-in-this-language
+ok  ru prose + clock    -> 2026-09-18T19:30:00-05:00
+ok  en / es / ja prose  -> 2026-09-18T19:30:00-05:00
+```
+
+`_LANGUAGES_WITH_WORD_CLOCKS` was deleted rather than left dead, and the r24 test
+that pinned the old behaviour was corrected — it had written the defect down as
+its own expectation.
+
+**(c) The third finding is recorded, not fixed.** An unheaded, unlinked block can
+still supply the only date on a page whose card states none. Every discriminator
+this module has is structural — a heading, a classified link, a sectioning
+element, structured markup — and this block carries none; what is left is a
+class-name list, refused on the record at r1 because the enumeration is English.
+It is the DATE half of R-112 (RESOLVED, for PLACE), so it opens as **R-116** with
+its bound MEASURED rather than argued: all four guards were run against the shape
+and each fires. Pinned in the suite.
+
+**What this round teaches.** r22: measure the fix instead of arguing it. r23:
+check whether the line is a property of the problem or of you. r24: ask what the
+artefact already states about itself. r25 is the sharpest of the four and it is
+about TESTS, not rules: **a fixture that does not exercise a rule's input is not
+evidence the rule is right about it.** r24's refusal keyed on `<html lang>` and
+every fixture in this file declares none, so the suite could not see the rule at
+all — it went green on 140 tests while carrying a locale penalty. The habit to
+add: when a rule keys on an attribute, grep the fixtures for that attribute
+before believing the suite.
 
 ## 14. What this ticket did NOT do
 

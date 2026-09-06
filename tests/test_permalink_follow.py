@@ -2342,13 +2342,14 @@ def test_a_page_that_declares_its_language_is_read_in_it():
     for lang in ("en", None):
         assert read(midi, lang).when == "2026-09-18T19:30:00-05:00", lang
 
-    # (2) A declared language we carry no time words for: silence stops
-    # corroborating, the DAY stands, and the refusal says which rule fired.
-    korean = read("<p>September 18, 2026 — 공연</p>", "ko")
-    assert korean.when == "2026-09-18", korean.when
-    assert "clock-unreadable-in-this-language" in korean.codes, korean.codes
-    # ... but only when nothing on the card was readable. A card that
-    # corroborates keeps its precise time in any language.
+    # (2) WAS ASSERTED HERE AT r24 AND WAS WRONG — see
+    # `test_silence_is_silence_in_every_language`. r24 refused the precise time
+    # whenever the page DECLARED a language whose time words we cannot read,
+    # and this test pinned that behaviour, so the defect was written down as the
+    # expectation in the test meant to close it. The rule is now asked of the
+    # card's unread WORDS, not of the document's language, and the two cases
+    # that separates are pinned there. What remains true here is the direction:
+    # a card that corroborates keeps its precise time in any language.
     assert read("<p>September 18, 2026 — 7:30PM</p>", "ko").when \
         == "2026-09-18T19:30:00-05:00"
 
@@ -2356,6 +2357,154 @@ def test_a_page_that_declares_its_language_is_read_in_it():
     # for a language we read, and for a page that declares nothing at all.
     for lang in ("en", "es", "ja", None):
         assert read(quiet, lang).when == "2026-09-18T19:30:00-05:00", lang
+
+
+def test_a_foreign_heading_is_in_the_region_it_opens():
+    """Evaluator, PR #235 r25, openai/absence-only, reproduced — r20 made the
+    card boundary element-agnostic ("a heading starts a region that runs until
+    the next heading") and then read the heading itself from the wrong side of
+    its own doorway:
+
+        PRE-FIX   <h2>Christmas Special — December 25, 2026 8:00PM</h2> nested
+                  in a card headed "Dominic Fike" -> when=2026-12-25T20:00:00
+
+    The region was correctly identified as another card's; the heading's own
+    TEXT was flushed under the PREVIOUS heading, because r20 flushed before
+    advancing. A foreign card that puts its date in its title — which is exactly
+    how "Christmas Special — December 25" is written — walked straight through.
+
+    Safe because every heading is a block tag, so the previous region's text is
+    already out before this heading's characters are buffered."""
+    def read(body):
+        return df.field_read(f"<html><body>{body}</body></html>",
+                             url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    foreign = read('<article><h1>Dominic Fike</h1><p>An evening of songs.</p>'
+                   '<h2>Christmas Special — December 25, 2026 8:00PM</h2>'
+                   '<p>Tickets on sale now.</p></article>')
+    assert foreign.when is None, foreign.when
+
+    # THE CONVERSE, or the fix would just be a mute: a heading that names what
+    # the page is about is the card's own, and its date still reads.
+    own = read('<article><h1>Dominic Fike</h1>'
+               '<h2>Dominic Fike — Friday, September 18, 2026 8:00PM</h2>'
+               '</article>')
+    assert own.when == "2026-09-18T20:00:00", own.refusals
+    # ... as does the body of the card, which is what r20 already covered.
+    body = read('<article><h1>Dominic Fike</h1>'
+                '<p>Friday, September 18, 2026 8:00PM</p></article>')
+    assert body.when == "2026-09-18T20:00:00", body.refusals
+
+
+def test_silence_is_silence_in_every_language():
+    """Evaluator, PR #235 r25, openai/attacker-smuggle — R-115's SIXTH round, and
+    the round my own r24 fix was found to have the defect it was closing.
+
+    r24 refused a precise structured time whenever the page DECLARED a language
+    whose time words this repo cannot read. Writing the converse for the
+    undeclared case the seat named exposed what that rule actually did:
+
+        r24 RULE   <html lang="ru"> + card that is only <h1>Кино</h1>
+                   -> when=2026-09-18  ('clock-unreadable-in-this-language')
+
+    A card printing nothing but its own title has stated no time in Russian,
+    English or anything else, so withholding its markup's clock penalises the
+    desk for OUR vocabulary. `hygiene-narrows-coverage`, and the r10 locale test
+    pins that exact page — it passed only because its fixture declares no `lang`,
+    so a fixture hid a defect the rule had.
+
+    The rule is now keyed on what it always should have been: not an unread
+    LANGUAGE but unread TEXT. Silence corroborates nothing anywhere; words we
+    could not read might be hiding a clock. And the words we DID read — the
+    card's own name, the date text we matched — are subtracted first, so a
+    Cyrillic card printing "18 сентября 2026" is as silent about time as an
+    English one printing "September 18, 2026".
+
+    The cost that remains is stated: a desk in a language we read no time words
+    in, whose cards carry prose and whose clocks live only in markup, gets date
+    precision instead of time precision. Fail-closed, and the row still
+    publishes — Coverage Law governs whether a row exists, and it still does."""
+    P = "2026-09-18T19:30:00-05:00"
+
+    def read(head, card, lang=None):
+        node = ('<script type="application/ld+json">{"@type":"Event",'
+                f'"name":"{head}","url":"{HERE}",'
+                '"startDate":"2026-09-18T19:30:00-05:00"}</script>')
+        tag = f'<html lang="{lang}">' if lang else "<html>"
+        return df.field_read(
+            f"{tag}<head>{node}</head><body><article><h1>{head}</h1>{card}"
+            "</article></body></html>", url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    # SILENCE KEEPS ITS PRECISE TIME IN EVERY LANGUAGE — the r24 regression.
+    assert read("Кино", "", "ru").when == P
+    assert read("Кино", "", None).when == P
+    # And so does a card whose only words are ones we READ: its name and a date.
+    assert read("Кино", "<p>September 18, 2026</p>", "ru").when == P
+
+    # UNREAD WORDS ARE NOT SILENCE — declared or not, they hole the clock.
+    for lang in ("ru", None):
+        got = read("Кино", "<p>Вечер песен в нашем зале</p>", lang)
+        assert got.when == "2026-09-18", (lang, got.when)
+        assert "clock-unreadable-in-this-language" in got.codes, lang
+    # ... unless the card corroborates with a clock we CAN read.
+    assert read("Кино", "<p>Вечер песен, 7:30PM</p>", "ru").when == P
+
+    # AND EVERY LANGUAGE WE DO READ IS UNTOUCHED, which is what keeps r22's
+    # measured 33 tests green: prose without a clock still corroborates.
+    for lang in ("en", "es", "ja", None):
+        assert read("Dominic Fike", "<p>An evening of songs</p>", lang).when == P
+
+
+def test_the_bound_on_an_unheaded_unlinked_block_r116():
+    """Evaluator, PR #235 r25, openai/attacker-smuggle — an unheaded, unlinked
+    block can still supply the only date on a page whose own card states none:
+
+        row 'Dominic Fike' + <div class="promo">December 25, 2026 8:00PM</div>
+        -> when=2026-12-25T20:00:00
+
+    NOT closed, and the reason is checked rather than asserted. Every
+    discriminator this module has is a STRUCTURAL one — a heading, a link to
+    another happening, a sectioning element, structured markup naming its
+    subject — and this block has none of them. What is left is a class-name or
+    chrome-word list ("promo", "related", "also"), refused on the record at r1
+    because that enumeration is English and looks complete until the next desk
+    uses a different noun. R-112 closed the identical shape for PLACE and is
+    RESOLVED; this is its DATE half, opened as R-116 rather than left implied.
+
+    THE BOUND IS MEASURED, NOT REASONED — every guard was run against the shape
+    and this test IS that measurement, so the residual is visible in the suite
+    and not only in a record."""
+    promo = ('<div class="promo"><p>December 25, 2026 8:00PM</p>'
+             '<div class="venue">The Other Room</div></div>')
+
+    def read(body, head=""):
+        return df.field_read(
+            f"<html><head>{head}</head><body>{body}</body></html>",
+            url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    # The residual itself, pinned at its current behaviour.
+    assert read(f'<h1>Dominic Fike</h1><p>An evening.</p>{promo}').when \
+        == "2026-12-25T20:00:00"
+
+    # AND THE FOUR GUARDS THAT BOUND IT, each verified to fire.
+    # 1. The card states a date of its own -> two dates, refused.
+    both = read(f'<h1>Dominic Fike</h1>'
+                f'<p>Friday, September 18, 2026 8:00PM</p>{promo}')
+    assert both.when is None and "dates-ambiguous" in both.codes
+    # 2. A bound structured node states one -> the promo contradicts it.
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            f'"name":"Dominic Fike","url":"{HERE}",'
+            '"startDate":"2026-09-18T19:30:00-05:00"}</script>')
+    bound = read(f'<h1>Dominic Fike</h1><p>An evening.</p>{promo}', node)
+    assert bound.when is None, bound.when
+    # 3. The block carries its own heading -> another card (r20).
+    assert read('<h1>Dominic Fike</h1><p>An evening.</p>'
+                '<div><h2>Also on sale</h2>'
+                '<p>December 25, 2026 8:00PM</p></div>').when is None
+    # 4. The block links to another happening -> another card (r4/r16).
+    assert read('<h1>Dominic Fike</h1><p>An evening.</p>'
+                '<section><a href="https://desk.test/event/other-9">More</a>'
+                '<p>December 25, 2026 8:00PM</p></section>').when is None
 
 
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
