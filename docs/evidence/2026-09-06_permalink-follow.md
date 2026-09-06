@@ -288,36 +288,66 @@ not stated, and picking one would be a coin flip published as a fact.
 ### 9b. The table
 
 **The table on the SHIPPED code** — run
-[34007753540](https://github.com/schubertsean-ui/onelive/actions/runs/34007753540)
-on head `9e3029a`, `--real --dry-run --max-pages 3 --follow-budget 40`. Pasted
+[34011052450](https://github.com/schubertsean-ui/onelive/actions/runs/34011052450)
+on head `f436fe3`, `--real --dry-run --max-pages 3 --follow-budget 40`. Pasted
 from that job log:
 
 | desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
 |---|---:|---:|---:|---:|---:|
-| `austin-chronicle-eventsearch` | 120 | 39 | 81 | 0 | 0 |
+| `austin-chronicle-eventsearch` | 118 | 38 | 80 | 0 | 0 |
 | `do512-today` | 0 | 0 | 0 | 1 | 0 |
 
 `mash_n` is **0**, which is the precondition the whole tick rests on: a mashed
 row's address IS the list page, so following it would have written one page's
 date onto every happening on the desk.
 
+Why the rest are NULL — three different facts, and only the first is about the
+desk:
+
+| desk | pages opened | page stated no date | could not be read | not asked (budget) | no followable address |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 40 | 2 | 0 | 78 | 0 |
+
+So of the 40 pages the budget reached, **38 were dated and 2 stated no date**.
+The other 78 followable rows were never opened, which makes `dated_n` a FLOOR
+and `still_null_n` a CEILING.
+
 Three sample rows, pasted from the same log:
 
 | # | listing_url | start_time | place |
 |---:|---|---|---|
-| 1 | `.../event/back-to-the-ranch-the-lbj-bbq-returns-14329073` | 2026-09-26T18:00:00-05:00 | Lyndon B. Johnson National Historical Park |
-| 2 | `.../event/boeing-boeing-14285657` | 2026-09-18T19:30:00-05:00 | TexARTS |
-| 3 | `.../event/austin-steel-guitar-fest-14286428` | 2026-10-01T10:00:00-05:00 | Austin Airport Marriott South |
+| 1 | `.../event/barbie-dream-heist-14311407` | 2026-09-04T22:00:00-05:00 | Butterfly Bar at the Vortex |
+| 2 | `.../event/day-of-dance-14167854` | 2026-09-12T10:00:00-05:00 | AISD Performing Arts Center |
+| 3 | `.../event/boeing-boeing-14285657` | 2026-09-18T19:30:00-05:00 | TexARTS |
 
-All three are `filled_from_detail = (when, place_text)` — every one of those six
-fields is a hole the list card left and the event page filled. Of the 40 pages
-opened, 39 were dated and 1 stated no date; the other 80 followable rows were
-NOT opened because the founder's 40-page budget was spent, so `dated_n` is a
-FLOOR and `still_null_n` a CEILING. See §12 for why this table's counts are
-directly comparable to the earlier one only on `dated_n`, and for a defect the
-run's own diagnostics revealed.
+All three are `filled_from_detail = (when, place_text)` — six fields the list
+card left empty and the event page filled.
 
-**The earlier table, kept** — run
+**What the opened pages said**, and what it says about the rounds:
+
+| the page said | pages | of opened | at the r4 head |
+|---|---:|---:|---:|
+| `no-clock` | 24 | 60% | 13 |
+| `clock-elsewhere` | 3 | 7% | 2 |
+| `structured-not-bound` | 3 | 7% | **17** |
+| `date-in-plumbing` | 2 | 5% | **14** |
+| `place-among-other-happenings` | 2 | 5% | — |
+| `clocks-ambiguous` | 1 | 2% | 1 |
+
+The last column is the run that made §13b's finding. `structured-not-bound` 17 →
+3 and `date-in-plumbing` 14 → 2 is the identity correction giving back the
+coverage the agreement test had destroyed, measured rather than argued.
+
+**The places are also visibly better, which was not the point of any round.**
+Before the card boundary, a third of planned rows took their place from the
+page's whole labelled venue block — "Venue Details Dougherty Arts Center 1110
+Barton Springs Rd., Austin South Congress and South First
+austintexas.gov/dougherty 10 events". Those same rows now read "Dougherty Arts
+Center", "Hyde Park Theatre", "Saengerrunde Hall": the dump was outside the
+page's card, and excluding it left the clean labelled element inside. Two rows
+refuse a place outright rather than take a neighbouring card's.
+
+**The earlier table, kept****The earlier table, kept** — run
 [34006786824](https://github.com/schubertsean-ui/onelive/actions/runs/34006786824)
 on head `7925f00`, `--real --dry-run --max-pages 40 --follow-budget 40`. Every
 number below is pasted from that job log; the one derivation is marked.
