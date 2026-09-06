@@ -441,13 +441,20 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
          `<time datetime>`, ICS `DTSTART`, then visible prose, with a missing
          year supplied only by a weekday the page itself printed. Two distinct
          dates is a REFUSAL, not a choice.
-      2. the page's CLOCK — the date's own carrier when it states the whole
-         instant; else the single clock the page prints. No clock leaves the
-         row on the day, at `date` precision. A clock with NO date leaves it
-         NULL, which is the ticket's second test and the reason this function
-         cannot be written as "find a time".
-      3. the page's PLACE — a schema.org Event's `location`, else an element the
-         page labels as one. One place, or a refusal.
+      2. WHOSE date it is. A schema.org or ICS property says whose start it is
+         and needs nothing more; anything else has to be stated by the page's
+         CONTENT rather than its plumbing, or it is refused. A footer's "last
+         updated" stamp is a date about the page, not a day about the show.
+      3. the page's CLOCK — the date's own carrier when it states the whole
+         instant; else the single clock in the SAME statement that gave the day.
+         A clock anywhere else on the page is a different statement (a box
+         office's hours, a byline) and does not join: the day stands at `date`
+         precision, because refusing the time is not refusing the date. A clock
+         with NO date leaves the row NULL, which is the ticket's second test and
+         the reason this function cannot be written as "find a time".
+      4. the page's PLACE — a schema.org Event's `location`, else an element the
+         page labels as one, and again never one in the page's plumbing. One
+         place, or a refusal.
 
     `as_of` is the day the page was fetched. Without it a weekday-only date
     ("Sat Sep 6") cannot be pinned to a year and stays a hole — R-030 turns
