@@ -1497,15 +1497,30 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 # then the agreed DAY stands while only the clock is holed,
                 # which is the same shape as `clocks-ambiguous`.
                 #
-                # Clocks the date rule cannot resolve are dropped rather than
-                # counted against the node: an unreadable statement is not a
-                # contradicting one, and refusing on it would hole a field
-                # because of text nobody could read (fail-closed on the FIELD,
-                # never on our own inability to parse).
+                # EACH PRINTED CLOCK IS ANCHORED TO THE NODE'S OWN DAY, not to
+                # a date the card also has to print. r12 resolved every token
+                # against the card's text, so a card saying "Show 8:00PM" and
+                # no date produced NOTHING to compare — the resolver needs a
+                # day to make an instant — and the node's 19:30 published as
+                # settled under a page visibly saying eight o'clock (evaluator,
+                # PR #235 r14, openai/absence-only). The comment beneath that
+                # code said unreadable clocks are dropped, and conflated two
+                # things: "8:00PM" is perfectly readable as a wall clock, it
+                # simply has no day of its own. The day is scaffolding for the
+                # parser here, never a claim — and the days are already known
+                # to agree, because r8's check refuses and empties both tiers
+                # before this point when they do not.
+                #
+                # Anchoring rather than writing a clock regex is deliberate:
+                # `resolve_same_page_datetime` is the one place that knows what
+                # a printed time means ("doors 7 pm", "10 pm", "19:30"), and a
+                # second reader of the same thing is the class this ticket has
+                # already paid for five times.
                 said_text = " ".join(said)
+                day = hit.date.isoformat()
                 printed = [c for c in (
                     _wall_clock(resolve_same_page_datetime(
-                        token, block_text=said_text, as_of=as_of)[0])
+                        token, block_text=f"{day} {token}", as_of=as_of)[0])
                     for token in _clocks_printed(said_text)) if c is not None]
                 if printed and _wall_clock(when) not in printed:
                     shown = ", ".join(_clocks_printed(said_text)[:4])

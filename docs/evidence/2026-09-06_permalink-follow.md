@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-123 passed in 0.40s
+125 passed in 0.43s
 ```
 
 | ticket case | test | result |
@@ -1430,6 +1430,60 @@ that matters is not another guard; it is that **a residual I reason my way into
 accepting deserves the reproduction I would give a finding.** R-112 and R-113
 were both written confidently, and both were reproduced into blocking defects by
 the next review round.
+
+### 13p. Round 14 — a clock with no day of its own is still a clock
+
+Three of four seats APPROVE. One blocking finding (openai/absence-only),
+reproduced against `6b5b4ab` first.
+
+**The clock comparison only counted tokens the date rule could turn into a full
+INSTANT — and that needs a day.** A card printing "Show 8:00PM" and no date
+produced nothing to compare against:
+
+```
+card: <p>Show 8:00PM</p>          (no date printed)
+node: startDate 2026-09-18T19:30:00-05:00
+PRE-FIX  when=2026-09-18T19:30:00-05:00  codes=()
+```
+
+The node's half past seven published as settled under a page visibly saying
+eight o'clock. My own comment beneath that code said unreadable clocks are
+dropped, and it conflated two different things: **"8:00PM" is perfectly
+readable as a wall clock — it simply has no day of its own.**
+
+Each printed clock is now anchored to the NODE'S day. The day is scaffolding
+for the parser, never a claim, and the days are already known to agree because
+r8's check empties both tiers before this point when they do not. Anchoring
+rather than writing a clock regex is deliberate: `same_page_dates` is the one
+place that knows what "doors 7 pm" means, and a second reader of the same thing
+is the class this ticket has paid for five times.
+
+**The fix has a coverage cost and it landed on the live table's own row.** The
+existing test for `/event/boeing-boeing-14285657` went red: that page prints
+"Matinees 4:45 pm. Late show 10:15 pm." while its node states 19:30. Those
+clocks could not be anchored before; now they can, and the node's is none of
+them, so the clock holes and the day stands.
+
+| the card prints | the node states | before r14 | after r14 |
+|---|---|---|---|
+| `Show 8:00PM`, no date | 19:30 | **19:30 published** | day only + refusal |
+| `Show 7:30PM`, no date | 19:30 | 19:30 | 19:30 |
+| `Matinees 4:45 pm. Late show 10:15 pm.` | 19:30 | 19:30 | day only + refusal |
+| `Doors 7:00 pm. Curtain 7:30 pm.` | 19:30 | 19:30 | 19:30 |
+| `at noon` (unparseable) | 19:30 | 19:30 | 19:30 |
+
+**That is a decision, not a surprise, and it is pinned in its own test.** It is
+the same answer r8 gave for DAYS, kept as one rule rather than two: a
+contradiction is the card not carrying the node's answer. Separating "matinees"
+and "late show" (other performances) from "doors" and "curtain" (this one) needs
+a list of label words — refused on the record at r1 — so the honest price of
+never publishing a time the visible page does not state is holing the clock on a
+desk that describes a RUN. Expect `dated_n` to fall again, and that fall is this
+ticket's measurement of how much of this desk is runs.
+
+The diagnostic rule the boeing fixture originally pinned (do not record
+`clocks-ambiguous` against a row with no clock hole — §9a) is unchanged and now
+stated on a page whose printed clocks include the node's.
 
 ## 14. What this ticket did NOT do
 

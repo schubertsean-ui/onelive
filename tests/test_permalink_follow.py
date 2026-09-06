@@ -343,14 +343,48 @@ def test_a_page_printing_two_clocks_keeps_the_day_and_holes_the_time():
 
 
 def test_a_complete_instant_records_no_clock_complaint():
-    """The live table's own defect, pinned.
+    """The live table's own defect, pinned — with the premise r14 changed.
 
-    This is the shape of `/event/boeing-boeing-14285657`: a schema.org node
-    states the whole instant, and the prose elsewhere on the page prints three
-    different clocks. The row has a time. There is no clock hole. Recording
-    `clocks-ambiguous` anyway made the run report that 7 of 40 opened pages
-    (17%) needed a clock repair when their rows were already complete — and
-    the next ticket is chosen by whichever count is largest."""
+    The rule this pins is the DIAGNOSTIC one: a row whose clock is settled has
+    no clock hole, so recording `clocks-ambiguous` against it made the run
+    report that 7 of 40 opened pages (17%) needed a repair their rows did not
+    need, and the next ticket is chosen by whichever count is largest.
+
+    What changed at r14 is which rows are settled. The fixture used to be
+    `/event/boeing-boeing-14285657` — node 19:30, card printing "Matinees 4:45
+    pm. Late show 10:15 pm." — and that row is now HOLED, because the card
+    prints clocks and the node's is none of them (see
+    `test_a_run_printing_other_performances_holes_the_clock` for that half and
+    its cost). So the settled case is stated the way it actually is: the card's
+    clocks include the node's, and the extra ones do not make a hole."""
+    page = """<!doctype html><html><body>
+    <script type="application/ld+json">{"@type": "Event", "name": "Boeing",
+      "startDate": "2026-09-18T19:30:00-05:00"}</script>
+    <h1>Boeing Boeing</h1>
+    <p>Doors 7:00 pm. Curtain 7:30 pm.</p>
+    <div class="venue">TexARTS</div></body></html>"""
+    read = df.field_read(page, url="https://desk.test/event/boeing-2", as_of=AS_OF)
+    assert read.when == "2026-09-18T19:30:00-05:00"
+    assert read.when_precision == "datetime"
+    assert "clocks-ambiguous" not in read.codes, read.refusals
+
+
+def test_a_run_printing_other_performances_holes_the_clock():
+    """The cost of r14's rule, pinned so it is a decision and not a surprise.
+
+    `/event/boeing-boeing-14285657` prints "Matinees 4:45 pm. Late show 10:15
+    pm." while its node states 19:30. Its evening curtain is in the markup and
+    nowhere in the visible text, so under membership the node's clock is none of
+    the card's and the time is holed while the day stands.
+
+    That is the same answer r8 gave for DAYS, and deliberately the same rule
+    rather than two: a contradiction is the card not carrying the node's answer.
+    Telling "matinees" and "late show" (other performances) from "doors" and
+    "show" (this one) needs a list of label words, refused on the record at r1 —
+    so the honest price of never publishing a time the visible page does not
+    state is holing the clock on a desk that describes a RUN. Modelling runs is
+    the next ticket's work; `dated_n` falling is this one's measurement of how
+    much of this desk is runs."""
     page = """<!doctype html><html><body>
     <script type="application/ld+json">{"@type": "Event", "name": "Boeing",
       "startDate": "2026-09-18T19:30:00-05:00"}</script>
@@ -358,9 +392,12 @@ def test_a_complete_instant_records_no_clock_complaint():
     <p>Matinees 4:45 pm. Late show 10:15 pm.</p>
     <div class="venue">TexARTS</div></body></html>"""
     read = df.field_read(page, url="https://desk.test/event/boeing-2", as_of=AS_OF)
-    assert read.when == "2026-09-18T19:30:00-05:00"
-    assert read.when_precision == "datetime"
-    assert "clocks-ambiguous" not in read.codes, read.refusals
+    assert read.when == "2026-09-18", read.when
+    assert read.when_precision == "date"
+    assert "card-contradicts-its-own-markup" in read.codes
+    # The DAY still stands, and the venue still comes through: refusing the
+    # clock is not refusing the date, and neither is refusing the node.
+    assert read.place_text == "TexARTS"
 
 
 def test_a_day_without_a_time_still_records_the_clock_complaint():
@@ -1966,6 +2003,51 @@ def test_a_page_with_no_heading_and_no_sections_states_nothing():
                    """<p>Sat Sep 5 &bull; 9:00PM</p></body></html>""")
     assert df.field_read(sectionless, url="u", as_of=AS_OF).when \
         == "2026-09-05T21:00:00"
+
+
+def test_a_card_clock_with_no_date_of_its_own_still_contradicts():
+    """Evaluator, PR #235 r14, openai/absence-only — the clock comparison only
+    counted tokens `resolve_same_page_datetime` could turn into a full INSTANT,
+    and that needs a day. A card printing "Show 8:00PM" and no date produced
+    nothing to compare, so the node's 19:30 published as settled under a page
+    visibly saying eight o'clock:
+
+        PRE-FIX   when=2026-09-18T19:30:00-05:00  codes=()
+
+    The comment beneath that code said unreadable clocks are dropped, and
+    conflated two different things: "8:00PM" is perfectly readable as a wall
+    clock, it simply has no day of its own. Each printed clock is now anchored
+    to the NODE'S day — scaffolding for the parser, never a claim, and the days
+    are already known to agree because r8 empties both tiers when they do not.
+
+    Anchoring rather than writing a clock regex is the point: the armed
+    `same_page_dates` is the one place that knows what "doors 7 pm" means, and a
+    second reader of the same thing is the class this ticket has paid for five
+    times already."""
+    def page(body):
+        return """<html><body><article><h1>The Show</h1>
+        <script type="application/ld+json">
+        {"@type":"Event","name":"The Show","url":"%s",
+         "startDate":"2026-09-18T19:30:00-05:00",
+         "location":{"@type":"Place","name":"The Hall"}}</script>
+        %s</article></body></html>""" % (HERE, body)
+
+    def read(body):
+        return df.field_read(page(body), url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    contradicts = read("<p>Show 8:00PM</p>")
+    assert contradicts.when == "2026-09-18", contradicts.when
+    assert "card-contradicts-its-own-markup" in contradicts.codes
+    # The day and the venue survive: refusing a clock is not refusing the node.
+    assert contradicts.place_text == "The Hall"
+
+    # The converse — a card clock with no date that AGREES settles nothing new
+    # and holes nothing.
+    assert read("<p>Show 7:30PM</p>").when == "2026-09-18T19:30:00-05:00"
+    # A clock the parser cannot read is still not a contradiction.
+    assert read("<p>Show at noon</p>").when == "2026-09-18T19:30:00-05:00"
+    # And a card printing no clock at all contradicts nothing.
+    assert read("<p>Check listings</p>").when == "2026-09-18T19:30:00-05:00"
 
 
 def test_one_word_must_open_the_name_it_claims_to_be():
