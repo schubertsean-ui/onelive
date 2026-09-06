@@ -2155,6 +2155,76 @@ def test_the_report_counts_the_rows_r115_could_reach():
     assert "R-115" in table
 
 
+def test_a_word_clock_is_a_word_clock_in_more_than_one_language():
+    """Evaluator, PR #235 r23, both openai seats — the SIXTH reopening of the
+    word-clock finding and the third of R-115, whose narrowed residual was "word
+    clocks in languages other than English". r22 answered it with a measurement
+    (the vocabulary-free close costs 33 of 136 tests); the seats answered that a
+    measured cost is a reason not to take THAT close, not a reason the coverage
+    line may sit where my own language ends. They are right, and arguing a fourth
+    time would be the same mistake in a fourth costume.
+
+    So the vocabulary carries other languages now. The locator already encodes
+    English time words — `am`, `pm`, `noon` — so this is what it is FOR.
+
+    What the round actually taught is in the two converses below, because the
+    first draft of the wider list shipped neither and broke English to add
+    Spanish:
+
+      1. Dropping `\\b` to let CJK match (its neighbours are word characters, so
+         a boundary never fires there) made every Latin word match INSIDE longer
+         words. `afternoon` became a clock. A card reading "doors 7:30PM, music
+         in the afternoon" would have contradicted its own correct markup.
+      2. French noon is `midi`, and MIDI is a musical instrument protocol — on a
+         LIVE-MUSIC desk, of all places. "Live MIDI set" would have holed a time
+         the card stated correctly.
+
+    Hence the two admission rules the module now states: a word must name an
+    INSTANT, not a stretch of day, and must not be commoner as something else on
+    the desks this repo actually reads. Both cost coverage — French noon, Dutch
+    `middag` — and that cost is the residual, recorded, not pretended away."""
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            '"name":"Dominic Fike","url":"%s",'
+            '"startDate":"2026-09-18T19:30:00-05:00"}</script>' % HERE)
+
+    def read(card):
+        return df.field_read(
+            f"<html><head>{node}</head><body><article><h1>Dominic Fike</h1>"
+            f"{card}</article></body></html>",
+            url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    # Every admitted word holes the precise time and keeps the day, exactly as
+    # r21's English ones do. Pre-r23 each of these kept 19:30 unchallenged.
+    for word in ("noon", "midnight",                       # English
+                 "mediodía", "mediodia", "medianoche",     # Spanish
+                 "meia-noite", "meio-dia",                 # Portuguese
+                 "minuit",                                 # French
+                 "Mittag", "Mitternacht",                  # German
+                 "mezzogiorno", "mezzanotte",              # Italian
+                 "middernacht",                            # Dutch
+                 "正午", "真夜中", "午夜", "中午"):          # Japanese / Chinese
+        got = read(f"<p>September 18, 2026 — {word}</p>")
+        assert got.when == "2026-09-18", (word, got.when)
+        assert "card-contradicts-its-own-markup" in got.codes, word
+
+    # CONVERSE 1 — the boundary. A word clock buried in a longer word is not a
+    # clock, so a card that corroborates its markup keeps the precise time.
+    for card in ("<p>September 18, 2026 — doors 7:30PM, music in the afternoon</p>",
+                 "<p>September 18, 2026 — 7:30PM, Mittagessen from 11</p>"):
+        assert read(card).when == "2026-09-18T19:30:00-05:00", card
+
+    # CONVERSE 2 — the words kept OUT. `midi` (MIDI, the protocol) and `middag`
+    # (a stretch of day, not an instant) must not fire on a corroborating card.
+    for card in ("<p>September 18, 2026 — live MIDI set, doors 7:30PM</p>",
+                 "<p>September 18, 2026 — 7:30PM, middag programma</p>"):
+        assert read(card).when == "2026-09-18T19:30:00-05:00", card
+
+    # And the r21 membership rule is untouched: a foreign word clock beside a
+    # numeric one that AGREES is the desk corroborating itself.
+    assert read("<p>September 18, 2026 — mediodía, 7:30PM</p>").when \
+        == "2026-09-18T19:30:00-05:00"
+
+
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
     """Evaluator, PR #235 r20, openai/attacker-smuggle — r18's sub-card rule
     excluded nested SECTIONING elements, and `<div>` is a block boundary and not

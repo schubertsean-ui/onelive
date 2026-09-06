@@ -109,10 +109,57 @@ DEFAULT_BUDGET = 40
 #: whether it means anything. Keeping it here (rather than reaching into that
 #: module's internals) means a drift in this regex can only ever make us find
 #: FEWER clocks — it cannot change what a found one is taken to mean.
+#: Times written as WORDS. English was all this held at r21, and the review was
+#: right that "English-only" is a coverage line drawn where my own language
+#: happens to end (evaluator, PR #235 r22/r23, both openai seats, three
+#: reopenings). The locator ALREADY carries English time vocabulary — `am`,
+#: `pm` — so carrying more languages is this list's design and not a new kind of
+#: knowledge; what it is not is COMPLETE, and cannot be, which is why the
+#: residual stays recorded (R-115) and its exposure is counted on every run.
+#:
+#: Two admission rules, both learned from the first draft of this very list:
+#:
+#:  1. The word must name an INSTANT, not a stretch. "noon" is 12:00; Dutch
+#:     "middag" and English "afternoon" are parts of a day. A stretch cannot
+#:     agree or disagree with a clock, so admitting one only holes good times.
+#:  2. The word must not be commoner as something ELSE on a live-music desk.
+#:     French "midi" is noon — and MIDI is a musical instrument protocol, so on
+#:     exactly the pages this repo reads it would fire on "live MIDI set" and
+#:     hole a time the card stated correctly. French keeps "minuit"; its noon is
+#:     part of the recorded residual, not silently pretended-at.
+#:
+#: Split by script because word boundaries are a Latin idea: `\b` around a CJK
+#: word never fires (its neighbours are word characters too), while WITHOUT `\b`
+#: the Latin words match inside longer words — "after|noon| " was the first
+#: draft's own bug, caught by the converse test and not by a reviewer.
+_WORD_CLOCKS_LATIN = (
+    # English
+    "midnight", "midday", "noon",
+    # Spanish (desks strip diacritics about as often as they keep them)
+    "medianoche", "mediodía", "mediodia",
+    # Portuguese
+    "meia-noite", "meia noite", "meio-dia", "meio dia",
+    # French
+    "minuit",
+    # German
+    "mitternacht", "mittag",
+    # Italian
+    "mezzanotte", "mezzogiorno",
+    # Dutch
+    "middernacht",
+)
+_WORD_CLOCKS_UNSPACED = (
+    # Japanese / Chinese
+    "正午", "真夜中", "午夜", "中午",
+)
+_WORD_CLOCK_LOCATOR = (
+    r"\b(?:" + "|".join(re.escape(w) for w in _WORD_CLOCKS_LATIN) + r")\b"
+    r"|(?:" + "|".join(re.escape(w) for w in _WORD_CLOCKS_UNSPACED) + r")")
+
 _CLOCK_TOKEN_RE = re.compile(
     r"\b\d{1,2}(?::[0-5]\d)?\s*[ap]\.?m\.?\b"
     r"|\b(?:[01]?\d|2[0-3]):[0-5]\d\b"
-    r"|\b(?:noon|midday|midnight)\b", re.IGNORECASE)
+    r"|" + _WORD_CLOCK_LOCATOR, re.IGNORECASE)
 
 #: Times this locator finds that R-030's rule cannot READ. Detected on purpose
 #: at r21, and the distinction they carry is the whole point: a time the desk
@@ -130,10 +177,16 @@ _CLOCK_TOKEN_RE = re.compile(
 #: FAIL-CLOSED direction, because not being able to read a stated time is
 #: exactly a reason not to publish a different one. (3) "English-only refuses a
 #: locale": this ADDS coverage for English and refuses nothing, which is
-#: asymmetry, not the locale REFUSAL r10 removed. The narrowed residual —
-#: word clocks in other languages — stays R-115, with the armed parser as its
-#: home.
-_WORD_CLOCK_RE = re.compile(r"^(?:noon|midday|midnight)$", re.IGNORECASE)
+#: asymmetry, not the locale REFUSAL r10 removed. r23 carried the vocabulary
+#: past English (above); the residual R-115 now names what no list closes —
+#: languages nobody has added, and the two words admission rule 2 keeps out.
+#:
+#: Anchored, so no boundary handling is needed: this asks "IS this whole token a
+#: word clock", where the locator above asked "is one in here".
+_WORD_CLOCK_RE = re.compile(
+    r"^(?:" + "|".join(re.escape(w) for w
+                       in _WORD_CLOCKS_LATIN + _WORD_CLOCKS_UNSPACED) + r")$",
+    re.IGNORECASE)
 
 #: Tag-stripping for that locator only, mirroring R-030's `_visible_text`:
 #: script/style bodies go FIRST so a JSON-LD payload's own times are not read as

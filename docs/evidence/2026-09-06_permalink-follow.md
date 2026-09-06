@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-137 passed in 0.82s
+138 passed in 0.53s
 ```
 
 | ticket case | test | result |
@@ -2009,6 +2009,63 @@ wrong; it is that **a residual argued is worth less than a residual measured**,
 and the cheapest way to find out which I have is to build the thing I was about
 to explain away and read what breaks. That took ten minutes this round and
 produced a number three rounds of prose did not.
+
+### 13y. Round 23 — the coverage line was where my language ends
+
+Both openai seats block again on R-115. Sixth reopening of the word-clock
+finding, third of this record.
+
+r22's answer was a measurement: the vocabulary-FREE close costs 33 of 136 tests.
+That measurement stands and is still the reason that close is not taken. But it
+answers a question the seats did not ask. Their finding is not "take the
+expensive close"; it is **"English-only is a coverage line drawn where your own
+language happens to end"** — and on that, three rounds of my objections were
+wrong. The locator already carries English time vocabulary (`am`, `pm`, `noon`).
+Carrying more languages is what it is FOR.
+
+So the list carries eight languages now: Spanish, Portuguese, French, German,
+Italian, Dutch, Japanese, Chinese. Pre-fix, each of them published 19:30 beside
+a page that visibly said noon:
+
+```
+AssertionError: ('mediodía', '2026-09-18T19:30:00-05:00')
+assert '2026-09-18T19:30:00-05:00' == '2026-09-18'
+```
+
+**What the round actually taught is in the first draft, which broke English to
+add Spanish.** Two defects, both mine, both found by writing the converse rather
+than by a reviewer:
+
+```
+'Doors 7:30PM, music in the afternoon' -> ['7:30PM', 'noon']
+'Live MIDI set, doors 8:00PM'          -> ['MIDI', '8:00PM']
+```
+
+1. **`\b` is a Latin idea.** A CJK word's neighbours are word characters too, so
+   a boundary never fires there — and dropping it to make 正午 match let every
+   Latin word match *inside* longer words. `after|noon|`. A card reading "doors
+   7:30PM, music in the afternoon" would have contradicted its own correct
+   markup. Fix: bound the Latin words, leave the unspaced ones bare.
+2. **French noon is `midi`, and MIDI is a musical instrument protocol** — on a
+   live-music desk, of all places. "Live MIDI set" would have holed a time the
+   card stated correctly.
+
+Which produced the two admission rules the module now states, and which are the
+durable part of this round: a word enters the list only if it names an INSTANT
+(not a stretch — English "afternoon", Dutch "middag" are parts of a day, and a
+stretch cannot agree or disagree with a clock), and only if it is not commoner
+as something else on the desks this repo actually reads.
+
+Both rules cost coverage — French noon, Dutch `middag` — and that cost, plus
+every language nobody has added, is what R-115 now names. It is a smaller and
+more honest residual than "everything but English", and unlike its three
+predecessors it is bounded by a stated rule rather than by my vocabulary.
+
+**Six reopenings, one lesson, restated.** r22 said a residual argued is worth
+less than a residual measured. r23 adds the half that was missing: measuring the
+close I did NOT want to take says nothing about the close I should have taken.
+The cheap check is not "what does my preferred fix cost" but "is the line I am
+drawing a property of the problem, or of me".
 
 ## 14. What this ticket did NOT do
 
