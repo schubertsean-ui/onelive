@@ -12,6 +12,16 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #68 (2026-09-06, founder — freeze Kaizen ceremony so product tickets ship, branch claude/freeze-kaizen-gates-r617z5) — OPEN
+
+WHAT: `construction_gate` fires ONLY on gate-custody diffs (`tools/validate`, `trust_gate`, `adversarial_review`, `docs/memory/RED_CLASSES.md`); CLAUDE.md "Thinking tools & Kaizen" becomes one paragraph — optional, never a ticket.
+HOW: option (b), one file — a scope filter in `tools/construction_gate.py` that prints an explicit OUT-OF-SCOPE result and exits 0; index self-protection stays unconditional; CLAUDE.md section replaced in place; fixture tests added.
+WHY: a worker/locale product PR matched 50 red classes (measured on HEAD~1..HEAD) and demanded 50 `[S3:]` citations — ceremony outranking Vision.
+WHY-IT-MATTERS: this gate exists to protect gate custody; charging every product ticket 50 citations for it buys no user protection and taxes every ship, which is the exact inversion Operating Law forbids.
+EXPECTED OUTCOMES: a fixture product diff (worker/locale) exits 0 with an 8-line STATE and no `[S3:]` tags; a `tools/validate` diff still demands citations; `trust_gate` + full pytest stay green.
+OUT OF SCOPE: Kaizen philosophy, new hats/ledgers, Tonight redesign, ingest write, merging leftover PRs, Ticket C.
+STATUS: OPEN — draft PR only; no merge without the founder's word.
+
 ## Session Contract #67 (2026-09-05, founder — Ticket B "identity split", Entity Split Law §2/§6, branch claude/identity-split-patterns-ppi4uk) — OPEN
 
 WHAT: a list page becomes many Happenings — `sources/identity_patterns.json` (host_family/path_re/grade/owned) + `desk_read`/walk on the Law §2 ladder (structured -> permalink -> committed desk selector -> unsplit).

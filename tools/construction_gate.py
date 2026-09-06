@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
-"""Construction Loop Stage 3 gate — blocking memory retrieval (charter item 4).
+"""Construction Loop Stage 3 gate — blocking memory retrieval, GATE-CUSTODY ONLY.
+
+SCOPE (founder-directed 2026-09-06, "freeze Kaizen ceremony so product
+tickets can ship"): this gate judges ONLY changes to the verification
+machinery it exists to protect — tools/validate, trust_gate,
+adversarial_review, and the red-class index itself. Every other diff gets
+an explicit printed OUT-OF-SCOPE result and exit 0. It used to judge every
+diff, and because triggers match the diff's TEXT as well as its paths, an
+ordinary worker/locale product PR matched 50 of the 56 classes and owed 50
+[S3:] citations (measured on 01ea243^..01ea243). That is ceremony
+outranking Vision: the citations protected no user, and the gate's own
+subject — gate custody — was never at issue in those PRs. Kaizen may
+MEASURE; it may not RUN the session.
+
+Deliberately NOT in scope, and not an oversight: this file. The founder
+named four surfaces; construction_gate.py is not one of them, and putting
+it in would make every edit to the gate owe the ceremony the founder is
+removing. It stays covered by tests/test_construction_gate.py, by the
+mandatory non-Claude review that runs on EVERY PR with no path filter, and
+by assert_index_not_weakened below, which runs on every invocation
+regardless of scope. Widening or narrowing this list is a gate-threshold
+change: founder-crucial.
 
 Greppable summary: reads the red-class index (docs/memory/RED_CLASSES.md),
 matches each class's triggers against the diff's changed PATHS AND the
@@ -34,6 +55,30 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_RELPATH = os.path.join("docs", "memory", "RED_CLASSES.md")
 DEFAULT_INDEX = os.path.join(REPO_ROOT, INDEX_RELPATH)
 CONTRACT_RELPATH = "STATE.md"
+
+# The gate-custody surface: the four things the founder named, plus the
+# spellings the same artifact wears elsewhere in the tree (a workflow file
+# hyphenates what a tool underscores, and a gate's test is part of the gate).
+# Matched as case-insensitive SUBSTRINGS of the changed path, which errs
+# toward FIRING — a near-miss spelling lands in scope rather than out of it.
+GATE_CUSTODY_MARKERS = (
+    "tools/validate",       # the runner + validate_bind_skips.sh
+    "trust_gate",
+    "trust-gate",
+    "adversarial_review",
+    "adversarial-review",
+    "red_classes.md",       # the index this gate reads as its brain
+)
+
+
+def gate_custody_hits(paths: list[str]) -> list[str]:
+    """The changed paths that put this diff in the gate's scope (may be empty)."""
+    hits = []
+    for path in paths:
+        lowered = path.replace(os.sep, "/").lower()
+        if any(marker in lowered for marker in GATE_CUSTODY_MARKERS):
+            hits.append(path)
+    return hits
 
 _ROW_RE = re.compile(r"^\|\s*([a-z0-9][a-z0-9-]+)\s*\|\s*([^|]+)\|")
 
@@ -323,6 +368,29 @@ def main(argv: list[str] | None = None) -> int:
             f"({diff_range()}) — nothing to retrieve against"
         )
         return 0
+
+    # SCOPE FILTER (founder-directed 2026-09-06). Placed here, AFTER the
+    # index self-protection above — so a weakened index still fails closed on
+    # ANY diff, in scope or not — and BEFORE the content read, so an
+    # out-of-scope change never pays for the 50-class match at all. Nothing
+    # that fails today passes because of this: a diff touching a gate-custody
+    # file takes the exact same path through this function it took before.
+    custody = gate_custody_hits(paths)
+    if not custody:
+        print(
+            "construction_gate: OUT OF SCOPE — none of this change's "
+            f"{len(paths)} changed paths touch the gate-custody surface "
+            f"({', '.join(GATE_CUSTODY_MARKERS)}), so no [S3:] citation is "
+            "owed. Explicit result, not silence: the red-class index is still "
+            "there to read (docs/memory/RED_CLASSES.md); it is simply no "
+            "longer a toll on a product ticket."
+        )
+        return 0
+    print(
+        "construction_gate: IN SCOPE — gate-custody paths in this change: "
+        + ", ".join(custody)
+    )
+
     if args.content_file is not None:
         content = open(args.content_file, encoding="utf-8").read().lower()
     elif hermetic:
