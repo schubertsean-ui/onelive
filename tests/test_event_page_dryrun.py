@@ -417,3 +417,67 @@ def test_the_table_does_not_claim_a_spread_that_did_not_happen():
     two_desks = follow_table(filled2, runs2, cap=40)
     assert "spread round-robin across 2 desk(s)" in two_desks
     assert "`desk-a` 3, `desk-b` 3 page(s)" in two_desks
+
+
+# --------------------------------------------------------------------------
+# The evaluator's two findings, PR #238 (openai/attacker-smuggle)
+# --------------------------------------------------------------------------
+
+def test_the_write_plan_section_says_it_is_not_the_write_plan():
+    """Finding 1, REAL and fixed: a dry run follows event pages and then plans
+    from the FILLED rows, while `--write` skips following. A section headed
+    "The write plan" was showing an operator dated and placed writes the real
+    write path will not produce. The heading and a derived caveat now carry it."""
+    from tools.desk_ingest import write_plan_caveat
+
+    url = "https://desk.test/event/foo-7"
+    walks = [walk_of([row(url)])]
+    fetchers = {"test-desk": fetcher({url: DATE_AND_VENUE})}
+    _filled, runs = follow_pages(walks, fetchers, cap=DEFAULT_FOLLOW_PAGES)
+
+    caveat = write_plan_caveat(runs)
+    assert "not what `--real --write` would plan" in caveat
+    assert "1 night(s) and 1 place(s) here came from an event page" in caveat
+
+    source = open(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "tools", "desk_ingest.py"), encoding="utf-8").read()
+    assert '" — DRY-RUN VIEW, not what `--write` would plan" if followed_any else ""' in source
+
+
+def test_a_run_that_changed_no_row_says_the_plan_is_the_write_plan():
+    """The caveat must not cry wolf: when following changed nothing, the dry
+    plan IS what a write run would plan, and saying otherwise would train an
+    operator to skip the line on the runs where it matters."""
+    from tools.desk_ingest import write_plan_caveat
+
+    url = "https://desk.test/event/foo-8"
+    walks = [walk_of([row(url, when="2026-09-11T20:00:00-05:00",
+                          place_text="The Shape Hall")])]
+    fetchers = {"test-desk": fetcher({url: DATE_AND_VENUE})}
+    _filled, runs = follow_pages(walks, fetchers, cap=DEFAULT_FOLLOW_PAGES)
+
+    assert "changed no row" in write_plan_caveat(runs)
+
+
+def test_rows_sharing_one_permalink_are_all_counted_as_asked():
+    """Finding 2, checked and NOT reproduced: the claim was that when several
+    rows share one permalink, one knock answers all of them but the table still
+    reports the extras as `not_asked`. It does not — `follow()` appends a visit
+    per ROW (the repeats marked `reused`), and `asked` excludes only
+    `not_knocked` and `off_host`, neither of which a reused visit carries. One
+    knock, four rows answered, `not_asked` 0. Pinned so it stays true."""
+    url = "https://desk.test/event/shared-4"
+    knocks = []
+
+    def fetch(u):
+        knocks.append(u)
+        return PageFetch(url=u, status=200, body=DATE_AND_VENUE, final_url=u)
+
+    walks = [walk_of([row(url, title=f"row {i}") for i in range(4)])]
+    filled, runs = follow_pages(walks, {"test-desk": fetch}, cap=DEFAULT_FOLLOW_PAGES)
+
+    assert len(knocks) == 1, "one knock per page"
+    assert runs["test-desk"].followed_n == 1, "one PAGE read"
+    assert sum(1 for r in filled[0].rows if r.when) == 4, "all four rows answered"
+    assert "| `test-desk` | 4 | 4 | 4 | 0 | 0 | 0 | 1 | 0 |" in follow_table(
+        filled, runs, cap=DEFAULT_FOLLOW_PAGES), "not_asked is 0: every row was asked"

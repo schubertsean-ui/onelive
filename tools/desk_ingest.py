@@ -439,6 +439,35 @@ def follow_table(walks: Sequence[DeskWalk], runs: Mapping[str, FollowRun],
     return "\n".join(lines)
 
 
+def write_plan_caveat(runs: Mapping[str, FollowRun]) -> str:
+    """Why the plan printed above is NOT the plan `--write` would produce.
+
+    Evaluator, PR #238 (openai/attacker-smuggle): a dry run follows event pages
+    and then plans from the FILLED rows, while a `--write` run skips following
+    entirely — so a section headed "The write plan" showed an operator dated and
+    placed candidate writes that the real write path will not produce. The PR
+    body said so; the printed report did not, and the report is what an operator
+    reads. Both the heading and this line now carry it, with the size of the
+    difference DERIVED from the visits rather than described in the abstract.
+    """
+    filled_when = sum(r.filled_when_n for r in runs.values())
+    filled_place = sum(r.filled_place_n for r in runs.values())
+    nulled = sum(r.nulled_when_n for r in runs.values())
+    if not (filled_when or filled_place or nulled):
+        return ("Event pages were followed and changed no row, so this plan is "
+                "also what `--real --write` would plan.")
+    return (
+        f"**This is not what `--real --write` would plan.** Following ran on this "
+        f"DRY run and does not run under `--write` (wiring the reader into the "
+        f"write path is a catalog change, out of scope here), so the rows behind "
+        f"the plan above differ from the rows a write run would carry: "
+        f"{filled_when} night(s) and {filled_place} place(s) here came from an "
+        f"event page and would be NULL under `--write`, and {nulled} contested "
+        f"night(s) were removed here and would still be published there. Read "
+        f"this section as what the desks plus their event pages know — not as a "
+        f"rehearsal of the next write.")
+
+
 def count_events(cur) -> int:
     """`GET /events`'s population: every scheduled event, no confidence filter
     (api/public.py returns disputed rows too — shown as disputed, never
@@ -942,9 +971,14 @@ def main(argv=None) -> int:
         print()
         print(f"**Not followed**: {note}")
     print()
-    print("## 4. The write plan")
+    followed_any = sum(r.followed_n for r in runs.values())
+    print("## 4. The write plan" + (
+        " — DRY-RUN VIEW, not what `--write` would plan" if followed_any else ""))
     print()
     print(plan_table(writes))
+    if followed_any:
+        print()
+        print(write_plan_caveat(runs))
     print()
     tba = digest['clock_holes'] - digest['held'] - digest['clock_disputed']
     print(f"{bounded(digest['rows'], one)} happening(s) planned, of which "
@@ -966,7 +1000,10 @@ def main(argv=None) -> int:
         print()
         print("This was a dry run" + ("" if args.real else " over COMMITTED FIXTURES")
               + ". Re-run with `--real --write` on a machine that can reach the "
-                "desks and holds `ONELIVE_DB_DSN`.")
+                "desks and holds `ONELIVE_DB_DSN`."
+              + (" That run will NOT follow event pages, so it plans the rows "
+                 "the LIST pages stated — see the caveat under section 4."
+                 if followed_any else ""))
         return 0
 
     # --- the write ---------------------------------------------------------
