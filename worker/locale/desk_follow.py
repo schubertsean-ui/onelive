@@ -69,7 +69,13 @@ from urllib.parse import urlsplit
 
 from worker.datetime_normalize import normalize_datetime_claim
 from worker.importers.structured_feed import parse_jsonld
-from worker.locale.desk_read import PLACEISH_RE, Happening
+from worker.locale.desk_read import (
+    FURNITURE_TAGS,
+    PLACEISH_RE,
+    SCOPED_FURNITURE_TAGS,
+    SECTIONING_TAGS,
+    Happening,
+)
 from worker.locale.desk_walk import DECLARED_PUBLIC, PageFetch
 from worker.locale.identity_patterns import (
     IdentityPattern,
@@ -120,6 +126,25 @@ _PLACE_ITEMPROPS = frozenset({"location", "address"})
 #: Elements whose text is never a place (or anything else printed).
 _SKIP_TEXT_TAGS = frozenset({"script", "style", "template"})
 
+#: Block-level containers. A page's printed text is cut into SEGMENTS on these,
+#: and a segment is the closest thing a page has to "one statement": inline
+#: markup (`span`, `a`, `time`, `em`) folds into the segment around it, so
+#: `<span class="date">Sat Sep 5</span><span>9:00PM</span>` inside one `<div>`
+#: is one statement, while two sibling `<div>`s are two.
+_BLOCK_TAGS = frozenset({
+    "address", "article", "aside", "blockquote", "dd", "details", "div", "dl",
+    "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2",
+    "h3", "h4", "h5", "h6", "header", "hgroup", "li", "main", "nav", "ol", "p",
+    "pre", "section", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+    "ul",
+})
+
+#: Date carriers that are a statement ABOUT THE EVENT by construction: a
+#: schema.org `Event.startDate` and an ICS `VEVENT`'s `DTSTART` say whose start
+#: they are. Everything else — a `<time>` tag, printed prose — is just text on a
+#: page, and has to be tied to this happening before it may date it.
+_EVENT_SCOPED_KINDS = frozenset({"jsonld", "ics"})
+
 
 class DeskFollowError(ValueError):
     """The follow cannot run as asked — a caller that handed us something this
@@ -130,6 +155,104 @@ class DeskFollowError(ValueError):
 
 def _visible(html: str) -> str:
     return _TAG_RE.sub(" ", _SCRIPT_STYLE_RE.sub(" ", html or ""))
+
+
+class _SegmentScanner(HTMLParser):
+    """The page's printed text, cut into statements, with its plumbing removed.
+
+    Two jobs, both from the evaluator's blocking finding on PR #235
+    (openai/absence-only): a page's only date can be a "last updated" stamp in
+    the footer, and a page's only clock can be a box office's opening hour — and
+    a reader that takes "the one date anywhere" and "the one clock anywhere"
+    publishes a well-formed instant that nobody stated.
+
+      * FURNITURE IS NOT A STATEMENT ABOUT THIS HAPPENING. Text inside `<nav>`
+        or `<aside>`, or inside a PAGE-level `<header>`/`<footer>`, is dropped —
+        the same structural rule (and the same tag sets) `desk_read` already
+        uses to keep a nav link from becoming a listing. Structural, not a list
+        of chrome words: "updated", "posted" and "box office" are English, and
+        an enumeration of them would look complete while missing the next one.
+      * A SEGMENT IS ONE STATEMENT. `<time datetime>` values are inlined into
+        the segment that printed them, so the machine form and the printed form
+        of one statement stay together.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.segments: List[str] = []
+        self._parts: List[str] = []
+        self._skip = 0
+        self._furniture = 0
+        self._open: List[str] = []
+
+    def _flush(self) -> None:
+        text = " ".join(" ".join(self._parts).split())
+        if text:
+            self.segments.append(text)
+        self._parts = []
+
+    def _in_sectioning(self) -> bool:
+        return any(tag in SECTIONING_TAGS for tag in self._open)
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in _SKIP_TEXT_TAGS:
+            self._skip += 1
+            return
+        furniture = tag in FURNITURE_TAGS or (
+            tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning())
+        if furniture:
+            self._flush()
+            self._furniture += 1
+        self._open.append(tag)
+        if tag in _BLOCK_TAGS:
+            self._flush()
+        if tag == "time" and not self._furniture and not self._skip:
+            stated = " ".join((dict(
+                (k.lower(), v or "") for k, v in attrs).get("datetime") or "").split())
+            if stated:
+                self._parts.append(stated)
+
+    def handle_startendtag(self, tag, attrs):
+        if tag.lower() == "time":
+            self.handle_starttag(tag, attrs)
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in _SKIP_TEXT_TAGS:
+            self._skip = max(0, self._skip - 1)
+            return
+        if tag in _BLOCK_TAGS:
+            self._flush()
+        if tag in self._open:
+            while self._open:
+                closed = self._open.pop()
+                if closed == tag:
+                    break
+        if tag in FURNITURE_TAGS or tag in SCOPED_FURNITURE_TAGS:
+            self._parts = []          # anything buffered inside plumbing is dropped
+            self._furniture = max(0, self._furniture - 1)
+
+    def handle_data(self, data):
+        if not self._skip and not self._furniture:
+            self._parts.append(data)
+
+    def close(self):
+        super().close()
+        self._flush()
+
+
+def segments(html: str) -> List[str]:
+    """The page's statements, plumbing removed. Empty when nothing can be read."""
+    scanner = _SegmentScanner()
+    try:
+        scanner.feed(html or "")
+        scanner.close()
+    except Exception as exc:  # noqa: BLE001 — a pathological page states nothing, it never crashes
+        log.debug("segment scan raised on a followed page: %s", exc)
+        return []
+    return scanner.segments
 
 
 def _host(url: Optional[str]) -> str:
@@ -179,6 +302,11 @@ class _PlaceScanner(HTMLParser):
     Nested labels collapse into the outermost one (an `itemprop="location"`
     holding an `itemprop="address"` is ONE statement about where), so a page
     does not look like it named two places by marking up one carefully.
+
+    The page's own plumbing is skipped for the same reason the date rule skips
+    it: a `<footer class="address">` holding the publisher's office is a
+    statement about the SITE, and reading it would give every happening on that
+    desk the desk's own address.
     """
 
     def __init__(self) -> None:
@@ -187,6 +315,8 @@ class _PlaceScanner(HTMLParser):
         self._depth = 0
         self._parts: List[str] = []
         self._skip = 0
+        self._furniture = 0
+        self._open: List[str] = []
 
     @staticmethod
     def _labelled(attrs: Dict[str, str]) -> bool:
@@ -195,13 +325,22 @@ class _PlaceScanner(HTMLParser):
         return any(PLACEISH_RE.search(attrs.get(name) or "")
                    for name in ("class", "id"))
 
+    def _in_sectioning(self) -> bool:
+        return any(tag in SECTIONING_TAGS for tag in self._open)
+
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         if tag in _SKIP_TEXT_TAGS:
             self._skip += 1
             return
+        if tag in FURNITURE_TAGS or (
+                tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning()):
+            self._furniture += 1
+        self._open.append(tag)
         if self._depth:
             self._depth += 1
+            return
+        if self._furniture:
             return
         flat = {k.lower(): (v or "") for k, v in attrs}
         if self._labelled(flat):
@@ -218,6 +357,13 @@ class _PlaceScanner(HTMLParser):
         if tag in _SKIP_TEXT_TAGS:
             self._skip = max(0, self._skip - 1)
             return
+        if tag in self._open:
+            while self._open:
+                closed = self._open.pop()
+                if closed == tag:
+                    break
+        if tag in FURNITURE_TAGS or tag in SCOPED_FURNITURE_TAGS:
+            self._furniture = max(0, self._furniture - 1)
         if not self._depth:
             return
         self._depth -= 1
@@ -305,7 +451,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
     dates = same_page_dates(html, as_of=as_of)
-    clock, clock_refusal = _clock_claim(html)
+    said = segments(html)
+    page_clock, clock_refusal = _clock_claim(" ".join(said))
     if len(dates) > 1:
         # RED_CLASSES: missing-cardinality-check. Three outcomes, three
         # behaviours — and "more than one" is not a longer list to pick from.
@@ -314,50 +461,86 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
             f"({', '.join(d.date.isoformat() for d in dates[:4])}) — which one "
             f"this happening is on is not stated, so the clock stays NULL")
     elif not dates:
-        if clock:
+        if page_clock:
             # The founder's rule, verbatim: a clock with no date on that page
             # stays NULL. A time with no day is not a moment.
             refusals.append(
-                f"page prints a clock ({clock}) and no date — a time with no "
-                f"day is not a moment, so this stays NULL")
+                f"page prints a clock ({page_clock}) and no date — a time with "
+                f"no day is not a moment, so this stays NULL")
         else:
             refusals.append("page states no date")
     else:
         hit = dates[0]
-        when_carrier, when_text = hit.kind, hit.raw
-        if _HAS_CLOCK_RE.search(hit.raw or ""):
-            # The carrier states the whole instant (an ISO startDate, a DTSTART,
-            # a `<time datetime>` with a time). Normalised by R-021's rule, so
-            # nothing enters here that the existing date gate would refuse.
-            iso, refusal = normalize_datetime_claim(hit.raw)
-            if iso:
-                when, when_precision = iso, "datetime"
-            else:
-                refusals.append(
-                    f"page states {hit.raw!r} as its {hit.kind} date and the "
-                    f"date rule refuses it ({(refusal or {}).get('reason')}) — "
-                    f"kept as a hole rather than coerced")
-        elif clock:
-            # The page states the day in one place and the time in another —
-            # both on THIS page, which is what the same-page rule permits and
-            # all it permits. R-030 does the combining, including its own
-            # consistency and ambiguity checks.
-            iso, refusal, _evidence = resolve_same_page_datetime(
-                clock, page_text=html, as_of=as_of)
-            if iso:
-                when, when_precision = iso, "datetime"
-                when_text = f"{hit.raw} {clock}"
+        # WHICH STATEMENT STATED IT. A date is this happening's only when
+        # something on the page ties it to this happening — a schema.org
+        # `Event.startDate` or an ICS `DTSTART` does so by construction; printed
+        # text does so by being printed as part of the page's content rather
+        # than in its plumbing. Without this, a footer's "last updated"
+        # stamp is the page's only date and becomes the show's day (evaluator,
+        # PR #235, openai/absence-only — reproduced before fixing).
+        # Two ways a statement can carry this date, and both are needed. The
+        # date rule reads a segment's PRINTED form ("Sat Sep 5"); the raw check
+        # catches the MACHINE form, whose ISO text ("2026-09-06T21:00") the
+        # visible-date pattern cannot match — its `\b` never fires between the
+        # day and the `T`, so a `<time datetime>` would look like it belonged to
+        # no statement at all and every structured-lite page would go dateless.
+        owning = [s for s in said
+                  if (hit.raw and hit.raw in s)
+                  or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}]
+        if hit.kind not in _EVENT_SCOPED_KINDS and not owning:
+            refusals.append(
+                f"the only date on this page ({hit.date.isoformat()}, from "
+                f"{hit.raw!r}) is stated in the page's own plumbing — a nav, a "
+                f"page header or footer — not in anything this happening says "
+                f"about itself. A page timestamp is not a show's day, so this "
+                f"stays NULL")
+        else:
+            when_carrier, when_text = hit.kind, hit.raw
+            if _HAS_CLOCK_RE.search(hit.raw or ""):
+                # The carrier states the whole instant (an ISO startDate, a
+                # DTSTART, a `<time datetime>` with a time). Normalised by
+                # R-021's rule, so nothing enters here that the existing date
+                # gate would refuse.
+                iso, refusal = normalize_datetime_claim(hit.raw)
+                if iso:
+                    when, when_precision = iso, "datetime"
+                else:
+                    refusals.append(
+                        f"page states {hit.raw!r} as its {hit.kind} date and the "
+                        f"date rule refuses it ({(refusal or {}).get('reason')}) — "
+                        f"kept as a hole rather than coerced")
             else:
                 when, when_precision = hit.date.isoformat(), "date"
-                refusals.append(
-                    f"page states {hit.date.isoformat()} and the clock {clock!r} "
-                    f"does not settle against it "
-                    f"({(refusal or {}).get('reason', 'unresolved')}) — the day "
-                    f"stands, the time stays a hole")
-        else:
-            when, when_precision = hit.date.isoformat(), "date"
-            if clock_refusal:
-                refusals.append(clock_refusal + " — the day stands without it")
+                # THE CLOCK MUST COME FROM THE STATEMENT THAT GAVE THE DAY.
+                # "Sat Sep 5 - 9:00PM" is one sentence and combines; a day in
+                # the listing and a "box office opens 10:00AM" two blocks away
+                # are two statements, and joining them publishes an instant
+                # neither one made. The day still stands — refusing the time is
+                # not refusing the date.
+                near, near_refusal = (_clock_claim(owning[0]) if len(owning) == 1
+                                      else (None, None))
+                if near:
+                    iso, refusal, _evidence = resolve_same_page_datetime(
+                        near, page_text=html, as_of=as_of)
+                    if iso:
+                        when, when_precision = iso, "datetime"
+                        when_text = f"{hit.raw} {near}"
+                    else:
+                        refusals.append(
+                            f"page states {hit.date.isoformat()} and the clock "
+                            f"{near!r} beside it does not settle against it "
+                            f"({(refusal or {}).get('reason', 'unresolved')}) — "
+                            f"the day stands, the time stays a hole")
+                elif near_refusal:
+                    refusals.append(near_refusal + " — the day stands without it")
+                elif page_clock:
+                    refusals.append(
+                        f"page prints a clock ({page_clock}) somewhere other "
+                        f"than in the statement that gave the day — two "
+                        f"statements are not one, so the day stands and the "
+                        f"time stays a hole")
+                else:
+                    refusals.append("page states a day and no time")
     if clock_refusal and not any(clock_refusal in r for r in refusals):
         refusals.append(clock_refusal)
 

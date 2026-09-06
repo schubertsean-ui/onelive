@@ -104,16 +104,16 @@ _VOID_TAGS = frozenset({
 _ROW_TAGS = ("li", "article", "tr", "div", "section")
 #: FURNITURE: a link inside one of these is the page's own plumbing, whatever it
 #: points at. `<nav>` and `<aside>` say so unconditionally.
-_FURNITURE_TAGS = frozenset({"nav", "aside"})
+FURNITURE_TAGS = frozenset({"nav", "aside"})
 #: `<header>` and `<footer>` are furniture only at PAGE scope. HTML scopes both
 #: to their nearest sectioning ancestor, so `<article class="card"><header>` is
 #: a CARD's header — a normal place for a listing's own title — while
 #: `<body><header>` is the masthead. Reading them unconditionally as furniture
 #: would drop real listings; reading them never would publish the masthead.
-_SCOPED_FURNITURE_TAGS = frozenset({"header", "footer"})
+SCOPED_FURNITURE_TAGS = frozenset({"header", "footer"})
 #: HTML sectioning content, plus the two list/table row elements a card is
 #: built from in practice. What makes a `<header>` belong to a card.
-_SECTIONING_TAGS = frozenset({"article", "section", "aside", "nav", "li", "tr"})
+SECTIONING_TAGS = frozenset({"article", "section", "aside", "nav", "li", "tr"})
 
 
 class DeskReadError(ValueError):
@@ -310,9 +310,9 @@ def _in_furniture(anchor: _Node) -> bool:
     """
     node = anchor.parent
     while node is not None and node.tag != "#root":
-        if node.tag in _FURNITURE_TAGS:
+        if node.tag in FURNITURE_TAGS:
             return True
-        if node.tag in _SCOPED_FURNITURE_TAGS and not _inside_sectioning(node):
+        if node.tag in SCOPED_FURNITURE_TAGS and not _inside_sectioning(node):
             return True
         node = node.parent
     return False
@@ -323,7 +323,7 @@ def _inside_sectioning(node: _Node) -> bool:
     own scoping rule for `<header>`/`<footer>`."""
     parent = node.parent
     while parent is not None and parent.tag != "#root":
-        if parent.tag in _SECTIONING_TAGS:
+        if parent.tag in SECTIONING_TAGS:
             return True
         parent = parent.parent
     return False
@@ -338,9 +338,9 @@ def _is_page_structure(node: _Node) -> bool:
     row at `<article class="card"><header>` and loses the venue printed as the
     header's sibling; reading them never lets a row grow through the masthead.
     """
-    if node.tag in ("body", "main", "h1") or node.tag in _FURNITURE_TAGS:
+    if node.tag in ("body", "main", "h1") or node.tag in FURNITURE_TAGS:
         return True
-    return node.tag in _SCOPED_FURNITURE_TAGS and not _inside_sectioning(node)
+    return node.tag in SCOPED_FURNITURE_TAGS and not _inside_sectioning(node)
 
 
 def _has_page_level(node: _Node) -> bool:
@@ -778,15 +778,25 @@ def fill_holes(kept: Happening, incoming: Happening) -> Happening:
         patch["kind"] = incoming.kind
         patch["kind_source"] = incoming.kind_source
         patch["category_text"] = incoming.category_text
-    if kept.detail_url is None and incoming.detail_url is not None:
+    if incoming.detail_url is not None:
         # Provenance follows the FIELDS it explains, never the reading it came
         # from: the merged row may claim a field came from an event page only
         # where that field was actually taken from this incoming row. Copying
         # the whole tuple would put the other reading's page behind a value the
         # kept row stated itself.
-        patch["detail_url"] = incoming.detail_url
-        patch["filled_from_detail"] = tuple(
-            name for name in incoming.filled_from_detail if name in patch)
+        taken = tuple(name for name in incoming.filled_from_detail if name in patch)
+        if kept.detail_url is None:
+            patch["detail_url"] = incoming.detail_url
+            patch["filled_from_detail"] = taken
+        elif kept.detail_url == incoming.detail_url and taken:
+            patch["filled_from_detail"] = tuple(
+                dict.fromkeys(kept.filled_from_detail + taken))
+        # TWO DIFFERENT EVENT PAGES, ONE ROW. `filled_from_detail` names fields
+        # that came from THIS row's `detail_url`, and a row has one of those —
+        # so a field merged from a SECOND reading's page keeps the value and no
+        # provenance claim. Understating is the only safe direction here: the
+        # alternative implies the field came from a page that never stated it
+        # (evaluator NIT, PR #235, openai/attacker-smuggle).
     return replace(kept, **patch) if patch else kept
 
 

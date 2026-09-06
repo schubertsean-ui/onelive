@@ -354,6 +354,114 @@ def test_a_nested_location_markup_is_one_place_not_two():
     assert read.place_carrier == "labelled"
 
 
+# --- event scope: whose statement is this? -----------------------------------
+# Evaluator, PR #235 (openai/absence-only), BLOCKING and reproduced before
+# fixing: without an event-scope check, "the only date anywhere on the page" and
+# "the only clock anywhere on the page" were joined into this happening's start.
+# Both halves published a well-formed instant nobody stated.
+
+FOOTER_STAMP = """<!doctype html><html><body>
+<article><h1>Dominic Fike</h1>
+  <p class="time">Doors 9:00PM</p>
+  <div class="venue">Moody Amphitheater</div></article>
+<footer><p>Last updated September 3, 2026</p></footer>
+</body></html>"""
+
+BOX_OFFICE = """<!doctype html><html><body>
+<article><h1>Dominic Fike</h1>
+  <p class="date-line">Sat Sep 5</p></article>
+<footer><p>Box office opens 10:00AM daily</p></footer>
+</body></html>"""
+
+
+def test_a_page_timestamp_in_the_footer_is_not_the_shows_day():
+    """Reproduced on the first implementation as `2026-09-03T21:00:00` — the
+    footer's "last updated" stamp joined to the event's own doors time. The
+    page never said what day the show is."""
+    read = df.field_read(FOOTER_STAMP, url="u", as_of=AS_OF)
+    assert read.when is None
+    assert any("plumbing" in r for r in read.refusals), read.refusals
+    assert read.place_text == "Moody Amphitheater"    # the place still fills
+
+
+def test_a_box_office_clock_elsewhere_is_not_the_shows_time():
+    """Reproduced as `2026-09-05T10:00:00` — the box office's opening hour
+    published as the door time. The DAY stands: refusing the time is not
+    refusing the date, and a missing minute is not a missing night."""
+    read = df.field_read(BOX_OFFICE, url="u", as_of=AS_OF)
+    assert read.when == "2026-09-05"
+    assert read.when_precision == "date"
+
+
+def test_the_clock_must_come_from_the_statement_that_gave_the_day():
+    """Two blocks are two statements. One block — however it is marked up
+    inside — is one."""
+    apart = ('<html><body><div class="date">Sat Sep 5</div>'
+             '<div class="clock">9:00PM</div></body></html>')
+    together = ('<html><body><div><span class="date">Sat Sep 5</span> '
+                '<span class="t">9:00PM</span></div></body></html>')
+    assert df.field_read(apart, url="u", as_of=AS_OF).when == "2026-09-05"
+    assert df.field_read(together, url="u", as_of=AS_OF).when == "2026-09-05T21:00:00"
+
+
+def test_a_time_tag_in_the_page_chrome_dates_nothing():
+    chrome = ('<html><body><nav><time datetime="2026-09-06T21:00">Sun</time></nav>'
+              '<article><h1>A Show</h1></article></body></html>')
+    content = ('<html><body><article><h1>A Show</h1>'
+               '<time datetime="2026-09-06T21:00">Sun</time></article></body></html>')
+    assert df.field_read(chrome, url="u", as_of=AS_OF).when is None
+    assert df.field_read(content, url="u", as_of=AS_OF).when == "2026-09-06T21:00:00"
+
+
+def test_a_structured_event_needs_no_segment_to_own_it():
+    """A schema.org `Event.startDate` says WHOSE start it is, so it is event
+    scoped by construction — the one carrier that needs no locality check."""
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"A","startDate":"2026-09-06T21:00:00-05:00",
+     "location":{"@type":"Place","name":"The Hall"}}</script></head>
+    <body><footer>updated somewhere</footer></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when == "2026-09-06T21:00:00-05:00"
+    assert read.place_text == "The Hall"
+
+
+def test_a_publishers_own_address_in_the_footer_is_not_the_venue():
+    """The same defect one field over: a `<footer class="address">` holding the
+    publisher's office would give every happening on that desk the desk's own
+    address."""
+    page = """<html><body><article><h1>A Show</h1>
+    <time datetime="2026-09-06T21:00">Sun</time></article>
+    <footer><div class="address">PO Box 1, Publisher HQ</div></footer></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.place_text is None
+    assert read.when == "2026-09-06T21:00:00"
+
+
+def test_the_scope_rule_is_structural_not_a_list_of_chrome_words():
+    """"updated", "posted", "box office" are English, and an enumeration of them
+    would look complete while missing the next one. The rule is HTML's own
+    sectioning: nav/aside always, header/footer at page scope — the same sets
+    `desk_read` already uses to keep a nav link from becoming a listing."""
+    from worker.locale import desk_read
+    assert df.FURNITURE_TAGS is desk_read.FURNITURE_TAGS
+    assert df.SCOPED_FURNITURE_TAGS is desk_read.SCOPED_FURNITURE_TAGS
+    # A card's OWN header is not page chrome — HTML scopes it to the article.
+    card = ('<html><body><article><header>'
+            '<time datetime="2026-09-06T21:00">Sun</time></header></article></body></html>')
+    assert df.field_read(card, url="u", as_of=AS_OF).when == "2026-09-06T21:00:00"
+
+
+def test_the_fabricated_instant_cannot_reach_a_row():
+    """End to end, through `follow`: the row keeps its hole rather than carrying
+    a date that page never stated about it."""
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": FOOTER_STAMP}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when is None
+    assert result.dated == 0
+    assert result.rows[0].place_text == "Moody Amphitheater"
+
+
 # --- which URLs may be opened at all -----------------------------------------
 
 def test_an_off_origin_permalink_is_not_opened_and_the_row_is_not_dropped():
@@ -507,6 +615,30 @@ def test_the_place_label_rule_has_exactly_one_definition():
     different answers about the same markup."""
     from worker.locale import desk_read
     assert df.PLACEISH_RE is desk_read.PLACEISH_RE
+
+
+def test_a_row_never_claims_a_field_came_from_a_page_that_did_not_state_it():
+    """Evaluator NIT, PR #235 (openai/attacker-smuggle). A row names ONE detail
+    page, so a field merged in from a SECOND reading's page keeps its value and
+    makes no provenance claim — understating is the only safe direction, because
+    the alternative says a page stated something it never did."""
+    from worker.locale.desk_read import fill_holes
+    kept = row(when="2026-09-05T21:00:00")
+    kept = kept.__class__(**{**kept.__dict__, "detail_url": "https://desk.test/event/a-1",
+                             "filled_from_detail": ("when",)})
+    incoming = row(place_text="The Hall")
+    incoming = incoming.__class__(**{**incoming.__dict__,
+                                     "detail_url": "https://desk.test/event/b-2",
+                                     "filled_from_detail": ("place_text",)})
+    merged = fill_holes(kept, incoming)
+    assert merged.place_text == "The Hall"                 # the value is kept
+    assert merged.detail_url == "https://desk.test/event/a-1"
+    assert "place_text" not in merged.filled_from_detail   # and NOT claimed
+
+    # Same page on both sides: the claim is the union, because it is true.
+    same = incoming.__class__(**{**incoming.__dict__,
+                                 "detail_url": "https://desk.test/event/a-1"})
+    assert set(fill_holes(kept, same).filled_from_detail) == {"when", "place_text"}
 
 
 # --- the tick as the tool runs it ---------------------------------------------
