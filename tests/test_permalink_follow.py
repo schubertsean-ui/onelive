@@ -451,6 +451,48 @@ def test_the_scope_rule_is_structural_not_a_list_of_chrome_words():
     assert df.field_read(card, url="u", as_of=AS_OF).when == "2026-09-06T21:00:00"
 
 
+def test_a_footer_stamp_does_not_make_a_page_that_states_its_day_ambiguous():
+    """Scope is asked BEFORE cardinality, and the live run is why.
+
+    Counting every date on the document first refuses a page that states its day
+    perfectly well and prints a "last updated" stamp in its footer: two dates,
+    ambiguous, hole. That is how a rule which is right about a page nobody
+    publishes is still wrong about every page anybody does — 40 of 40 opened
+    pages came back `dates-ambiguous` on the first live run.
+
+    The stamp is excluded first; what is left is counted; one date remains, and
+    the clock in its own sentence still joins it.
+    """
+    page = """<!doctype html><html><body>
+    <article><h1>A Show</h1><p class="when">Sat Sep 5 &bull; 9:00PM</p>
+    <div class="venue">The Hall</div></article>
+    <footer><p>Last updated September 3, 2026</p></footer></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when == "2026-09-05T21:00:00"
+    assert read.place_text == "The Hall"
+    assert read.codes == ()
+
+
+def test_two_dates_in_the_CONTENT_are_still_ambiguous():
+    """The scope rule narrows WHERE a date may come from; it does not soften
+    what happens when two of them come from there."""
+    page = ('<html><body><article><h1>A Show</h1>'
+            '<p>Sat Sep 5</p><p>Sun Sep 6</p></article></body></html>')
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when is None
+    assert "dates-ambiguous" in read.codes
+
+
+def test_the_clock_is_settled_against_its_own_statement_not_the_page():
+    """R-030's `block_text` is "the event's own listing block". Handing it the
+    whole document instead re-admits every date the scope rule just excluded,
+    and the page above loses a day and a time it stated in one sentence."""
+    page = """<!doctype html><html><body>
+    <article><p class="when">Sat Sep 5 &bull; 9:00PM</p></article>
+    <footer><p>Last updated September 3, 2026</p></footer></body></html>"""
+    assert df.field_read(page, url="u", as_of=AS_OF).when == "2026-09-05T21:00:00"
+
+
 def test_plumbing_inside_plumbing_does_not_re_open_the_page():
     """Self-caught while probing the fix for this class before pushing it.
 

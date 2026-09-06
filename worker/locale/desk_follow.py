@@ -482,9 +482,29 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
 
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
-    dates = same_page_dates(html, as_of=as_of)
     said = segments(html)
     page_clock, clock_refusal = _clock_claim(" ".join(said))
+
+    # WHOSE DATE IT IS IS ASKED FIRST, AND CARDINALITY OVER THE ANSWER.
+    # The other order — count every date on the document, then check scope —
+    # refuses a page that states its day perfectly well in its content and
+    # prints a "last updated" stamp in its footer: TWO dates, ambiguous, hole.
+    # The first live run said exactly that, on 40 of 40 pages
+    # (docs/evidence/2026-09-06_permalink-follow.md §9), which is how a rule
+    # that is right about a page nobody publishes can still be wrong about
+    # every page anybody does. Scope first, then count what is left: a
+    # schema.org/ICS property says whose start it is, and printed text has to be
+    # in the page's content rather than its plumbing.
+    def owned_by_this_happening(hit) -> bool:
+        if hit.kind in _EVENT_SCOPED_KINDS:
+            return True
+        return any((hit.raw and hit.raw in s)
+                   or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}
+                   for s in said)
+
+    stated = same_page_dates(html, as_of=as_of)
+    dates = [hit for hit in stated if owned_by_this_happening(hit)]
+    in_plumbing = [hit for hit in stated if hit not in dates]
     if len(dates) > 1:
         # RED_CLASSES: missing-cardinality-check. Three outcomes, three
         # behaviours — and "more than one" is not a longer list to pick from.
@@ -494,7 +514,18 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
             f"({', '.join(d.date.isoformat() for d in dates[:4])}) — which one "
             f"this happening is on is not stated, so the clock stays NULL")
     elif not dates:
-        if page_clock:
+        if in_plumbing:
+            # There IS a date on the page and it is not this happening's: a nav,
+            # a page header, a footer's "last updated" stamp. A page timestamp
+            # is not a show's day (evaluator, PR #235, openai/absence-only).
+            refuse(
+                "date-in-plumbing",
+                f"the only date(s) on this page "
+                f"({', '.join(d.date.isoformat() for d in in_plumbing[:3])}) are "
+                f"stated in its own plumbing — a nav, a page header or footer — "
+                f"not in anything this happening says about itself, so this "
+                f"stays NULL")
+        elif page_clock:
             # The founder's rule, verbatim: a clock with no date on that page
             # stays NULL. A time with no day is not a moment.
             refuse(
@@ -505,81 +536,69 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
             refuse("no-date", "page states no date")
     else:
         hit = dates[0]
-        # WHICH STATEMENT STATED IT. A date is this happening's only when
-        # something on the page ties it to this happening — a schema.org
-        # `Event.startDate` or an ICS `DTSTART` does so by construction; printed
-        # text does so by being printed as part of the page's content rather
-        # than in its plumbing. Without this, a footer's "last updated"
-        # stamp is the page's only date and becomes the show's day (evaluator,
-        # PR #235, openai/absence-only — reproduced before fixing).
-        # Two ways a statement can carry this date, and both are needed. The
-        # date rule reads a segment's PRINTED form ("Sat Sep 5"); the raw check
-        # catches the MACHINE form, whose ISO text ("2026-09-06T21:00") the
-        # visible-date pattern cannot match — its `\b` never fires between the
-        # day and the `T`, so a `<time datetime>` would look like it belonged to
-        # no statement at all and every structured-lite page would go dateless.
+        # This date is already known to be this happening's — the scope question
+        # was asked before the count. What is still needed is WHICH statement
+        # carries it, because that statement is the only place a clock may come
+        # from. A structured carrier belongs to no segment and gets none.
         owning = [s for s in said
                   if (hit.raw and hit.raw in s)
                   or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}]
-        if hit.kind not in _EVENT_SCOPED_KINDS and not owning:
-            refuse(
-                "date-in-plumbing",
-                f"the only date on this page ({hit.date.isoformat()}, from "
-                f"{hit.raw!r}) is stated in the page's own plumbing — a nav, a "
-                f"page header or footer — not in anything this happening says "
-                f"about itself. A page timestamp is not a show's day, so this "
-                f"stays NULL")
+        when_carrier, when_text = hit.kind, hit.raw
+        if _HAS_CLOCK_RE.search(hit.raw or ""):
+            # The carrier states the whole instant (an ISO startDate, a
+            # DTSTART, a `<time datetime>` with a time). Normalised by
+            # R-021's rule, so nothing enters here that the existing date
+            # gate would refuse.
+            iso, refusal = normalize_datetime_claim(hit.raw)
+            if iso:
+                when, when_precision = iso, "datetime"
+            else:
+                refuse(
+                    "carrier-refused",
+                    f"page states {hit.raw!r} as its {hit.kind} date and the "
+                    f"date rule refuses it ({(refusal or {}).get('reason')}) — "
+                    f"kept as a hole rather than coerced")
         else:
-            when_carrier, when_text = hit.kind, hit.raw
-            if _HAS_CLOCK_RE.search(hit.raw or ""):
-                # The carrier states the whole instant (an ISO startDate, a
-                # DTSTART, a `<time datetime>` with a time). Normalised by
-                # R-021's rule, so nothing enters here that the existing date
-                # gate would refuse.
-                iso, refusal = normalize_datetime_claim(hit.raw)
+            when, when_precision = hit.date.isoformat(), "date"
+            # THE CLOCK MUST COME FROM THE STATEMENT THAT GAVE THE DAY.
+            # "Sat Sep 5 - 9:00PM" is one sentence and combines; a day in
+            # the listing and a "box office opens 10:00AM" two blocks away
+            # are two statements, and joining them publishes an instant
+            # neither one made. The day still stands — refusing the time is
+            # not refusing the date.
+            near, near_refusal = (_clock_claim(owning[0]) if len(owning) == 1
+                                  else (None, None))
+            if near:
+                # The OWNING STATEMENT, not the page. R-030's `block_text` is
+                # exactly this — "the event's own listing block", consulted
+                # first — and handing it the whole document instead re-admits
+                # every date the scope rule just excluded: a footer's "last
+                # updated" stamp made the combine ambiguous and dropped a row
+                # that had stated its day and its time in one sentence.
+                iso, refusal, _evidence = resolve_same_page_datetime(
+                    near, block_text=owning[0], as_of=as_of)
                 if iso:
                     when, when_precision = iso, "datetime"
+                    when_text = f"{hit.raw} {near}"
                 else:
                     refuse(
-                        "carrier-refused",
-                        f"page states {hit.raw!r} as its {hit.kind} date and the "
-                        f"date rule refuses it ({(refusal or {}).get('reason')}) — "
-                        f"kept as a hole rather than coerced")
+                        "clock-unresolved",
+                        f"page states {hit.date.isoformat()} and the clock "
+                        f"{near!r} beside it does not settle against it "
+                        f"({(refusal or {}).get('reason', 'unresolved')}) — "
+                        f"the day stands, the time stays a hole")
+            elif near_refusal:
+                refuse("clocks-ambiguous",
+                       near_refusal + " — the day stands without it")
+            elif page_clock:
+                refuse(
+                    "clock-elsewhere",
+                    f"page prints a clock ({page_clock}) somewhere other "
+                    f"than in the statement that gave the day — two "
+                    f"statements are not one, so the day stands and the "
+                    f"time stays a hole")
             else:
-                when, when_precision = hit.date.isoformat(), "date"
-                # THE CLOCK MUST COME FROM THE STATEMENT THAT GAVE THE DAY.
-                # "Sat Sep 5 - 9:00PM" is one sentence and combines; a day in
-                # the listing and a "box office opens 10:00AM" two blocks away
-                # are two statements, and joining them publishes an instant
-                # neither one made. The day still stands — refusing the time is
-                # not refusing the date.
-                near, near_refusal = (_clock_claim(owning[0]) if len(owning) == 1
-                                      else (None, None))
-                if near:
-                    iso, refusal, _evidence = resolve_same_page_datetime(
-                        near, page_text=html, as_of=as_of)
-                    if iso:
-                        when, when_precision = iso, "datetime"
-                        when_text = f"{hit.raw} {near}"
-                    else:
-                        refuse(
-                            "clock-unresolved",
-                            f"page states {hit.date.isoformat()} and the clock "
-                            f"{near!r} beside it does not settle against it "
-                            f"({(refusal or {}).get('reason', 'unresolved')}) — "
-                            f"the day stands, the time stays a hole")
-                elif near_refusal:
-                    refuse("clocks-ambiguous",
-                           near_refusal + " — the day stands without it")
-                elif page_clock:
-                    refuse(
-                        "clock-elsewhere",
-                        f"page prints a clock ({page_clock}) somewhere other "
-                        f"than in the statement that gave the day — two "
-                        f"statements are not one, so the day stands and the "
-                        f"time stays a hole")
-                else:
-                    refuse("no-clock", "page states a day and no time")
+                refuse("no-clock", "page states a day and no time")
     if clock_refusal and not any(clock_refusal in r for r in refusals):
         refuse("clocks-ambiguous", clock_refusal)
 
