@@ -159,6 +159,11 @@ class PageStatement:
     #: two different nights has not told us which one this is). Counted, because
     #: declining is a decision and a silent decision looks like a bug.
     ambiguous_dates: Tuple[str, ...] = ()
+    #: The page's structured data and its printed markup state DIFFERENT
+    #: nights. The page argues with itself, so it has stated no night: `when`
+    #: is None and `rung_claims` carries what each rung said.
+    cross_rung_conflict: bool = False
+    rung_claims: Tuple[str, ...] = ()
     #: Candidates dropped because they belonged to ANOTHER listing on this page
     #: (a related-events rail). The anti-mash count for the detail page.
     foreign_candidates: int = 0
@@ -187,6 +192,10 @@ class FollowVisit:
     #: This wall was written to the class-D claim queue's input (a human path),
     #: which is the only thing we ever do about a wall.
     queued: bool = False
+    #: This row's address was already read earlier in this run. The page's
+    #: answer is applied here too, but no second knock was spent and the page
+    #: is not counted twice in any per-PAGE number.
+    reused: bool = False
     #: We never knocked here: the host had already walled us `wall_streak_limit`
     #: times in a row. A hole made by OUR caution, and never counted as the
     #: desk's refusal — that number has to stay the number of walls we met.
@@ -243,24 +252,28 @@ class FollowRun:
 
     @property
     def followed_n(self) -> int:
-        return sum(1 for v in self.visits if v.statement is not None)
+        return sum(1 for v in self.visits
+                   if v.statement is not None and not v.reused)
 
     @property
     def dated_n(self) -> int:
-        return sum(1 for v in self.visits if v.dated)
+        """PAGES that stated a night. A page read once and applied to two rows
+        is one page."""
+        return sum(1 for v in self.visits if v.dated and not v.reused)
 
     @property
     def placed_n(self) -> int:
-        return sum(1 for v in self.visits if v.placed)
+        return sum(1 for v in self.visits if v.placed and not v.reused)
 
     @property
     def blocked_n(self) -> int:
-        return sum(1 for v in self.visits if v.blocked)
+        return sum(1 for v in self.visits if v.blocked and not v.reused)
 
     @property
     def walled_n(self) -> int:
         """Walls we actually MET. A page we declined to knock on is not one."""
-        return sum(1 for v in self.visits if v.walled and not v.not_knocked)
+        return sum(1 for v in self.visits
+                   if v.walled and not v.not_knocked and not v.reused)
 
     @property
     def not_knocked_n(self) -> int:
@@ -656,30 +669,69 @@ def read_event_page(html: str, page_url: str, *,
     ambiguous: Tuple[str, ...] = ()
     clock_only = False
     foreign_n = ld_foreign
+    cross_rung_conflict = False
+    rung_claims: Tuple[str, ...] = ()
 
+    ld_when = ld_precision = None
     if ld_event and ld_event.get("start_time"):
-        when = ld_event["start_time"]
-        precision = "date" if ld_event.get("all_day") else "datetime"
-        when_source = "jsonld_startDate"
+        ld_when = ld_event["start_time"]
+        ld_precision = "date" if ld_event.get("all_day") else "datetime"
 
     # Rung 2 — a `<time datetime>` the page printed about itself.
+    #
+    # BOTH rungs are read, always, even when rung 1 already answered (evaluator
+    # finding, PR #237 r2). Skipping rung 2 once `when` was set hid the case
+    # where a page's structured data says one night and its visible markup says
+    # another: the JSON-LD night was reported as uncontested, and a reader would
+    # be shown a night the page itself contradicts. The founder's ruling on the
+    # list-vs-page disagreement is the same rule one layer in — A CONTESTED
+    # NIGHT IS NO NIGHT — so a page that disagrees with itself states no night.
+    html_when = html_precision = html_text = None
     if root is not None:
         candidates, clock_only, dropped = _time_candidates(root, page_url, marked)
         foreign_n += dropped
-        if when is None:
-            when, precision, when_text, ambiguous = _pick_date(candidates)
-            if when:
-                when_source = "time_datetime"
-            elif ambiguous:
-                notes.append(
-                    f"the page states {len(ambiguous)} different dates "
-                    f"({', '.join(ambiguous)}); none taken as this listing's night")
+        html_when, html_precision, html_text, ambiguous = _pick_date(candidates)
+        if ambiguous:
+            notes.append(
+                f"the page states {len(ambiguous)} different dates "
+                f"({', '.join(ambiguous)}); none taken as this listing's night")
+
+    if ld_when and ambiguous:
+        # Structured data naming one night while the visible page prints two is
+        # a page arguing with itself; picking the machine-readable one would be
+        # resolving that argument on the publisher's behalf.
+        cross_rung_conflict = True
+        rung_claims = (f"jsonld_startDate={ld_when}",) + tuple(
+            f"time_datetime={d}" for d in ambiguous)
+    elif ld_when and html_when and not _same_moment(ld_when, html_when):
+        cross_rung_conflict = True
+        rung_claims = (f"jsonld_startDate={ld_when}", f"time_datetime={html_when}")
+    elif ld_when:
+        # Either the page printed no `<time>`, or it printed the same moment.
+        when, precision, when_source = ld_when, ld_precision, "jsonld_startDate"
+    elif html_when:
+        when, precision, when_text = html_when, html_precision, html_text
+        when_source = "time_datetime"
+
+    if cross_rung_conflict:
+        notes.append(
+            "the page's structured data and its printed markup state different "
+            f"nights ({'; '.join(rung_claims)}); neither is taken")
 
     # Rung 3 — an iCalendar file this page advertises. Only reached when the
     # page's own markup stated no date, and only ever a SAME-HOST file.
-    if when is None and ics_fetch is not None:
+    #
+    # A page that CONTRADICTS ITSELF is not a page with no date (evaluator
+    # finding, PR #237 r2): letting the calendar file answer there would pick a
+    # winner for a dispute we just declined, and the row would show one settled
+    # night with the disagreement nowhere on it.
+    if (when is None and ics_fetch is not None
+            and not ambiguous and not cross_rung_conflict):
         when, precision, when_source, ics_notes = _read_ics(html, page_url, ics_fetch)
         notes.extend(ics_notes)
+    elif ics_fetch is not None and (ambiguous or cross_rung_conflict):
+        notes.append("a calendar file was not consulted: this page disagrees "
+                     "with itself, and a dispute is not a hole to fill")
 
     place_text = place_source = None
     if ld_event:
@@ -703,6 +755,8 @@ def read_event_page(html: str, page_url: str, *,
         place_source=place_source,
         clock_only=bool(clock_only and when is None),
         ambiguous_dates=ambiguous,
+        cross_rung_conflict=cross_rung_conflict,
+        rung_claims=rung_claims,
         foreign_candidates=foreign_n,
         notes=tuple(notes),
     )
@@ -939,7 +993,14 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
     if not callable(fetch):
         raise EventPageError("follow() needs a callable fetch(url) -> PageFetch")
     run = FollowRun()
-    seen: Set[str] = set()
+    #: What each permalink ANSWERED, keyed on its compare form. A second row at
+    #: the same address is not re-fetched — one knock per page — but it is not
+    #: skipped either (evaluator finding, PR #237 r2): skipping left a duplicate
+    #: row carrying a list night the event page contradicts, with no conflict
+    #: recorded, so a reader could still be shown a date that page disputes. The
+    #: page's answer is applied to EVERY row at that address; only the knock is
+    #: spent once.
+    answered: Dict[str, FollowVisit] = {}
 
     for row in rows:
         if limit is not None and len(run.visits) >= limit:
@@ -950,10 +1011,24 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
             run.rows.append(row)
             continue
         key = _norm_url(url)
-        if key in seen:
-            run.rows.append(row)
+        earlier = answered.get(key)
+        if earlier is not None:
+            if earlier.statement is None:
+                # The page never opened. Nothing to apply; the row keeps what
+                # the list gave it, and the hole says why, once per row.
+                repeat = replace_visit(earlier, row)
+                run.visits.append(repeat)
+                run.rows.append(row)
+                continue
+            filled, repeat = apply(row, earlier.statement)
+            repeat.listing_url = url
+            repeat.title = row.title
+            repeat.status = earlier.status
+            repeat.fetched_url = earlier.fetched_url
+            repeat.reused = True
+            run.visits.append(repeat)
+            run.rows.append(filled)
             continue
-        seen.add(key)
 
         visit = FollowVisit(listing_url=url, title=row.title)
         if not _same_host(url, row.source_url):
@@ -962,6 +1037,7 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
                 f"off-host permalink ({urlsplit(url).netloc}) — same-host only")
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
 
         host = urlsplit(url).netloc.lower()
@@ -973,6 +1049,7 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
                 f"earlier this run; OUR stop, not this listing's answer")
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
 
         try:
@@ -984,6 +1061,7 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
             _record_wall(run, host, visit, wall_streak_limit)
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
 
         if not isinstance(fetched, PageFetch):
@@ -1003,6 +1081,7 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
             _record_wall(run, host, visit, wall_streak_limit)
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
         if fetched.error:
             visit.blocked_reason = f"fetch failed: {fetched.error}"[:300]
@@ -1010,16 +1089,19 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
             _record_wall(run, host, visit, wall_streak_limit)
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
         if fetched.status is not None and fetched.status >= 400:
             visit.blocked_reason = f"HTTP {fetched.status}"
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
         if not (fetched.body or "").strip():
             visit.blocked_reason = "page came back empty"
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
 
         landed = fetched.landed_url
@@ -1030,6 +1112,7 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
                 f"redirected off-host to {urlsplit(landed).netloc} — not read")
             run.visits.append(visit)
             run.rows.append(row)
+            answered[key] = visit
             continue
 
         ics_fetch = None
@@ -1043,10 +1126,23 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
         applied.listing_url = url
         applied.title = row.title
         applied.status = fetched.status
+        applied.fetched_url = fetched.landed_url
         run.visits.append(applied)
         run.rows.append(filled)
+        answered[key] = applied
 
     return run
+
+
+def replace_visit(earlier: FollowVisit, row: Happening) -> FollowVisit:
+    """A second row at an address that never opened: the same hole, said again
+    for this row. `reused` keeps it out of every per-PAGE count."""
+    return FollowVisit(
+        listing_url=earlier.listing_url, title=row.title,
+        fetched_url=earlier.fetched_url, status=earlier.status,
+        blocked_reason=earlier.blocked_reason, walled=earlier.walled,
+        off_host=earlier.off_host, not_knocked=earlier.not_knocked,
+        queued=False, reused=True, row_when_after=row.when)
 
 
 def _record_wall(run: FollowRun, host: str, visit: FollowVisit,

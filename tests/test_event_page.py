@@ -709,3 +709,123 @@ def test_a_same_host_calendar_that_lands_where_it_said_still_works():
         "https://desk.test/event/foo-1.ics": ICS_BODY}))
     assert run.rows[0].when == "2026-09-11T20:00:00Z"
     assert run.visits[0].statement.when_source == "ics"
+
+
+# --- a page that argues with itself states no night (evaluator, PR #237 r2) ----
+
+def _two_rung_page(ld_start: str, visible: str) -> str:
+    return f"""<!doctype html><html><head>
+<script type="application/ld+json">
+{{"@context":"https://schema.org","@type":"Event","name":"Foo at the Hall",
+ "url":"https://desk.test/event/foo-1","startDate":"{ld_start}",
+ "location":{{"@type":"Place","name":"The Hall"}}}}
+</script></head><body><main><article>
+<h1>Foo at the Hall</h1>
+<time datetime="{visible}">as printed</time>
+</article></main></body></html>"""
+
+
+def test_structured_data_disagreeing_with_the_printed_night_takes_neither():
+    """Rung 2 used to be skipped once rung 1 answered, so a page whose JSON-LD
+    said one night and whose visible markup said another reported the JSON-LD
+    night as uncontested."""
+    st = read_event_page(_two_rung_page("2026-09-11T20:00:00-05:00", "2026-10-02"),
+                         f"{DESK}/event/foo-1")
+    assert st.when is None, "a night the page contradicts was reported as settled"
+    assert st.cross_rung_conflict is True
+    assert st.rung_claims == ("jsonld_startDate=2026-09-12T01:00:00Z",
+                              "time_datetime=2026-10-02")
+    assert st.place_text == "The Hall", "the place is not in dispute"
+
+
+def test_the_two_rungs_stating_one_moment_two_ways_still_agree():
+    """The fix must decline disagreements, not every page with both rungs."""
+    st = read_event_page(
+        _two_rung_page("2026-09-12T01:00:00Z", "2026-09-11T20:00:00-05:00"),
+        f"{DESK}/event/foo-1")
+    assert st.cross_rung_conflict is False
+    assert st.when == "2026-09-12T01:00:00Z"
+    assert st.when_source == "jsonld_startDate"
+
+
+def test_structured_data_beside_two_printed_dates_is_still_a_dispute():
+    page = _two_rung_page("2026-09-11T20:00:00-05:00", "2026-10-02").replace(
+        "</article>", '<time datetime="2026-11-05">and also</time></article>')
+    st = read_event_page(page, f"{DESK}/event/foo-1")
+    assert st.when is None
+    assert st.cross_rung_conflict is True
+
+
+def test_a_calendar_file_never_settles_a_dispute_the_page_declined():
+    """`_read_ics` ran whenever `when` was None — including after we declined
+    two printed dates. The calendar then picked a winner and the row showed one
+    settled night with the disagreement nowhere on it."""
+    two_dates = """<!doctype html><html><head>
+<link rel="alternate" type="text/calendar" href="/event/foo-1.ics">
+</head><body><main><article><h1>Foo</h1>
+<time datetime="2026-09-11">Sep 11</time>
+<time datetime="2026-10-02">Oct 2</time>
+</article></main></body></html>"""
+    fetched = []
+
+    def counting_fetch(url: str) -> PageFetch:
+        fetched.append(url)
+        body = two_dates if url.endswith("foo-1") else ICS_BODY
+        return PageFetch(url=url, status=200, body=body, final_url=url)
+
+    run = follow([row()], counting_fetch)
+    assert run.rows[0].when is None, "a calendar file settled a declined dispute"
+    assert fetched == ["https://desk.test/event/foo-1"], "the .ics was fetched anyway"
+    assert any("disagrees with itself" in n for n in run.visits[0].statement.notes)
+
+
+# --- a repeated permalink carries its page's verdict to every row -------------
+
+def test_a_repeated_permalink_applies_its_page_to_every_row_on_one_knock():
+    """Repeats used to be skipped outright, so a second row carrying a list
+    night the event page contradicts kept that night with no conflict
+    recorded."""
+    knocks = []
+
+    def counting_fetch(url: str) -> PageFetch:
+        knocks.append(url)
+        return PageFetch(url=url, status=200, body=DATED_AND_PLACED, final_url=url)
+
+    rows = [row("https://desk.test/event/foo-1", when=None),
+            row("https://desk.test/event/foo-1", when="2026-10-02T20:00:00-05:00")]
+    run = follow(rows, counting_fetch)
+    assert len(knocks) == 1, f"the page was fetched {len(knocks)} times"
+    # Row 1 had a hole -> filled from the page.
+    assert run.rows[0].when == "2026-09-11T20:00"
+    # Row 2 disagreed with the page -> its night is taken away, not left standing.
+    assert run.rows[1].when is None, "a contested night survived on a repeat row"
+    assert run.visits[1].when_conflict is True
+    assert run.visits[1].reused is True
+
+
+def test_a_reused_reading_is_not_a_second_page_in_the_per_page_counts():
+    def counting_fetch(url: str) -> PageFetch:
+        return PageFetch(url=url, status=200, body=DATED_AND_PLACED, final_url=url)
+
+    rows = [row("https://desk.test/event/foo-1"), row("https://desk.test/event/foo-1")]
+    run = follow(rows, counting_fetch)
+    assert run.dated_n == 1, "one page was counted as two"
+    assert run.placed_n == 1
+    assert run.followed_n == 1
+    assert run.rows_dated_n == 2, "both rows carry the night the page stated"
+
+
+def test_a_repeat_of_a_walled_permalink_is_a_hole_without_a_second_knock():
+    knocks = []
+
+    def counting_fetch(url: str) -> PageFetch:
+        knocks.append(url)
+        return PageFetch(url=url, status=403, body="", final_url=url,
+                         error="HTTP 403 Forbidden")
+
+    rows = [row("https://desk.test/event/foo-1")] * 3
+    run = follow(rows, counting_fetch)
+    assert len(knocks) == 1
+    assert run.walled_n == 1, "one wall was counted three times"
+    assert all(v.blocked for v in run.visits)
+    assert run.visits[1].reused and not run.visits[1].queued
