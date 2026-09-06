@@ -2062,6 +2062,96 @@ def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
     assert read.when == "2026-09-18T23:00:00", read.refusals
 
 
+def test_a_word_clock_is_a_hole_in_the_contradiction_check_and_it_is_pinned():
+    """R-115, opened at r20 rather than closed, and PINNED HERE so the residual
+    is visible in the suite and not only in a record.
+
+    Evaluator PR #235 r20 (openai/absence-only): a card whose only time
+    expression is a WORD — "Show at noon" — cannot contradict a structured
+    clock, so a node stating 19:30 publishes beside a page visibly saying noon.
+
+    Not closed because the reason is checked, not asserted: the ARMED
+    `same_page_dates` cannot read a word clock either (this test proves it), so
+    detecting one here would need a second, English-only time vocabulary beside
+    the armed one — `one-rule-expressed-twice` plus the locale-refused-in-code
+    defect r10 removed — and comparing would need a second clock PARSER, refused
+    at r14 and r15. The founder's Must-do 1 names that file imported-never-edited.
+
+    THE BOUND IS MEASURED HERE, NOT REASONED, which is the lesson R-112, R-113
+    and R-114 each cost a round to learn: the arms below run the shape past
+    every live guard and show exactly which one catches it."""
+    # The armed parser's own limit — the fact the record's trigger rests on.
+    from worker.same_page_dates import resolve_same_page_datetime
+    iso, refusal, _ev = resolve_same_page_datetime(
+        "noon", block_text="2026-09-18 noon", as_of=AS_OF)
+    assert iso is None and (refusal or {}).get("reason") == "unparseable"
+
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            '"name":"Dominic Fike","url":"%s",'
+            '"startDate":"2026-09-18T19:30:00-05:00"}</script>' % HERE)
+
+    def read(card):
+        return df.field_read(
+            f"<html><head>{node}</head><body><article><h1>Dominic Fike</h1>"
+            f"{card}</article></body></html>",
+            url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    # THE RESIDUAL, stated as it actually behaves today.
+    assert read("<p>September 18, 2026 — Show at noon</p>").when \
+        == "2026-09-18T19:30:00-05:00"
+    assert read("<p>Show at noon</p>").when == "2026-09-18T19:30:00-05:00"
+
+    # AND THE GUARD THAT DOES CATCH IT: any numeric clock printed beside the
+    # word brings the membership rule (r12/r14) back into play.
+    beside = read("<p>September 18, 2026 — noon, 8:00PM</p>")
+    assert beside.when == "2026-09-18", beside.when
+    assert "card-contradicts-its-own-markup" in beside.codes
+
+
+def test_a_promo_written_as_a_plain_div_is_still_another_card():
+    """Evaluator, PR #235 r20, openai/attacker-smuggle — r18's sub-card rule
+    excluded nested SECTIONING elements, and `<div>` is a block boundary and not
+    a sectioning tag. So a promotional block written as a nested `<div>` shared
+    the article's section id, counted as "the card's own level", and its date
+    and venue were read as this happening's:
+
+        PRE-FIX   when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+
+    The same fact that made r12's page-level default fail open, in the one place
+    r18 did not carry it.
+
+    The rule is now element-agnostic, which is what HTML's implied sections
+    already are: A HEADING STARTS A REGION THAT RUNS UNTIL THE NEXT HEADING. A
+    region headed with what the page is about is the page's; one headed "Also on
+    sale" is another card's, whatever element it happens to sit in."""
+    def read(inner):
+        return df.field_read(
+            f"<html><body><article><h1>Dominic Fike</h1>{inner}</article>"
+            f"</body></html>", url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    promo = ('<h2>Also on sale</h2><p>December 25, 2026 8:00PM</p>'
+             '<div class="venue">The Other Room</div>')
+    # As a plain div — the finding.
+    div = read(f'<div class="promo">{promo}</div>')
+    assert div.when is None, div.when
+    assert div.place_text is None, div.place_text
+    # As a section — r18's case, still closed.
+    section = read(f'<section class="promo">{promo}</section>')
+    assert section.when is None and section.place_text is None
+    # And with NO wrapper at all: an implied region needs no element.
+    bare = read(promo)
+    assert bare.when is None and bare.place_text is None
+
+    # The card's own statements, in every arrangement.
+    own = ('<p>Friday, September 18, 2026 8:00PM</p>'
+           '<div class="venue">The Hall</div>')
+    assert read(own).when == "2026-09-18T20:00:00"
+    assert read(own).place_text == "The Hall"
+    named = read(f'<div><h2>Dominic Fike — tickets</h2>{own}</div>')
+    assert named.when == "2026-09-18T20:00:00", named.refusals
+    assert named.place_text == "The Hall"
+
+
 def test_a_node_naming_a_fragment_of_the_heading_does_not_claim_the_page():
     """Evaluator, PR #235 r19, openai/attacker-smuggle — and it is r15's lesson
     arriving in the place I applied it once and did not sweep for.

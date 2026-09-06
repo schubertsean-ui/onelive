@@ -338,20 +338,31 @@ class _SegmentScanner(HTMLParser):
         self.link_marks: List[Tuple[Tuple[int, ...], str]] = []
         self._heading_open: Optional[Tuple[str, Tuple[int, ...]]] = None
         self._heading_parts: List[str] = []
+        #: Index into `heading_marks` of the heading in force when each segment
+        #: started, or -1 for text before the page's first heading. HTML's
+        #: implied sections: a heading starts a region that runs until the next
+        #: one, and that region is element-agnostic — which is the whole point
+        #: (r20: a promo `<div>` is not a sectioning element and shared the
+        #: article's id, so the r18 rule never saw it).
+        self.segment_headings: List[int] = []
+        self._under = -1
         self._parts: List[str] = []
         self._skip = 0
         self._furniture = 0
         self._open: List[str] = []
         self._next_id = 0
         self._started_in: Tuple[int, ...] = ()
+        self._started_under = -1
 
     def _flush(self) -> None:
         text = " ".join(" ".join(self._parts).split())
         if text:
             self.segments.append(text)
             self.segment_scopes.append(self._started_in)
+            self.segment_headings.append(self._started_under)
         self._parts = []
         self._started_in = self._sections()
+        self._started_under = self._under
 
     def _sections(self) -> Tuple[int, ...]:
         """The sectioning elements currently open, outermost first."""
@@ -421,6 +432,12 @@ class _SegmentScanner(HTMLParser):
             self.heading_marks.append((open_tag, sections, text))
             self._heading_open = None
             self._heading_parts = []
+            # A heading CLOSES the region before it and opens its own. The
+            # flush below carries the previous region's text; everything after
+            # is governed by this heading.
+            self._flush()
+            self._under = len(self.heading_marks) - 1
+            self._started_under = self._under
         if tag in _BLOCK_TAGS:
             self._flush()
         if any(open_tag == tag for open_tag, _f, _s in self._open):
@@ -457,6 +474,29 @@ def _subject_name(marks: Sequence[Tuple[str, Tuple[int, ...], str]]) -> str:
             if mark_tag == tag and text:
                 return text
     return ""
+
+
+def _governed_by_another_card(marks, subject_name: str) -> FrozenSet[int]:
+    """Heading indices whose implied region belongs to a DIFFERENT happening.
+
+    HTML's implied sections, which are element-agnostic — and that is exactly
+    what r18's rule was missing. It excluded nested SECTIONING elements, so a
+    promotional block written as a nested `<div>` shared the article's section
+    id, counted as "the card's own level", and its date and venue were read as
+    this happening's (evaluator, PR #235 r20, openai/attacker-smuggle;
+    reproduced as `2026-12-25T20:00:00` at 'The Other Room'). `<div>` is a
+    block boundary and not a sectioning tag — the same fact that made r12's
+    page-level default fail open, in the one place r18 did not carry it.
+
+    A heading starts a region that runs until the next heading. A region headed
+    with what the page is about is the page's; one headed "Also on sale" is
+    another card's, whatever element it happens to sit in.
+    """
+    if not subject_name:
+        return frozenset()
+    return frozenset(
+        index for index, (_tag, _sections, text) in enumerate(marks)
+        if text and not _claims_this_name(text, subject_name))
 
 
 def _foreign_sections(link_marks, subject, url, patterns,
@@ -553,12 +593,16 @@ def segments(html: str, *, url: Optional[str] = None,
         log.debug("segment scan raised on a followed page: %s", exc)
         return []
     subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
+    subject_name = _subject_name(scanner.heading_marks)
     foreign = _foreign_sections(
         scanner.link_marks, subject, url, patterns,
-        heading_marks=scanner.heading_marks,
-        subject_name=_subject_name(scanner.heading_marks))
-    return [text for text, scope in zip(scanner.segments, scanner.segment_scopes)
-            if _inside_the_card(scope, subject) and not foreign.intersection(scope)]
+        heading_marks=scanner.heading_marks, subject_name=subject_name)
+    others = _governed_by_another_card(scanner.heading_marks, subject_name)
+    return [text for text, scope, under in zip(
+                scanner.segments, scanner.segment_scopes, scanner.segment_headings)
+            if _inside_the_card(scope, subject)
+            and not foreign.intersection(scope)
+            and under not in others]
 
 
 def _host(url: Optional[str]) -> str:
@@ -725,6 +769,11 @@ class _PlaceScanner(HTMLParser):
         #: Enclosing sectioning ids at the moment each place was captured.
         self._opened_in: Tuple[int, ...] = ()
         self.place_scopes: List[Tuple[int, ...]] = []
+        #: And which heading's implied region it was captured under — the
+        #: element-agnostic half of the same boundary (r20).
+        self.place_headings: List[int] = []
+        self._under = -1
+        self._opened_under = -1
 
     @staticmethod
     def _labelled(attrs: Dict[str, str]) -> bool:
@@ -783,6 +832,7 @@ class _PlaceScanner(HTMLParser):
             self._depth = 1
             self._parts = []
             self._opened_in = self._sections()
+            self._opened_under = self._under
             # schema.org may state the value in `content` when the visible text
             # is something else; that stated value is the place.
             stated = " ".join((flat.get("content") or "").split())
@@ -800,6 +850,7 @@ class _PlaceScanner(HTMLParser):
                 (open_tag, sections, " ".join(" ".join(self._heading_parts).split())))
             self._heading_open = None
             self._heading_parts = []
+            self._under = len(self.heading_marks) - 1
         if any(open_tag == tag for open_tag, _f, _s in self._open):
             while self._open:
                 closed, opened_furniture, _section = self._open.pop()
@@ -815,6 +866,7 @@ class _PlaceScanner(HTMLParser):
             if text:
                 self.places.append(text)
                 self.place_scopes.append(getattr(self, "_opened_in", ()))
+                self.place_headings.append(self._opened_under)
             self._parts = []
 
     def handle_data(self, data):
@@ -1354,13 +1406,17 @@ def _scan_places(html: str, *, url: Optional[str] = None,
         log.debug("place scan raised on a followed page: %s", exc)
         return [], []
     subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
+    subject_name = _subject_name(scanner.heading_marks)
     foreign = _foreign_sections(
         scanner.link_marks, subject, url, patterns,
-        heading_marks=scanner.heading_marks,
-        subject_name=_subject_name(scanner.heading_marks))
+        heading_marks=scanner.heading_marks, subject_name=subject_name)
+    others = _governed_by_another_card(scanner.heading_marks, subject_name)
     out: List[str] = []
-    for place, scope in zip(scanner.places, scanner.place_scopes):
+    for place, scope, under in zip(
+            scanner.places, scanner.place_scopes, scanner.place_headings):
         if not _inside_the_card(scope, subject) or foreign.intersection(scope):
+            continue
+        if under in others:
             continue
         if place not in out:
             out.append(place)

@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-134 passed in 0.47s
+136 passed in 0.77s
 ```
 
 | ticket case | test | result |
@@ -1859,6 +1859,66 @@ callers' *wrong* answers point the same way?
 Nothing else is shared across callers whose failure modes disagree. That is a
 checked result rather than an intention, which is the difference this ticket has
 been paying to learn.
+
+### 13v. Round 20 — a rule that was right about elements and wrong about pages
+
+Two blocking findings, both openai seats, both gemini APPROVE. Both reproduced
+against `6297b02` first.
+
+**(1) The sub-card rule only saw sectioning elements.** r18 excluded nested
+SECTIONING elements — and `<div>` is a block boundary and not a sectioning tag,
+so a promotional block written as a nested `<div>` shared the article's section
+id, counted as "the card's own level", and its date and venue were read as this
+happening's:
+
+```
+<article><h1>Dominic Fike</h1>
+  <div class="promo"><h2>Also on sale</h2>
+    <p>December 25, 2026 8:00PM</p><div class="venue">The Other Room</div></div>
+</article>
+PRE-FIX  when=2026-12-25T20:00:00  place='The Other Room'  codes=()
+```
+
+**That is the same fact that made r12's page-level default fail open**, in the
+one place r18 did not carry it. r12 learned that `<div>` is not a sectioning
+tag and fixed the page level; r18 wrote the sub-card rule in the vocabulary of
+sections and inherited the hole.
+
+The rule is now element-agnostic, which is what HTML's implied sections already
+are: **a heading starts a region that runs until the next heading.** A region
+headed with what the page is about is the page's; one headed "Also on sale" is
+another card's, whatever element it sits in — or none at all, which the test
+pins.
+
+**(2) A word clock cannot contradict anything — recorded as R-115, not coded,
+and the reason is checked rather than asserted.** A card saying "Show at noon"
+beside a node stating 19:30 publishes 19:30.
+
+The armed `same_page_dates` **cannot read a word clock either** —
+`resolve_same_page_datetime("noon", block_text="2026-09-18 noon")` returns
+`unparseable`, verified this round and pinned in the test. So detecting one here
+would need a second, English-only time vocabulary beside the armed one
+(`one-rule-expressed-twice`, plus exactly the locale-refused-in-code defect r10
+removed: an English-only detector silently under-protects "mediodía", "Mittag",
+"正午"), and detection alone would not close it — comparing needs a word→hour
+mapping, i.e. a second clock parser, refused at r14 and r15. The founder's
+Must-do 1 names that file imported-never-edited.
+
+**The bound is MEASURED, which is the lesson R-112, R-113 and R-114 each cost a
+round to learn.** Every live guard was run against the shape:
+
+| the card prints | result | which guard |
+|---|---|---|
+| `September 18, 2026 — Show at noon` | publishes 19:30 | **none — the residual** |
+| `Show at noon` | publishes 19:30 | **none — the residual** |
+| `noon, 8:00PM` | day only + refusal | the r12/r14 membership rule |
+| a day the markup disagrees with | day holed | the r8 check |
+
+R-115's trigger names a file and a permission rather than a someday: the first
+ticket authorised to edit `same_page_dates.py` teaches the armed parser word
+clocks, and this module's check then covers them with no change of its own —
+**the detector and the comparator are the same import.** Live exposure on the
+walked corpus is zero: every clock the runs have reported is numeric.
 
 ## 14. What this ticket did NOT do
 
