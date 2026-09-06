@@ -83,7 +83,35 @@ _EVENT_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]*Event\b", re.I)
 #: the field tick (`worker/locale/desk_follow.py`) asks the same question of an
 #: event's own page, and two definitions of "the page called this a venue" would
 #: drift into two different answers about the same markup.
-PLACEISH_RE = re.compile(r"venue|location|place|where", re.I)
+PLACEISH_RE = re.compile(
+    r"(?:^|[^a-z0-9])(?:venue|location|place|where)(?:[^a-z0-9]|$)")
+
+#: Split a class/id into the WORDS a page meant by it. Attribute values are
+#: token lists, and their tokens are written in every convention there is —
+#: `event-venue`, `event_venue`, `eventVenue`, `venue name`.
+_CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def says_place(value: Optional[str]) -> bool:
+    """Did the page LABEL this element a place?
+
+    A word test, not a substring one. Written as a bare alternation this
+    matched `class="placeholder"` and `class="replacement"` — a layout div with
+    an empty placeholder inside the event's own card became the page's one
+    labelled venue and was published as `place_text` (evaluator, PR #235 r13,
+    openai/attacker-smuggle). "place" inside "placeholder" is not the page
+    calling anything a place, and a false venue under a desk's masthead is the
+    same harm class as a false time.
+
+    camelCase is split before matching, because `venueName` is one token to a
+    regex and two words to the person who wrote it — refusing that would trade
+    this defect for a coverage hole on every desk using that convention.
+    """
+    if not value:
+        return False
+    return bool(PLACEISH_RE.search(_CAMEL_RE.sub(" ", value).lower()))
+
+
 #: Where a card may STATE its own category. Every one of these is a DECLARATION
 #: — a `rel` the page wrote, a schema.org property, a class the page named after
 #: its own taxonomy. None of it is a guess from the title, which is why a card
@@ -625,7 +653,7 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                 in_place=(
                     in_place
                     or itemprop in ("location", "address")
-                    or bool(PLACEISH_RE.search(child.attrs.get("class") or ""))
+                    or says_place(child.attrs.get("class"))
                 ),
                 in_category=child_category,
             )

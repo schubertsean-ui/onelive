@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-121 passed in 0.40s
+123 passed in 0.40s
 ```
 
 | ticket case | test | result |
@@ -1359,6 +1359,77 @@ became two (r11). One query value became another (r11). One markup style became
 another (r12). A day shared by two carriers became a day claimed by the wrong
 one (r12). The counter-measure is not another guard — it is asking, of every
 rule, **what the input looks like one step past the fixture that motivated it**.
+
+### 13o. Round 13 — the record that did not cover its own harm
+
+Both openai seats blocking, both gemini APPROVE. Three findings, all reproduced
+against `d7a5c3e` first, and **the first one is the record I wrote at r10**.
+
+**(1) R-113's bound did not cover the harm it named.** That row declined to
+tighten single-token containment and bounded the risk as "a wrong FIELD on a
+page that is otherwise the RIGHT happening". Reproduced, it is worse:
+
+```
+node: {"name":"Night","startDate":"2026-12-25T20:00:00-06:00",
+       "location":{"name":"The Other Room"}}      (no url — a lone node)
+page: <h1>Jazz Night</h1>                          (states no date at all)
+PRE-FIX  when=2026-12-25T20:00:00-06:00  place='The Other Room'  codes=()
+```
+
+A whole fabricated instant and a venue the page never mentions, published with
+no refusal — not a wrong detail on the right show. `deferred-trust-work` for the
+**second time in this ticket** (R-112 was the first, at r5, and both seats
+blocked on it then too). The class's own instruction is the lesson: *test the
+bound against the harm before writing the row.*
+
+The fix is the one R-113 declined, **narrowed to the case that carries the
+defect**: a single-token name must OPEN the longer name; multi-token containment
+is unchanged anywhere in the string. That answers every objection the record
+raised, because all of them were about multi-token names:
+
+| | binds? | why |
+|---|---|---|
+| "Night" ~ "Jazz Night" | no | one word, buried |
+| "Gandahar" ~ "Gandahar (1988)" | yes | one word, opens it |
+| "Кино" ~ "Кино Night" | yes | one word, opens it |
+| "Continental Club" ~ "Live at the Continental Club" | yes | two words — r10's own counter-example |
+| "A" ~ "A Show" | no | the r5 floor |
+
+Headings are written `<name> <qualifier>` and never the reverse, which is why
+position separates the benign case from the smuggle without a word list.
+
+**(2) `PLACEISH_RE` matched `placeholder` and `replacement`.** A bare
+alternation over class/id, so any attribute CONTAINING "place" read as the page
+labelling a venue — an empty layout div inside the event's own card became the
+page's one labelled place. Now a WORD test, with camelCase split first so
+`venueName` still reads (refusing that would trade the defect for a coverage
+hole on every desk using the convention). One definition, still shared with
+`desk_read`: the list walk asks the same question of the same markup.
+
+**(3) `same_identity` still tolerated ADDED query parameters — and my r11
+reasoning for it was wrong in the way this ticket keeps being wrong.** I argued
+that where the asked url carries no query, the desk's identity must live in the
+path. But a list page can link a RUN's own page rather than one night's, and
+then `/event/show` → `/event/show?date=2026-09-19` is the desk choosing a night
+for us. Host, path and query now match exactly.
+
+**The cost, stated:** a desk that redirects with an added tracking parameter is
+QUEUED with its reason instead of read. Telling a tracking parameter from an
+identifying one needs a registry of parameter names — the chrome-word list
+refused at r1, one domain over — so the honest price is a hole we can see rather
+than a field we cannot justify. The `?ref=calendar` case was always a
+hypothetical: no run in this ticket's evidence has ever seen one. Two tests that
+asserted the old tolerance now assert the new rule, with the premise change
+written into them.
+
+**Seven rounds, one sentence.** r10 through r13: nine findings, seven of them in
+code this ticket wrote. Every one is a rule that was correct about the example
+in front of me and silent one step outside it — and finding (3) is the same
+argument I made at r11 being wrong for the third distinct reason. The record
+that matters is not another guard; it is that **a residual I reason my way into
+accepting deserves the reproduction I would give a finding.** R-112 and R-113
+were both written confidently, and both were reproduced into blocking defects by
+the next review round.
 
 ## 14. What this ticket did NOT do
 

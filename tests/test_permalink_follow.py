@@ -1036,40 +1036,60 @@ def test_a_same_origin_redirect_to_another_page_is_not_read_either():
     assert result.unread == 1
 
 
-def test_a_tracking_parameter_on_the_redirect_is_the_same_page():
-    """A desk that appends its own `?ref=` has sent us where we asked. Refusing
-    that would hole a page we actually read.
+def test_a_tracking_parameter_on_the_redirect_is_not_the_same_page():
+    """This test asserted the OPPOSITE until r13, and the premise is what changed.
 
-    Extended at r12 (gemini/spec-vs-contract NIT): the row's OWN address is the
-    identity inside `field_read`, not the landed one. Passing `landed` was
-    harmless while `_address` dropped the query and became a coverage loss the
-    moment r11 stopped — a node naming the canonical address stopped matching
-    on any desk that redirects with a tracking parameter."""
+    r2 dropped the query from an address so a desk appending `?ref=calendar`
+    would still read; r11 kept the query but tolerated parameters the desk ADDED,
+    on the argument that an added parameter cannot change which happening was
+    addressed. Both were the same mistake this ticket keeps making — correct
+    about the redirect in front of me, silent one step past it. `/event/show` →
+    `/event/show?date=2026-09-19` is a desk CHOOSING one night of a run for us,
+    and a list page linking the run's own page rather than a night's is exactly
+    how a row ends up with no query on a query-addressed desk (evaluator, PR
+    #235 r13, openai/absence-only).
+
+    Telling a tracking parameter from an identifying one needs a registry of
+    parameter names — the chrome-word list refused at r1, one domain over. So
+    the cost is paid the honest way: QUEUED with its reason, holes kept, nothing
+    dropped and nothing guessed. No run in this ticket's evidence ever saw such
+    a redirect; the `?ref=` case was always a hypothetical."""
     landed = PageFetch(url="https://desk.test/event/dominic-fike-1", status=200,
                        body=EVENT_PAGE_DATED,
                        final_url="https://desk.test/event/dominic-fike-1/?ref=cal")
     result = df.follow([row()], fetcher({
         "https://desk.test/event/dominic-fike-1": landed}),
         patterns=PATTERNS, as_of=AS_OF)
-    assert result.rows[0].when == "2026-09-05T21:00:00"
+    assert result.rows[0].when is None
+    assert result.unread == 1
+    assert any("?ref=cal" in why for _url, why in result.queued), result.queued
 
-    # And a node naming the CANONICAL address still speaks for the row after
-    # that redirect — the half r11 broke without noticing.
+    # A trailing slash IS still the same address — `_identity_of` says so on the
+    # way in, and this module has to agree or a desk printing both forms
+    # publishes the happening twice.
+    slashed = PageFetch(url="https://desk.test/event/dominic-fike-1", status=200,
+                        body=EVENT_PAGE_DATED,
+                        final_url="https://desk.test/event/dominic-fike-1/")
+    assert df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": slashed}),
+        patterns=PATTERNS, as_of=AS_OF).rows[0].when == "2026-09-05T21:00:00"
+
+    # And r12's half still holds: the ROW's own address is the identity inside
+    # `field_read`, so a node naming the canonical address speaks for the row
+    # after a redirect this module accepts.
     spoken = """<html><head><script type="application/ld+json">
     {"@type":"Event","name":"Dominic Fike",
      "url":"https://desk.test/event/dominic-fike-1",
      "startDate":"2026-09-05T21:00:00-05:00",
      "location":{"@type":"Place","name":"The Hall"}}</script></head>
     <body><article><h1>Dominic Fike</h1></article></body></html>"""
-    redirected = df.follow([row()], fetcher({
+    node = df.follow([row()], fetcher({
         "https://desk.test/event/dominic-fike-1": PageFetch(
             url="https://desk.test/event/dominic-fike-1", status=200,
-            body=spoken,
-            final_url="https://desk.test/event/dominic-fike-1?ref=cal")}),
+            body=spoken, final_url="https://desk.test/event/dominic-fike-1/")}),
         patterns=PATTERNS, as_of=AS_OF)
-    assert redirected.rows[0].when == "2026-09-05T21:00:00-05:00", \
-        redirected.reads[0].refusals
-    assert redirected.rows[0].place_text == "The Hall"
+    assert node.rows[0].when == "2026-09-05T21:00:00-05:00", node.reads[0].refusals
+    assert node.rows[0].place_text == "The Hall"
 
 
 # --- whose event is this structured node about? -------------------------------
@@ -1280,7 +1300,7 @@ def test_the_place_label_rule_has_exactly_one_definition():
     """Two definitions of "the page called this a venue" would drift into two
     different answers about the same markup."""
     from worker.locale import desk_read
-    assert df.PLACEISH_RE is desk_read.PLACEISH_RE
+    assert df.says_place is desk_read.says_place
 
 
 def test_a_row_never_claims_a_field_came_from_a_page_that_did_not_state_it():
@@ -1817,9 +1837,14 @@ def test_a_query_naming_another_night_is_another_page():
                                 "https://d.ex/event?date=2026-09-18")
     assert not df.same_identity("https://d.ex/event",
                                 "https://d.ex/event?date=2026-09-18")
-    assert df.same_identity("https://d.ex/event?date=2026-09-18&ref=cal",
-                            "https://d.ex/event?date=2026-09-18")
-    assert df.same_identity("https://d.ex/event?ref=cal", "https://d.ex/event")
+    # Tightened at r13: an ADDED parameter is not tolerated either, because
+    # `/event/show` -> `/event/show?date=…` is a desk choosing one night of a
+    # run for us. See `test_a_tracking_parameter_on_the_redirect_is_not_the_
+    # same_page` for the cost and why it is paid this way.
+    assert not df.same_identity("https://d.ex/event?date=2026-09-18&ref=cal",
+                                "https://d.ex/event?date=2026-09-18")
+    assert not df.same_identity("https://d.ex/event?ref=cal",
+                                "https://d.ex/event")
     assert df.same_identity("https://d.ex/event/", "https://d.ex/event")
 
     # A redirect from one night of a run to another is not the page we asked
@@ -1941,6 +1966,88 @@ def test_a_page_with_no_heading_and_no_sections_states_nothing():
                    """<p>Sat Sep 5 &bull; 9:00PM</p></body></html>""")
     assert df.field_read(sectionless, url="u", as_of=AS_OF).when \
         == "2026-09-05T21:00:00"
+
+
+def test_one_word_must_open_the_name_it_claims_to_be():
+    """Evaluator, PR #235 r13, openai/attacker-smuggle — and the finding is that
+    R-113's BOUND DID NOT COVER THE HARM IT NAMED.
+
+    That record said loose single-token containment risks "a wrong FIELD on a
+    page that is otherwise the RIGHT happening". It is worse: a lone node called
+    "Night" on a page headed "Jazz Night" BINDS, and supplies a date and a venue
+    the page never states at all —
+
+        PRE-FIX   when=2026-12-25T20:00:00-06:00  place='The Other Room'  codes=()
+
+    — a whole fabricated instant, not a wrong detail. `deferred-trust-work`, the
+    second time in this ticket: test the bound against the harm before writing
+    the row.
+
+    Position is the discriminator and it costs nothing this desk uses. Headings
+    read `<name> <qualifier>` — never the reverse — so a lone word that OPENS the
+    longer name is plausibly what it names and one buried inside it is a fragment
+    of somebody else's. r10 declined a leading-token rule over "Live at the
+    Continental Club" vs "Continental Club"; that is a TWO token name, and
+    multi-token containment is unchanged, anywhere in the string."""
+    assert not df._same_name("Night", "Jazz Night")
+    assert not df._same_name("Jazz Night", "Night")        # symmetric
+    assert df._same_name("Gandahar", "Gandahar 1988")      # opens the heading
+    assert df._same_name("Кино", "Кино Night")             # R-113's benign shape
+    assert df._same_name("Continental Club",
+                         "Live at the Continental Club")   # two tokens, unchanged
+    assert df._same_name("Boeing Boeing", "boeing-boeing")
+    assert not df._same_name("A", "A Show")                # the r5 floor stands
+
+    lone = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Night","startDate":"2026-12-25T20:00:00-06:00",
+     "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h1>Jazz Night</h1></article></body></html>"""
+    read = df.field_read(lone, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert read.place_text is None, read.place_text
+
+    # The converse: the same page, with the node naming what the page names.
+    named = lone.replace('"name":"Night"', '"name":"Jazz Night"')
+    ok = df.field_read(named, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert ok.when == "2026-12-25T20:00:00-06:00", ok.refusals
+    assert ok.place_text == "The Other Room"
+
+
+def test_a_placeholder_is_not_a_place():
+    """Evaluator, PR #235 r13, openai/attacker-smuggle — `PLACEISH_RE` was a bare
+    alternation, so any class or id CONTAINING "place" was read as the page
+    labelling a venue. `class="placeholder"` and `class="replacement"` both
+    match, and an empty layout div inside the event's own card became the page's
+    one labelled place and was published as `place_text`.
+
+    "place" inside "placeholder" is not the page calling anything a place. The
+    test is on WORDS, with camelCase split first — `venueName` is one token to a
+    regex and two words to whoever wrote it, and refusing that would trade this
+    defect for a coverage hole on every desk using the convention.
+
+    One definition, shared with `desk_read` on purpose: the list walk asks the
+    same question of the same markup, and two answers would drift."""
+    from worker.locale import desk_read
+
+    for yes in ("venue", "event-venue", "eventVenue", "venue name", "the_place",
+                "js-location", "whereBox", "VENUE"):
+        assert desk_read.says_place(yes), yes
+    for no in ("placeholder", "replacement", "displaced", "wherever",
+               "locations-menu-placeholder", "", None):
+        assert not desk_read.says_place(no), no
+
+    page = """<html><body><article><h1>A Show</h1>
+    <p>Saturday, September 5, 2026 &bull; 9:00PM</p>
+    <div class="placeholder"></div>
+    <div class="ad-replacement">Buy tickets</div></article></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.place_text is None, read.place_text
+    assert read.when == "2026-09-05T21:00:00", read.refusals
+
+    # The converse, in the same card: a real label still reads.
+    labelled = page.replace('<div class="placeholder"></div>',
+                            '<div class="venueName">The Hall</div>')
+    assert df.field_read(labelled, url="u", as_of=AS_OF).place_text == "The Hall"
 
 
 def test_a_card_agreeing_with_its_own_markup_settles_the_day():

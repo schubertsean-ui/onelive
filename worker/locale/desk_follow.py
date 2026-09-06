@@ -79,7 +79,7 @@ from worker.datetime_normalize import normalize_datetime_claim
 from worker.importers.structured_feed import parse_jsonld
 from worker.locale.desk_read import (
     FURNITURE_TAGS,
-    PLACEISH_RE,
+    says_place,
     SCOPED_FURNITURE_TAGS,
     SECTIONING_TAGS,
     Happening,
@@ -495,25 +495,27 @@ def _shown(address: Tuple[str, str, Tuple[Tuple[str, str], ...]]) -> str:
 def same_identity(landed: Optional[str], asked: Optional[str]) -> bool:
     """True when the page that answered is the page we asked for.
 
-    Host and path must match. Every query parameter the ASKED url carries must
-    come back UNCHANGED; parameters the desk added along the way are tolerated,
-    because a desk appending its own `?ref=calendar` on a redirect has sent us
-    to the page we asked for (r2, and the reason the query was dropped here in
-    the first place).
+    Host, path AND query, all three exactly.
 
-    Asymmetric on purpose, and the asymmetry is the whole rule: an ADDED
-    parameter cannot change which happening the desk was addressing, while a
-    CHANGED or DROPPED one can — `?date=this` becoming `?date=other` is the
-    desk sending us to a different night, and reading that page's fields onto
-    this row is the harm. Where the asked url carries no query at all, its
-    desk's identity lives in the path (that is what `_identity_of` keeping the
-    query means), so a parameter added to it addresses the same happening.
+    r11 tolerated parameters the desk ADDED, on the argument that an added
+    parameter cannot change which happening was addressed — and where the asked
+    url carried no query at all, that its identity must therefore live in the
+    path. Both halves were the same mistake this ticket keeps making: correct
+    about the redirect in front of me, silent one step past it. `/event/show` →
+    `/event/show?date=2026-09-19` is a desk CHOOSING an instance of a run for
+    us, and the list page linking the run's own page rather than a night's is
+    exactly how a row ends up with no query on a desk whose identity is
+    query-based (evaluator, PR #235 r13, openai/absence-only).
+
+    The `?ref=calendar` case r11 was protecting is a HYPOTHETICAL — no run in
+    this ticket's evidence saw one — and telling a tracking parameter from an
+    identifying one needs a registry of parameter names, which is the same
+    class as the chrome-word list refused at r1: host knowledge in code. So the
+    cost is paid the honest way: a desk that redirects with an added parameter
+    is QUEUED with its reason, its row keeps its holes, and nothing is dropped
+    or guessed. A hole we can see beats a field we cannot justify.
     """
-    land_host, land_path, land_query = _address(landed)
-    ask_host, ask_path, ask_query = _address(asked)
-    if (land_host, land_path) != (ask_host, ask_path):
-        return False
-    return set(ask_query).issubset(set(land_query))
+    return _address(landed) == _address(asked)
 
 
 # --------------------------------------------------------------------------
@@ -601,7 +603,7 @@ class _PlaceScanner(HTMLParser):
     def _labelled(attrs: Dict[str, str]) -> bool:
         if (attrs.get("itemprop") or "").strip().lower() in _PLACE_ITEMPROPS:
             return True
-        return any(PLACEISH_RE.search(attrs.get(name) or "")
+        return any(says_place(attrs.get(name))
                    for name in ("class", "id"))
 
     def _sections(self) -> Tuple[int, ...]:
@@ -854,8 +856,23 @@ def _same_name(a: str, b: str) -> bool:
     Containment is on whole WORDS and either way round, because a desk routinely
     heads a page with more than the node's name ("Prodigal Sun at Saengerrunde
     Hall") or with less — but "A" must not match "A Show", so a single letter
-    names nothing. One token of two or more characters, or two tokens, is the
-    floor; below that there is no name to compare.
+    names nothing.
+
+    ONE WORD MUST MATCH AT THE START. R-113 recorded loose single-token
+    containment as a bound residual and the bound did not cover the harm: a lone
+    node called "Night" on a page headed "Jazz Night" bound, and published
+    `2026-12-25T20:00:00-06:00` at 'The Other Room' with codes=() — not "a wrong
+    field on the right happening", which is what the record said, but a whole
+    fabricated instant (evaluator, PR #235 r13, openai/attacker-smuggle;
+    `deferred-trust-work`, second time in this ticket).
+
+    Position is the discriminator, and it costs nothing this desk uses. Headings
+    are written `<name> <qualifier>` — "Gandahar (1988)", "Mohawk Austin",
+    "Кино Night" — never `<qualifier> <name>`, so a lone word that opens the
+    longer name is plausibly what it names, while one buried inside it is a
+    fragment of somebody else's. The r10 objection to a leading-token rule was
+    "Live at the Continental Club" vs "Continental Club", and that is a TWO
+    token name: multi-token containment is unchanged, anywhere in the string.
     """
     left, right = _name_tokens(a), _name_tokens(b)
     if not left or not right:
@@ -866,8 +883,8 @@ def _same_name(a: str, b: str) -> bool:
         # floor misfiring on an exact match rather than on a short containment.
         return True
     shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
-    if len(shorter) < 2 and len(shorter[0]) < 2:
-        return False
+    if len(shorter) < 2:
+        return len(shorter[0]) >= 2 and longer[0] == shorter[0]
     span = len(shorter)
     return any(longer[i:i + span] == shorter
                for i in range(len(longer) - span + 1))
