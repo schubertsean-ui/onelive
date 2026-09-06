@@ -69,7 +69,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field, replace
-from datetime import date as _date
+from datetime import date as _date, datetime, timezone as _tz
 from html.parser import HTMLParser
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
@@ -91,6 +91,8 @@ from worker.locale.identity_patterns import (
 )
 from worker.same_page_dates import resolve_same_page_datetime, same_page_dates
 from worker.sourcing.source_class import demote_on_response
+
+_utc = _tz.utc
 
 log = logging.getLogger(__name__)
 
@@ -435,14 +437,57 @@ class _PlaceScanner(HTMLParser):
             self._parts.append(data)
 
 
-def _addresses_named(event: Dict[str, object]) -> set:
-    """Every address a structured node names for ITSELF (`url`, `@id`/`uid`)."""
+def _named(event: Dict[str, object], page_url: str) -> set:
+    """Every address a structured node names for ITSELF (`url`, `@id`/`uid`),
+    resolved against the page it was published on.
+
+    A publisher may state a ROOT-RELATIVE address ("/event/show-1"); skipping
+    those would both lose a bind that exists and, worse, let a sidebar node
+    naming `/event/other-99` look address-less and speak for this row. Resolving
+    is therefore the strict direction as well as the useful one (evaluator NIT,
+    PR #235 r3, gemini/spec-vs-contract).
+    """
+    from urllib.parse import urljoin
     out = set()
     for key in ("url", "uid"):
         raw = str(event.get(key) or "").strip()
-        if raw.lower().startswith(("http://", "https://")):
-            out.add(_address(raw))
+        if not raw or raw.startswith(("mailto:", "tel:", "#")):
+            continue
+        resolved = raw if raw.lower().startswith(("http://", "https://")) else (
+            urljoin(page_url, raw) if raw.startswith("/") else "")
+        if resolved.lower().startswith(("http://", "https://")):
+            out.add(_address(resolved))
     return out
+
+
+def _instant_key(value: Optional[str]):
+    """A comparable key for one stated instant, or None.
+
+    `parse_jsonld` hands back a node's start already normalised to UTC, while
+    `same_page_dates` keeps the page's RAW text — the same moment written two
+    ways ("2026-12-26T02:00:00Z" and "2026-12-25T20:00:00-06:00"). Matching a
+    date HIT back to the node that emitted it therefore has to compare instants,
+    not strings.
+
+    A value carrying no offset is read as UTC, which is what
+    `structured_feed._to_utc_z` already did to the node side. Read any other way
+    the two halves of the SAME node stop matching, and every desk that omits an
+    offset would hole every one of its pages. This key only ever pairs a hit
+    with the node that emitted it; nothing is published from it, and nothing
+    about a row's stored timezone depends on it.
+    """
+    if not value:
+        return None
+    iso, _refusal = normalize_datetime_claim(value)
+    if not iso:
+        return None
+    try:
+        moment = datetime.fromisoformat(iso)
+    except ValueError:  # pragma: no cover — normalize_datetime_claim round-trips
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=_utc)
+    return moment.astimezone(_utc).timestamp()
 
 
 def speaks_for(events: Sequence[Dict[str, object]], url: str,
@@ -487,14 +532,18 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
     the fail-closed direction: a hole rather than another event's day.
     """
     here = _address(url)
-    bound = [ev for ev in events if here in _addresses_named(ev)]
+    bound = [ev for ev in events if here in _named(ev, url)]
     if bound:
         return bound
     if len(events) != 1:
         return []
-    named = {raw for raw in (str(events[0].get(k) or "").strip()
-                             for k in ("url", "uid"))
-             if raw.lower().startswith(("http://", "https://"))}
+    from urllib.parse import urljoin
+    named = set()
+    for key in ("url", "uid"):
+        raw = str(events[0].get(key) or "").strip()
+        if raw and not raw.startswith(("mailto:", "tel:", "#")):
+            named.add(raw if raw.lower().startswith(("http://", "https://"))
+                      else urljoin(url, raw))
     if any(match_identity(one, patterns) is not None for one in named):
         # It names another happening. That is a different row's statement.
         return []
@@ -607,7 +656,7 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # Name the addresses. "A different address" is a verdict; WHICH address
         # is the evidence, and it is the difference between a sidebar event and
         # this desk addressing one happening two ways.
-        named = sorted({a for ev in ld_events for _, a in _addresses_named(ev)})
+        named = sorted({a for ev in ld_events for _, a in _named(ev, url)})
         refuse(
             "structured-not-bound",
             f"page publishes {len(ld_events)} schema.org event(s), and they name "
@@ -630,16 +679,27 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     # every page anybody does. Scope first, then count what is left: a
     # schema.org/ICS property says whose start it is, and printed text has to be
     # in the page's content rather than its plumbing.
+    # WHICH NODE EMITTED THIS DATE. Asking only whether the page has SOME bound
+    # node is not enough: a page with a bound node that states no start, plus a
+    # sidebar node that does, hands the sidebar's day to this row under any
+    # page-level test (evaluator, PR #235 r3, openai/attacker-smuggle —
+    # reproduced as 2026-12-25T20:00 published for a row titled something else,
+    # with no refusal recorded at all). The bind has to be PER HIT.
+    bound_instants = {key for key in
+                      (_instant_key(str(ev.get("start_time") or "")) for ev in mine)
+                      if key is not None}
+
     def event_scoped(hit) -> bool:
         """Does this carrier say WHOSE start it is, for THIS happening?
 
         ICS does by construction: a calendar file served at this address is this
-        happening's. JSON-LD does only when a node on the page speaks for this
-        row — an unbound node is a statement about some OTHER event, and the one
-        thing it must not get is the exemption meant for statements about this
-        one (evaluator, PR #235 r2).
+        happening's. A JSON-LD date does only when the node that emitted it is
+        one that speaks for this row — matched on the INSTANT, because the
+        parser normalises to UTC while the page keeps its own offset.
         """
-        return hit.kind == "ics" or (hit.kind == "jsonld" and bool(mine))
+        if hit.kind == "ics":
+            return True
+        return hit.kind == "jsonld" and _instant_key(hit.raw) in bound_instants
 
     def owned_by_this_happening(hit) -> bool:
         if event_scoped(hit):
@@ -677,7 +737,15 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
             f"({', '.join(d.date.isoformat() for d in dates[:4])}) — which one "
             f"this happening is on is not stated, so the clock stays NULL")
     elif not dates:
-        if in_plumbing:
+        structured_orphans = [hit for hit in in_plumbing if hit.kind == "jsonld"]
+        if structured_orphans and mine:
+            refuse(
+                "structured-hit-not-bound",
+                f"a schema.org event on this page states "
+                f"{', '.join(d.date.isoformat() for d in structured_orphans[:3])}, "
+                f"and it is not one of the nodes that speaks for this happening — "
+                f"another event's start is not this row's, so this stays NULL")
+        elif in_plumbing:
             # There IS a date on the page and it is not this happening's: a nav,
             # a page header, a footer's "last updated" stamp. A page timestamp
             # is not a show's day (evaluator, PR #235, openai/absence-only).

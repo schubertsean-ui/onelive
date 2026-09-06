@@ -1088,3 +1088,63 @@ def test_a_dropdown_inside_a_venue_block_is_not_a_second_place():
             '<time datetime="2026-09-06T21:00">Sun</time></article></body></html>')
     read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
     assert read.place_text == "The Hall"
+
+
+# --- r3: which NODE emitted this date? ----------------------------------------
+# Evaluator, PR #235 r3 (openai/attacker-smuggle), BLOCKING and reproduced: the
+# bind asked whether the PAGE had some bound node, not whether THIS date came
+# from one. A bound node stating no start, beside a sidebar node that states
+# one, published the sidebar's day with no refusal recorded at all.
+
+def _two_nodes(bound_start=None):
+    stated = f'"startDate":"{bound_start}",' if bound_start else ""
+    return f"""<html><head>
+    <script type="application/ld+json">{{"@type":"Event","name":"Dominic Fike",
+      "url":"{HERE}",{stated}"location":{{"@type":"Place","name":"The Hall"}}}}</script>
+    <script type="application/ld+json">{{"@type":"Event","name":"Other",
+      "url":"https://desk.test/event/other-99",
+      "startDate":"2026-12-25T20:00:00-06:00"}}</script>
+    </head><body><article><h1>Dominic Fike</h1></article></body></html>"""
+
+
+def test_a_sidebar_date_is_refused_even_when_the_page_has_a_bound_node():
+    """The bound node states no start. Under a page-level test the sidebar's
+    2026-12-25 became this row's date, silently. The bind is per HIT now."""
+    read = df.field_read(_two_nodes(), url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None
+    assert "structured-hit-not-bound" in read.codes
+
+
+def test_the_bound_node_still_wins_when_a_sidebar_also_states_a_date():
+    """Per-hit binding is not merely stricter: it RESOLVES a page that a
+    page-level test could only refuse as ambiguous."""
+    read = df.field_read(_two_nodes("2026-09-06T21:00:00-05:00"), url=HERE,
+                         as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-06T21:00:00-05:00"
+    assert read.place_text == "The Hall"
+
+
+def test_a_hit_is_matched_to_its_node_by_INSTANT_not_by_string():
+    """The parser normalises a node's start to UTC while the page keeps its own
+    offset, so the same moment arrives written two ways. Matching on the string
+    would drop every dated page whose desk states an offset."""
+    assert (df._instant_key("2026-12-26T02:00:00Z")
+            == df._instant_key("2026-12-25T20:00:00-06:00"))
+    assert df._instant_key("") is None
+    assert df._instant_key("not a date") is None
+
+
+def test_a_root_relative_address_binds_and_also_refuses():
+    """Evaluator NIT, PR #235 r3 (gemini). Skipping relative addresses lost a
+    real bind AND let a sidebar naming `/event/other-99` look address-less."""
+    lone = f"""<html><head><script type="application/ld+json">
+    {{"@type":"Event","name":"D","url":"/event/dominic-fike-1",
+      "startDate":"2026-09-26T18:00:00-05:00"}}</script></head>
+    <body><article><h1>D</h1></article></body></html>"""
+    assert df.field_read(lone, url=HERE, as_of=AS_OF,
+                         patterns=PATTERNS).when == "2026-09-26T18:00:00-05:00"
+
+    sidebar = lone.replace('"/event/dominic-fike-1"', '"/event/other-99"')
+    read = df.field_read(sidebar, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None
+    assert "structured-not-bound" in read.codes
