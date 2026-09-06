@@ -184,6 +184,12 @@ def split_table(walks: Sequence[DeskWalk]) -> str:
 #: Founder cap, this session: the most EVENT pages one run may knock on, across
 #: every desk. A cap on PAGES, not on rows — two rows sharing one permalink cost
 #: one knock (`follow()` answers the second from the first).
+#:
+#: One honest asterisk: a page that advertises its own iCalendar file may cost
+#: one further fetch (`event_page.MAX_ICS_FETCHES` is 1), because reading that
+#: file is part of reading THAT page rather than a knock on a 41st one. So the
+#: worst case for a full budget is 40 pages plus up to 40 same-host .ics reads,
+#: and stating it is cheaper than someone finding it in a server log.
 DEFAULT_FOLLOW_PAGES = 40
 
 
@@ -286,7 +292,12 @@ def follow_pages(walks: Sequence[DeskWalk], fetchers: Mapping[str, object], *,
     with a hole filled (or, on a contested night, with a night taken away —
     `event_page.apply()`'s founder ruling, unchanged here).
     """
-    selection = round_robin(walks, cap=cap)
+    # Only desks we can actually fetch for get a share of the budget. A desk
+    # with no fetcher (fixture mode, no committed event pages for that door)
+    # would otherwise be handed pages it can never knock on, and those pages
+    # would be stranded — spent from the cap and read by nobody.
+    reachable = [w for w in walks if fetchers.get(w.door_id) is not None]
+    selection = round_robin(reachable, cap=cap)
     out: List[DeskWalk] = []
     runs: Dict[str, FollowRun] = {}
     for one in walks:
@@ -382,11 +393,27 @@ def follow_table(walks: Sequence[DeskWalk], runs: Mapping[str, FollowRun],
     nulled = sum(r.nulled_when_n for r in runs.values())
     not_knocked = sum(r.not_knocked_n for r in runs.values())
     off_host = sum(r.off_host_n for r in runs.values())
+    # How the budget was ACTUALLY spread, derived — not the number of desks we
+    # walked. On a run where one desk is walled, every page goes to the other
+    # one, and a sentence claiming a spread across two desks would be false on
+    # exactly the run a reader most needs to understand.
+    spread = sorted((one.door_id, len(runs.get(one.door_id, FollowRun()).visits))
+                    for one in walks)
+    offered = [f"`{door}` {n}" for door, n in spread if n]
+    if len(offered) > 1:
+        how = (f"spread round-robin across {len(offered)} desk(s) rather than "
+               f"spent down one ({', '.join(offered)} page(s))")
+    elif offered:
+        how = (f"all of them on {offered[0].split()[0]}, the ONLY desk that "
+               f"offered a page to follow — the other desk(s) offered none "
+               f"(walled, or no same-host permalink), so the round-robin had "
+               f"nothing to alternate with and no page was stranded")
+    else:
+        how = "no desk offered a page to follow"
     lines.append("")
     lines.append(
         f"**{totals['followed']}** event page(s) read of a founder cap of "
-        f"**{cap}** per run, spread round-robin across {len(list(walks))} desk(s) "
-        f"rather than spent down one. Following FILLED {filled_when} night(s) and "
+        f"**{cap}** per run, {how}. Following FILLED {filled_when} night(s) and "
         f"{filled_place} place(s) that the list pages left empty, and TOOK AWAY "
         f"{nulled} night(s) where the desk's own event page contradicted its list "
         f"card — a contested night is no night, so neither claim is published and "

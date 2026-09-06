@@ -367,3 +367,53 @@ def test_a_cap_of_zero_follows_nothing():
     filled, runs = follow_pages(walks, {"test-desk": fetch}, cap=0)
     assert filled[0].rows[0].when is None
     assert runs["test-desk"].followed_n == 0
+
+
+def test_a_desk_we_cannot_fetch_for_strands_no_budget():
+    """A desk with no fetcher must not be handed a share of the cap. It would
+    be pages spent from the budget and read by nobody — the opposite of what a
+    cap across desks is for."""
+    a = walk_of([row(f"https://a.test/event/{i}", source_url="https://a.test/list")
+                 for i in range(5)], door_id="desk-a", start_url="https://a.test/list")
+    b = walk_of([row(f"https://b.test/event/{i}", source_url="https://b.test/list")
+                 for i in range(5)], door_id="desk-b", start_url="https://b.test/list")
+    knocks = []
+
+    def fetch(url):
+        knocks.append(url)
+        return PageFetch(url=url, status=200, body=DATE_AND_VENUE, final_url=url)
+
+    # desk-b has no fetcher at all (in a FIXTURE run: no committed event pages).
+    filled, runs = follow_pages([a, b], {"desk-a": fetch}, cap=4)
+
+    assert len(knocks) == 4, "the whole budget went to the desk we can read"
+    assert all(u.startswith("https://a.test/") for u in knocks)
+    assert runs["desk-b"].followed_n == 0
+    assert sum(1 for r in filled[0].rows if r.when) == 4
+
+
+def test_the_table_does_not_claim_a_spread_that_did_not_happen():
+    """Found on the live run: one desk was walled, so all 40 pages went to the
+    other — while the prose still said "spread round-robin across 2 desks". The
+    sentence now says what the run DID, derived from the visits."""
+    walled = walk_of([], door_id="desk-walled", start_url="https://b.test/list")
+    open_desk = walk_of([row(f"https://a.test/event/{i}", source_url="https://a.test/list")
+                         for i in range(3)], door_id="desk-a",
+                        start_url="https://a.test/list")
+
+    def fetch(url):
+        return PageFetch(url=url, status=200, body=DATE_AND_VENUE, final_url=url)
+
+    filled, runs = follow_pages([open_desk, walled],
+                                {"desk-a": fetch, "desk-walled": fetch}, cap=40)
+    one_desk = follow_table(filled, runs, cap=40)
+    assert "the ONLY desk that offered a page to follow" in one_desk
+    assert "spread round-robin across" not in one_desk
+
+    both = walk_of([row(f"https://b.test/event/{i}", source_url="https://b.test/list")
+                    for i in range(3)], door_id="desk-b", start_url="https://b.test/list")
+    filled2, runs2 = follow_pages([open_desk, both],
+                                  {"desk-a": fetch, "desk-b": fetch}, cap=40)
+    two_desks = follow_table(filled2, runs2, cap=40)
+    assert "spread round-robin across 2 desk(s)" in two_desks
+    assert "`desk-a` 3, `desk-b` 3 page(s)" in two_desks
