@@ -503,6 +503,18 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
                    for s in said)
 
     stated = same_page_dates(html, as_of=as_of)
+    # NEVER MIX TIERS (ONE-LIVE-ENTITY-SPLIT-LAW.md §2, the ladder's own rule,
+    # here applied to fields rather than identities). A schema.org
+    # `Event.startDate` or an ICS `DTSTART` states WHOSE start it is; printed
+    # text does not. So when the page publishes one, it is the answer, and the
+    # prose around it is not a competing claim to be counted against it —
+    # otherwise an event page that declares its start perfectly well goes
+    # dateless the moment it also prints a calendar widget beside it, which is
+    # what the live run found on every page it opened. Within the tier,
+    # cardinality still bites: two different `startDate`s refuse.
+    structured = [hit for hit in stated if hit.kind in _EVENT_SCOPED_KINDS]
+    if structured:
+        stated = structured
     dates = [hit for hit in stated if owned_by_this_happening(hit)]
     in_plumbing = [hit for hit in stated if hit not in dates]
     if len(dates) > 1:

@@ -473,6 +473,56 @@ def test_a_footer_stamp_does_not_make_a_page_that_states_its_day_ambiguous():
     assert read.codes == ()
 
 
+#: A month grid, as every one of this desk's event pages prints beside the
+#: listing. The live run's own words: "page states 31 different dates".
+CALENDAR_WIDGET = "".join(
+    f'<td><a href="/day/{d}">{d}</a> Sep {d}, 2026</td>' for d in range(1, 32))
+
+
+def test_a_structured_start_date_is_not_outvoted_by_a_calendar_widget():
+    """The ladder's own rule — never mix tiers — applied to fields.
+
+    A schema.org `Event.startDate` states WHOSE start it is; the prose around it
+    does not, so it is not a competing claim to be counted against it. Without
+    this, an event page that declares its start perfectly well goes dateless the
+    moment it also prints a month grid — which is what the first live run found
+    on every page it opened.
+    """
+    page = f"""<html><head><script type="application/ld+json">
+    {{"@type":"Event","name":"A","startDate":"2026-09-06T21:00:00-05:00",
+      "location":{{"@type":"Place","name":"The Hall"}}}}</script></head>
+    <body><article><h1>A Show</h1></article>
+    <table>{CALENDAR_WIDGET}</table></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when == "2026-09-06T21:00:00-05:00"
+    assert read.when_carrier == "jsonld"
+    assert read.codes == ()
+
+
+def test_within_the_structured_tier_cardinality_still_bites():
+    """Not a loosening: two different `startDate`s are still two answers."""
+    page = """<html><head>
+    <script type="application/ld+json">{"@type":"Event","startDate":"2026-09-06T21:00:00"}</script>
+    <script type="application/ld+json">{"@type":"Event","startDate":"2026-09-08T21:00:00"}</script>
+    </head><body><article><h1>A</h1></article></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when is None
+    assert "dates-ambiguous" in read.codes
+
+
+def test_prose_beside_a_calendar_widget_is_still_refused():
+    """The tier rule lifts a page that DECLARES its start. It does nothing for a
+    page that only prints one date among thirty-one, and it must not: which of
+    them this happening is on is exactly what is not stated, and picking one
+    would be a coin flip published as a fact."""
+    page = f"""<html><body>
+    <article><h1>A Show</h1><p>Sat Sep 5 &bull; 9:00PM</p></article>
+    <table>{CALENDAR_WIDGET}</table></body></html>"""
+    read = df.field_read(page, url="u", as_of=AS_OF)
+    assert read.when is None
+    assert "dates-ambiguous" in read.codes
+
+
 def test_two_dates_in_the_CONTENT_are_still_ambiguous():
     """The scope rule narrows WHERE a date may come from; it does not soften
     what happens when two of them come from there."""
