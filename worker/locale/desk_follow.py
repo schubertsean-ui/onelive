@@ -444,7 +444,23 @@ class _SegmentScanner(HTMLParser):
         self._flush()
 
 
-def _foreign_sections(link_marks, subject, url, patterns) -> FrozenSet[int]:
+def _subject_name(marks: Sequence[Tuple[str, Tuple[int, ...], str]]) -> str:
+    """What the page's SUBJECT heading says, by the same precedence that picks
+    the subject's sections.
+
+    One walk, one precedence, two questions asked of it — `_pick_subject` needs
+    the sections and the sub-card rule needs the text, and deriving them from
+    two different scans is the drift this ticket has paid for seven times.
+    """
+    for tag in _HEADING_TAGS:
+        for mark_tag, _sections, text in marks:
+            if mark_tag == tag and text:
+                return text
+    return ""
+
+
+def _foreign_sections(link_marks, subject, url, patterns,
+                      heading_marks=(), subject_name="") -> FrozenSet[int]:
     """Sectioning elements INSIDE this card that belong to another happening.
 
     The card boundary is a PREFIX test — a statement in a subsection of the
@@ -475,6 +491,39 @@ def _foreign_sections(link_marks, subject, url, patterns) -> FrozenSet[int]:
             continue      # the card's own level — its links are its business
         if _others_on_this_page([href], url, patterns):
             foreign.add(inner[0])
+    # AND A NESTED SECTION THAT CARRIES ITS OWN HEADING, NAMING SOMETHING THIS
+    # PAGE IS NOT ABOUT, IS A CARD IN ITS OWN RIGHT.
+    #
+    # R-114 said this needed "a per-card DOM subtree ... which would let a
+    # nested block be asked whether it carries its own heading". It does not:
+    # the scans already record every heading with the sections enclosing it, so
+    # the question was answerable with data in hand, and the record was wrong
+    # about its own trigger. Both openai seats blocked on that residual the
+    # round after it was written — the THIRD time in this ticket (R-112, R-113,
+    # this), which is the `deferred-trust-work` class saying the same thing
+    # three ways: a bound is not a fix.
+    #
+    # The test is HTML's own outline rule — a sectioning element with a heading
+    # starts a section of the outline — plus the name check this module already
+    # makes twice (`_contradicts_this_page` for nodes, `_page_denies_this_row`
+    # for rows). A subsection headed with what the page is about ("Dominic Fike
+    # — tickets") stays the card's; one headed "Also on sale" does not.
+    #
+    # THE COST IS REAL AND STATED: a card's own subsection headed with a label
+    # rather than a name — "Details", "When", "Tickets" — is excluded too,
+    # because "Details" names nothing this page names either. A page whose ONLY
+    # date sits inside such a subsection loses it. That is a coverage cost paid
+    # for never publishing a neighbouring show's date, and the next live run
+    # measures it: `date-in-plumbing` is where it lands.
+    if subject_name:
+        for tag, sections, text in heading_marks:
+            if not text or not _inside_the_card(sections, subject):
+                continue
+            inner = sections[depth:]
+            if not inner:
+                continue      # the page's own subject heading, or a sibling of it
+            if not _same_name(text, subject_name):
+                foreign.add(inner[0])
     return frozenset(foreign)
 
 
@@ -504,7 +553,10 @@ def segments(html: str, *, url: Optional[str] = None,
         log.debug("segment scan raised on a followed page: %s", exc)
         return []
     subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
-    foreign = _foreign_sections(scanner.link_marks, subject, url, patterns)
+    foreign = _foreign_sections(
+        scanner.link_marks, subject, url, patterns,
+        heading_marks=scanner.heading_marks,
+        subject_name=_subject_name(scanner.heading_marks))
     return [text for text, scope in zip(scanner.segments, scanner.segment_scopes)
             if _inside_the_card(scope, subject) and not foreign.intersection(scope)]
 
@@ -659,10 +711,15 @@ class _PlaceScanner(HTMLParser):
         #: A monotonic id per opened SECTIONING element, so a card can be
         #: named without buffering its subtree.
         self._next_id = 0
-        #: (tag, enclosing sectioning ids, "") for every heading outside
-        #: plumbing. This scan needs only the sections; the text side is read
-        #: once, by the segment scan.
+        #: (tag, enclosing sectioning ids, text) for every heading outside
+        #: plumbing. The TEXT joined at r18: a nested section is a card in its
+        #: own right when it carries its own heading, and this scan has to ask
+        #: that question about its own section ids — reading the segment scan's
+        #: answer would mean trusting two independent numberings to agree,
+        #: which is the class this ticket has paid for seven times.
         self.heading_marks: List[Tuple[str, Tuple[int, ...], str]] = []
+        self._heading_open: Optional[Tuple[str, Tuple[int, ...]]] = None
+        self._heading_parts: List[str] = []
         #: Ids of the page's top-level sectioning elements, in document order.
         self.top_sections: List[int] = []
         #: Enclosing sectioning ids at the moment each place was captured.
@@ -709,7 +766,8 @@ class _PlaceScanner(HTMLParser):
             # Every heading is RECORDED; which one is the page's subject is
             # decided at close by `_pick_subject`, because a streaming scan
             # cannot know whether an <h1> is still coming.
-            self.heading_marks.append((tag, self._sections(), ""))
+            self._heading_open = (tag, self._sections())
+            self._heading_parts = []
         if tag == "a" and not self._skip and not self._furniture:
             href = _href_of(attrs)
             if href:
@@ -736,6 +794,12 @@ class _PlaceScanner(HTMLParser):
         if tag in _SKIP_TEXT_TAGS:
             self._skip = max(0, self._skip - 1)
             return
+        if self._heading_open is not None and tag == self._heading_open[0]:
+            open_tag, sections = self._heading_open
+            self.heading_marks.append(
+                (open_tag, sections, " ".join(" ".join(self._heading_parts).split())))
+            self._heading_open = None
+            self._heading_parts = []
         if any(open_tag == tag for open_tag, _f, _s in self._open):
             while self._open:
                 closed, opened_furniture, _section = self._open.pop()
@@ -756,6 +820,8 @@ class _PlaceScanner(HTMLParser):
     def handle_data(self, data):
         if self._depth and not self._skip:
             self._parts.append(data)
+        if self._heading_open is not None and not self._skip:
+            self._heading_parts.append(data)
 
 
 def _named(event: Dict[str, object], page_url: str) -> set:
@@ -1230,7 +1296,10 @@ def _scan_places(html: str, *, url: Optional[str] = None,
         log.debug("place scan raised on a followed page: %s", exc)
         return [], []
     subject = _pick_subject(scanner.heading_marks, scanner.top_sections)
-    foreign = _foreign_sections(scanner.link_marks, subject, url, patterns)
+    foreign = _foreign_sections(
+        scanner.link_marks, subject, url, patterns,
+        heading_marks=scanner.heading_marks,
+        subject_name=_subject_name(scanner.heading_marks))
     out: List[str] = []
     for place, scope in zip(scanner.places, scanner.place_scopes):
         if not _inside_the_card(scope, subject) or foreign.intersection(scope):
@@ -1238,8 +1307,6 @@ def _scan_places(html: str, *, url: Optional[str] = None,
         if place not in out:
             out.append(place)
     return out, list(scanner.links)
-
-
 
 
 def _others_on_this_page(links: Sequence[str], url: str,
@@ -1983,7 +2050,15 @@ def apply_read(row: Happening, read: FieldRead) -> Tuple[Happening, List[str]]:
         # the over-correction the suite has caught three times in this ticket.
         # The page's names ride on the read (`headings`), so this asks the
         # question with the same walk `field_read` already did.
-        return replace(row, detail_url=read.url, filled_from_detail=()), []
+        # AND THE ROW DOES NOT RECORD HAVING BEEN READ FROM THIS PAGE.
+        # It kept `detail_url` until r18, which made the report classify a
+        # stale or recycled permalink under "page stated no date" instead of
+        # "page could not be read for this row" — an identity failure filed as
+        # a desk's silence (evaluator, PR #235 r18, openai/absence-only and
+        # gemini/dataflow-taint, the same defect from two seats). The row is
+        # returned untouched; `follow()` queues it with both names, which is
+        # where a reader finds out why.
+        return row, []
     patch: Dict[str, object] = {}
     filled: List[str] = []
     if row.when is None and read.when:

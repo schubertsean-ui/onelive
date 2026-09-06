@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-131 passed in 0.45s
+132 passed in 0.45s
 ```
 
 | ticket case | test | result |
@@ -1726,6 +1726,60 @@ it with the two names in the message.
 test, the fetch-de-duplication test), which is the same shape as r12: tests
 about other rules leaning on a permissiveness that has now gone. Each says so in
 place.
+
+### 13t. Round 18 — the record I wrote last round, and what it got wrong about itself
+
+Three of four seats APPROVE. Two findings from openai/absence-only, one of them
+echoed as a NIT by gemini/dataflow-taint. Both reproduced first.
+
+**(1) The finding IS R-114 — opened one round earlier and blocked on the next.**
+That is the third time in this ticket a recorded bound was reopened by the very
+next review: R-112 at r5, R-113 at r13, this at r18. `deferred-trust-work`
+saying the same thing three ways — **a bound is not a fix**.
+
+And this one is sharper than the other two, because the row was wrong about its
+own trigger. R-114 said the sub-card test needed *"a per-card DOM subtree …
+which would let a nested block be asked whether it carries its own heading"*.
+It needed no such thing. **Both scans already record every heading with the
+sections enclosing it.** The question was answerable with data in hand, and the
+trigger I wrote described a capability the module already had.
+
+The rule is HTML's own outline — a sectioning element with a heading starts a
+section of the outline — plus the name check this module already makes twice
+(`_contradicts_this_page` for nodes, `_page_denies_this_row` for rows), now a
+third time one level in.
+
+| the nested block | result |
+|---|---|
+| `<section><h2>Also on sale</h2>` + date + venue | refused, both fields |
+| `<section><h2>Dominic Fike — tickets</h2>` + date + venue | read |
+| `<section class="details">` with **no** heading | read (r6, unchanged) |
+| `<section><h2>Details</h2>` + date + venue | **refused — the stated cost** |
+
+The last row is the price and it is pinned in its own test arm: "Details" names
+nothing this page names either, so a card's own subsection headed with a LABEL
+rather than a name loses its fields. That is paid for never publishing a
+neighbouring show's date, and the next live run measures it — `date-in-plumbing`
+is where it lands.
+
+**(2) A denied row still recorded having been read.** r17's denial returned the
+row with `detail_url` set, and `null_reasons()` checks `detail_url` before the
+queued list — so a stale or recycled permalink was filed under **"page stated no
+date"** instead of **"page could not be read"**. An identity failure reported as
+a desk's silence, which is the `diagnostics-as-data` class again. The row is now
+returned untouched; `follow()` queues it with both names.
+
+**And the fix uncovered that r17 was under-tested.** Two fixtures went red only
+once `detail_url` stopped being set — the r17 denial had been silently masking
+their title mismatch. So r18's second finding is also the test that r17's own
+change needed and did not have.
+
+**Housekeeping:** `_PlaceScanner` now captures heading TEXT the same way the
+segment scan does, because it must ask this question about ITS OWN section ids
+— reading the other scan's answer would mean trusting two independent numberings
+to agree, which is the class this ticket has paid for seven times.
+`_subject_name` derives the subject's text by the same precedence
+`_pick_subject` uses for its sections: one walk, one precedence, two questions.
 
 ## 14. What this ticket did NOT do
 

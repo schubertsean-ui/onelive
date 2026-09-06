@@ -1423,7 +1423,10 @@ def test_the_table_separates_unasked_rows_from_dateless_ones():
     """The number a reader would misread first. A budget-capped run must not
     print "still_null_n" as a finding about the desk."""
     tool = _tool()
-    rows = [row(f"Show {i}", listing_url=f"https://desk.test/event/show-{i}")
+    # Titles that NAME what these pages are headed with: since r17 a page whose
+    # heading names none of a row's title is not read for that row, and a
+    # fixture about the BUDGET's reason table must not be measuring that.
+    rows = [row("Dominic Fike", listing_url=f"https://desk.test/event/show-{i}")
             for i in range(4)]
     pages = {f"https://desk.test/event/show-{i}": EVENT_PAGE_CLOCK_ONLY
              for i in range(4)}
@@ -1440,8 +1443,11 @@ def test_the_table_separates_unasked_rows_from_dateless_ones():
 def test_a_walled_page_is_counted_apart_from_a_page_that_said_nothing():
     tool = _tool()
     walled = PageFetch(url="https://desk.test/event/show-0", status=403)
+    # Same scaffolding note as above: the readable page is headed "Dominic
+    # Fike", so the row that opens it has to be named for it or this fixture
+    # measures the r17 denial instead of the wall.
     one = _walk([row("Show 0", listing_url="https://desk.test/event/show-0"),
-                 row("Show 1", listing_url="https://desk.test/event/show-1")])
+                 row("Dominic Fike", listing_url="https://desk.test/event/show-1")])
     follows = tool.follow_walks([one], {"test-desk": fetcher({
         "https://desk.test/event/show-0": walled,
         "https://desk.test/event/show-1": EVENT_PAGE_CLOCK_ONLY})},
@@ -2056,6 +2062,64 @@ def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
     assert read.when == "2026-09-18T23:00:00", read.refusals
 
 
+def test_an_unlinked_sub_card_with_its_own_heading_is_not_this_happening():
+    """Evaluator, PR #235 r18, openai/absence-only — and this is R-114, the
+    residual opened ONE ROUND EARLIER and blocked on the next. Third time in
+    this ticket (R-112 at r5, R-113 at r13, this): `deferred-trust-work` saying
+    the same thing three ways — a bound is not a fix.
+
+    R-114 claimed the sub-card test needed "a per-card DOM subtree ... which
+    would let a nested block be asked whether it carries its own heading". It
+    did not: both scans already record every heading with the sections
+    enclosing it, so the question was answerable with data in hand and the
+    record was wrong about its own trigger.
+
+    The test is HTML's own outline rule — a sectioning element with a heading
+    starts a section of the outline — plus the name check this module already
+    makes twice (`_contradicts_this_page` for nodes, `_page_denies_this_row`
+    for rows), now a third time one level in.
+
+    THE COST IS REAL AND PINNED BELOW: a card's own subsection headed with a
+    LABEL rather than a name ("Details", "When", "Tickets") is excluded too,
+    because "Details" names nothing this page names either. A page whose only
+    date sits inside such a subsection loses it — paid for never publishing a
+    neighbouring show's date, and measured by the next live run, where it lands
+    in `date-in-plumbing`."""
+    def read(inner):
+        return df.field_read(
+            f"<html><body><article><h1>Dominic Fike</h1>{inner}</article>"
+            f"</body></html>", url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    # R-114's surviving shape: the card states nothing, an unlinked nested
+    # block states everything, and it is headed for a different show.
+    promo = read('<section class="promo"><h2>Also on sale</h2>'
+                 '<p>Christmas Special — December 25, 2026 8:00PM</p>'
+                 '<div class="venue">The Other Room</div></section>')
+    assert promo.when is None, promo.when
+    assert promo.place_text is None, promo.place_text
+
+    # A subsection headed with what the page is ABOUT stays the card's.
+    named = read('<section><h2>Dominic Fike — tickets</h2>'
+                 '<p>Friday, September 18, 2026 8:00PM</p>'
+                 '<div class="venue">The Hall</div></section>')
+    assert named.when == "2026-09-18T20:00:00", named.refusals
+    assert named.place_text == "The Hall"
+
+    # A subsection with NO heading is the r6 case and is unchanged: absence is
+    # not disagreement here either.
+    quiet = read('<section class="details">'
+                 '<p>Friday, September 18, 2026 8:00PM</p>'
+                 '<div class="venue">The Hall</div></section>')
+    assert quiet.when == "2026-09-18T20:00:00", quiet.refusals
+    assert quiet.place_text == "The Hall"
+
+    # THE STATED COST, pinned so it is a decision and not a surprise.
+    labelled = read('<section><h2>Details</h2>'
+                    '<p>Friday, September 18, 2026 8:00PM</p>'
+                    '<div class="venue">The Hall</div></section>')
+    assert labelled.when is None, labelled.when
+
+
 def test_a_page_that_calls_itself_something_else_is_not_this_rows_page():
     """Evaluator, PR #235 r17, openai/absence-only — and the seat named the shape
     exactly: every rule in this module binds a STATEMENT to the PAGE, and none
@@ -2084,6 +2148,11 @@ def test_a_page_that_calls_itself_something_else_is_not_this_rows_page():
     assert result.rows[0].when is None, result.rows[0].when
     assert result.rows[0].place_text is None
     assert result.rows[0].filled_from_detail == ()
+    # AND IT DOES NOT RECORD HAVING BEEN READ FROM THAT PAGE (r18, blocking from
+    # openai/absence-only and a NIT from gemini/dataflow-taint — the same defect
+    # from two seats). Keeping `detail_url` made the report file an IDENTITY
+    # failure under "page stated no date" instead of "page could not be read".
+    assert result.rows[0].detail_url is None
     # A hole with no reason is the `diagnostics-as-data` defect this ticket
     # opened: the run would report the row as dateless when it was never read.
     assert any("Some Other Show" in why for _u, why in result.queued), result.queued
