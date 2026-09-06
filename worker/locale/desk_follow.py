@@ -1107,6 +1107,41 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
     # other, which for a `<script>` payload means owning no statement at all.
     structured = [hit for hit in stated if event_scoped(hit)]
     if structured:
+        # THE TIER WINS, BUT NOT AGAINST THE CARD'S OWN WORDS.
+        # "Never mix tiers" was written at r1 because counting prose against a
+        # structured statement refused 40 of 40 live pages — a month grid in the
+        # sidebar outvoted a node that declared the start perfectly well. What
+        # has changed since is the CARD BOUNDARY (r5/r6): `said` is no longer
+        # "text somewhere on the page", it is this happening's own card. So a
+        # visible date there is not a competing tier, it is the SAME desk
+        # contradicting itself about the same show, and a page that states two
+        # different days about itself has not stated one (evaluator, PR #235 r8,
+        # openai/attacker-smuggle).
+        #
+        # The commonest cause is a RUN: a JSON-LD `startDate` carrying the
+        # opening night while the page displays the next performance
+        # (`/event/prodigal-sun-14267156` states Sep 4 and displays Sep 6, both
+        # about Prodigal Sun — §13b). Publishing the opening for a show whose
+        # own page says otherwise puts a day in front of a reader that the desk
+        # is visibly not claiming. Modelling runs is the next ticket's; holing
+        # the day and COUNTING it is this one's, so that ticket opens with a
+        # number instead of a hunch.
+        card_days = {hit.date for hit in stated
+                     if hit.kind not in _DOCUMENT_LEVEL_KINDS
+                     and owned_by_this_happening(hit)}
+        node_days = {hit.date for hit in structured}
+        if card_days and card_days - node_days:
+            refuse(
+                "card-contradicts-its-own-markup",
+                f"this happening's own card states "
+                f"{', '.join(sorted(d.isoformat() for d in card_days)[:3])} "
+                f"while the page's structured data for it states "
+                f"{', '.join(sorted(d.isoformat() for d in node_days)[:3])} — "
+                f"the desk is contradicting itself about this show, so which "
+                f"day it is on is not settled and the date stays NULL")
+            structured = []
+            stated = []
+    if structured:
         stated = structured
     dates = [hit for hit in stated if owned_by_this_happening(hit)]
     in_plumbing = [hit for hit in stated if hit not in dates]
@@ -1255,7 +1290,29 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         if venue and venue not in ld_places:
             ld_places.append(venue)
     if len(ld_places) == 1:
-        place_text, place_carrier = ld_places[0], "jsonld"
+        # THE SAME CROSS-TIER CHECK THE DATE NOW MAKES. A bound node's venue is
+        # the desk speaking in machine form; the card's labelled venue is the
+        # desk speaking to a reader. When they name different places the desk is
+        # contradicting itself about this show, and neither is settled
+        # (evaluator, PR #235 r8, openai/attacker-smuggle).
+        #
+        # Compared with `_same_name`, not equality — a card routinely prints
+        # "Saengerrunde Hall 1607 San Jacinto, Austin" where the node says
+        # "Saengerrunde Hall", and calling that a contradiction would refuse
+        # every desk that gives its readers an address. One rule for "these
+        # name the same thing", shared with the identity check.
+        on_the_card, _links = _scan_places(html)
+        clashing = [one for one in on_the_card
+                    if not _same_name(one, ld_places[0])]
+        if clashing:
+            refuse(
+                "card-contradicts-its-own-markup",
+                f"this happening's own card labels "
+                f"{'; '.join(clashing[:2])} while the page's structured data "
+                f"for it states {ld_places[0]} — the desk is contradicting "
+                f"itself about where this show is, so the place stays NULL")
+        else:
+            place_text, place_carrier = ld_places[0], "jsonld"
     elif len(ld_places) > 1:
         refuse(
             "places-ambiguous",

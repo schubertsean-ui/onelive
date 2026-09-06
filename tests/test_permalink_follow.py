@@ -1528,8 +1528,11 @@ def test_a_run_of_performances_disagreeing_about_the_day_still_binds():
     of 40, with 14 falling through to a date they could only find in their own
     plumbing.
 
-    The node names what the page names, so it speaks for this row, and its day
-    is the answer within its tier."""
+    The node names what the page names, so it SPEAKS for this row — its venue
+    still comes through. What it does not do is settle the DAY: r8 separated
+    those two questions, because identity and certainty are not the same
+    (evaluator, PR #235 r8). A desk contradicting itself about which night has
+    not stated one, and modelling runs is the next ticket's work."""
     page = """<html><head><title>Prodigal Sun</title>
     <script type="application/ld+json">
     {"@type":"Event","name":"Prodigal Sun","url":"https://desk.test/events/269428",
@@ -1538,9 +1541,65 @@ def test_a_run_of_performances_disagreeing_about_the_day_still_binds():
     <body><article><h1>Prodigal Sun</h1>
     <p>Next performance Sunday, September 6, 2026</p></article></body></html>"""
     read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
-    assert read.when == "2026-09-04T19:30:00-05:00", read.refusals
+    # It BINDS — the node is this row's, and nothing contradicts its venue.
     assert read.place_text == "Saengerrunde Hall"
     assert "structured-not-bound" not in read.codes
+    # And the day is not settled, because the page says otherwise.
+    assert read.when is None, read.when
+    assert "card-contradicts-its-own-markup" in read.codes
+
+
+def test_a_card_agreeing_with_its_own_markup_settles_the_day():
+    """The converse, and the common case: when the card and the node state the
+    same day, the node's fuller answer (its clock and offset) is the row's."""
+    page = """<html><head><title>Prodigal Sun</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Prodigal Sun","url":"https://desk.test/events/269428",
+      "startDate":"2026-09-04T19:30:00-05:00",
+      "location":{"@type":"Place","name":"Saengerrunde Hall"}}</script></head>
+    <body><article><h1>Prodigal Sun</h1>
+    <p>Friday, September 4, 2026</p></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-04T19:30:00-05:00", read.refusals
+    assert read.place_text == "Saengerrunde Hall"
+    assert "card-contradicts-its-own-markup" not in read.codes
+
+
+def test_a_card_naming_a_different_venue_than_its_markup_settles_no_place():
+    """The place half of the same finding: a bound node's `location` and the
+    card's labelled venue naming different places is the desk contradicting
+    itself about where the show is."""
+    page = """<html><head><title>Prodigal Sun</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Prodigal Sun","url":"https://desk.test/events/269428",
+      "startDate":"2026-09-04T19:30:00-05:00",
+      "location":{"@type":"Place","name":"Saengerrunde Hall"}}</script></head>
+    <body><article><h1>Prodigal Sun</h1>
+    <p>Friday, September 4, 2026</p>
+    <div class="venue">The Other Room</div></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text is None, read.place_text
+    assert "card-contradicts-its-own-markup" in read.codes
+    assert read.when == "2026-09-04T19:30:00-05:00", read.refusals
+
+
+def test_a_card_printing_the_venue_with_its_address_is_not_a_contradiction():
+    """The converse, and why the comparison is `_same_name` rather than
+    equality: a card routinely prints the venue WITH its address where the node
+    prints the name alone. Calling that a contradiction would refuse every desk
+    that tells its readers where to go."""
+    page = """<html><head><title>Prodigal Sun</title>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Prodigal Sun","url":"https://desk.test/events/269428",
+      "startDate":"2026-09-04T19:30:00-05:00",
+      "location":{"@type":"Place","name":"Saengerrunde Hall"}}</script></head>
+    <body><article><h1>Prodigal Sun</h1>
+    <p>Friday, September 4, 2026</p>
+    <div class="venue">Saengerrunde Hall 1607 San Jacinto, Austin</div>
+    </article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text == "Saengerrunde Hall", read.refusals
+    assert "card-contradicts-its-own-markup" not in read.codes
 
 
 def test_a_heading_that_says_more_than_the_node_still_names_it():

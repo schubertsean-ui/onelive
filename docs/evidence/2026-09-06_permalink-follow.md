@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-109 passed in 0.48s
+112 passed in 0.37s
 ```
 
 | ticket case | test | result |
@@ -903,6 +903,56 @@ plumbing is. That removes the last place the heading rule was expressed twice:
 one walk, one precedence, one answer. `one-rule-expressed-twice` was opened in
 r6 with three instances; this is the fourth, found by a reviewer rather than by
 me, one round after I named the class.
+
+### 13h. Round 8 — identity is not certainty, and the tier rule had outlived its reason
+
+Two blocking findings (openai/attacker-smuggle; both gemini APPROVE), one shape:
+**the structured tier won outright without asking whether the page's own card
+contradicts it.** A stale or series `startDate` published as the settled day
+while the page visibly says another; a node `location` overriding a
+contradictory visible venue.
+
+**This reverses "never mix tiers", and the reason it can is worth stating.**
+That rule was written at r1 because counting prose against a structured
+statement refused 40 of 40 live pages — a month grid in the sidebar outvoted a
+node that declared its start perfectly well. What changed is the CARD BOUNDARY
+(r5/r6): `said` is no longer "text somewhere on the page", it is *this
+happening's own card*. So a visible date there is not a competing tier — it is
+the same desk contradicting itself about the same show, and a page that states
+two different days about itself has not stated one. **The old rule was right
+about the page it was written for, and the scope work since is what made a
+narrower rule possible.**
+
+**It also splits a test I wrote three rounds ago, and both halves survive.**
+§13b established that a node disagreeing with the page is not evidence it
+belongs to another happening — `/event/prodigal-sun-14267156` states Sep 4 and
+displays Sep 6, both about Prodigal Sun. That is still true, and the node still
+BINDS: its venue comes through. What it no longer does is settle the DAY.
+Identity and certainty are different questions, and r4 taught the first while r8
+teaches the second:
+
+| | | |
+|---|---|---|
+| node Sep 4, card Sep 6 | `when=None` + `card-contradicts-its-own-markup` | `place='Saengerrunde Hall'` |
+| node and card agree | `when=2026-09-04T19:30:00-05:00` | `place='Saengerrunde Hall'` |
+
+**The commonest cause is a RUN**, and holing it is a deliberate choice about
+whose job it is. A JSON-LD `startDate` carrying opening night while the page
+displays the next performance is not a defect in the desk — it is a shape this
+pipeline has no model for. Publishing the opening puts a day in front of a
+reader the desk is visibly not claiming; modelling runs is the next ticket's
+work; counting them is this one's, so that ticket opens with a number rather
+than a hunch.
+
+**The place comparison is `_same_name`, not equality** — a card routinely prints
+"Saengerrunde Hall 1607 San Jacinto, Austin" where the node says "Saengerrunde
+Hall", and calling that a contradiction would refuse every desk that tells its
+readers where to go. Its own test.
+
+**Expect `dated_n` to fall on the next live run.** That number is not a
+regression to explain away: it is the measurement of how often this desk's
+structured data disagrees with its own pages, which nothing before this round
+could see.
 
 ## 14. What this ticket did NOT do
 
