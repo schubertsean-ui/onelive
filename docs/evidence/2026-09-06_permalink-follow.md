@@ -1118,6 +1118,70 @@ happening, not a wrong happening. The cheap wrong fix would put a language's
 vocabulary back into the reader module, which is the defect I just removed.
 Recorded rather than silently dropped: `docs/RECORD.md` R-113.
 
+### 13l. The final table, on the shipped head
+
+Run [34015650549](https://github.com/schubertsean-ui/onelive/actions/runs/34015650549)
+on head `7676b59`, `--max-pages 3 --follow-budget 40`. This is the ticket's
+answer to Must-do 4, and it is the first number this document publishes since
+r8 — every earlier one was produced by a rule that has since been corrected.
+
+| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 109 | **34** | 75 | 0 | **0** |
+| `do512-today` | 0 | 0 | 0 | 1 | 0 |
+
+**Why the rest are still NULL**, which is the part a count alone hides:
+
+| pages opened | page stated no date | page could not be read | not asked (budget) | no followable address |
+|---:|---:|---:|---:|---:|
+| 40 | 6 | 0 | **69** | 0 |
+
+34 of the 40 pages the budget reached are dated and 6 state no date. The 69
+unopened rows are **unasked, not dateless** — `dated_n` is a floor and
+`still_null_n` a ceiling.
+
+Three sample rows, as the founder asked:
+
+| listing_url | start_time | place |
+|---|---|---|
+| `/event/back-to-the-ranch-the-lbj-bbq-returns-14329073` | `2026-09-26` | Lyndon B. Johnson National Historical Park |
+| `/event/texas-renaissance-festival-14311742` | `2026-10-10T09:00:00-05:00` | Texas Renaissance Festival |
+| `/event/zz-fest-w-amplified-heat-zz-top-tribute-14325034` | `2026-09-12T14:00:00-05:00` | Lightnin' Bar |
+
+**The first sample row is r10 firing on a real page on its first live run.** It
+carries a DATE and no clock, and the desk's own words say why:
+
+```
+card-contradicts-its-own-markup — /event/back-to-the-ranch-the-lbj-bbq-returns-14329073:
+  this happening's own card prints 10 pm while its structured data states
+  2026-09-26T18:00:00-05:00 — the desk is contradicting itself about the time,
+  so the day stands and the clock stays a hole
+```
+
+Before r10 that row published `18:00` under a page printing 10 pm. Now the
+agreed day survives and only the contested clock is a hole — which is the whole
+argument for holing the smallest thing that is actually in dispute.
+
+**And the r8 correction is measured, not asserted:**
+
+| head | rule | dated of 40 opened | `card-contradicts-its-own-markup` |
+|---|---|---:|---:|
+| `f436fe3` (r7) | no cross-tier check | 38 | — |
+| `e3f5d7f` (r8 as first written) | fires on elaboration; card days read document-wide | 23 | 15 (37%) |
+| `7676b59` (r8 corrected + r10) | fires only on contradiction; card days read from the card | **34** | **5 (12%)** |
+
+So the residual is 12%, not 37%: three quarters of what r8 refused was the desk
+agreeing with itself at two resolutions, and the remaining 5 pages are genuine
+disagreement — runs and multi-day festivals, which the pipeline has no model
+for. **That 12% is the input the run-modelling ticket needs**, and it is a
+number nothing before this round could see.
+
+Known and unchanged: row 16 of the write plan still carries a whole venue block
+as its place ('Venue Details Ground Floor Theatre 979 Springdale #122, Austin
+East groundfloortheatre.org 3 events') — §9c, place-text normalisation is the
+neighbouring ticket. `do512-today` is still walled (403 on first contact, class
+D, queued, nothing deleted).
+
 ## 14. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,
