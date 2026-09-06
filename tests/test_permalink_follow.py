@@ -2225,6 +2225,139 @@ def test_a_word_clock_is_a_word_clock_in_more_than_one_language():
         == "2026-09-18T19:30:00-05:00"
 
 
+def test_a_page_naming_more_than_the_row_is_not_always_the_rows_page():
+    """Evaluator, PR #235 r24, openai/absence-only, reproduced — and it names a
+    direction, not a case. r17 tied the PAGE to the ROW with `_same_name`, whose
+    containment runs both ways, and only one of those ways is safe:
+
+        PRE-FIX   row 'Dominic Fike' + page headed 'Dominic Fike Tribute'
+                  -> when=2026-12-25T20:00:00-06:00  place='The Other Room'
+                     filled_from_detail=('when','place_text')  codes=[]
+
+    A row carrying MORE words than the page is a decorated list card, and
+    containment is exactly right for it. A PAGE carrying more words may be
+    another happening — "Dominic Fike Tribute" is not "Dominic Fike" — and a
+    recycled or stale permalink is how a row meets one.
+
+    What separates decoration from a different name is the punctuation
+    `name_key` throws away ("Dominic Fike — tickets" breaks; "Dominic Fike
+    Tribute" does not), so the row's name must fill the END of a PHRASE rather
+    than merely open one. `destructive-normalization` for the eighth time in one
+    ticket: the normalizer was right, and the decision that needed the character
+    it discards was asking it anyway.
+
+    The cost is real, stated, and fail-closed: a heading that qualifies WITHOUT
+    punctuating no longer ties, so that row keeps its holes."""
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            '"name":"Dominic Fike Tribute","url":"%s",'
+            '"startDate":"2026-12-25T20:00:00-06:00",'
+            '"location":{"@type":"Place","name":"The Other Room"}}</script>' % HERE)
+    tribute = (f"<html><head>{node}</head><body><article>"
+               f"<h1>Dominic Fike Tribute</h1>"
+               f"<p>December 25, 2026 8:00PM</p></article></body></html>")
+    read = df.field_read(tribute, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    # The page is perfectly readable ABOUT ITSELF — the defect is only the tie.
+    assert read.when == "2026-12-25T20:00:00-06:00", read.refusals
+    filled, _codes = df.apply_read(row("Dominic Fike", listing_url=HERE), read)
+    assert filled.when is None, filled.when
+    assert filled.place_text is None
+    assert filled.filled_from_detail == ()
+
+    # A row titled for the tribute reads the very same page, so this refuses a
+    # BINDING and not a page.
+    same, _codes = df.apply_read(
+        row("Dominic Fike Tribute", listing_url=HERE), read)
+    assert same.when == "2026-12-25T20:00:00-06:00"
+
+    # The safe direction and the punctuated shapes still tie.
+    for row_title, heading in (
+            ("Dominic Fike", "Dominic Fike"),
+            ("Dominic Fike", "Dominic Fike — tickets"),
+            ("Dominic Fike", "Dominic Fike (18+)"),
+            ("Dominic Fike at The Hall", "Dominic Fike"),
+            ("The Yellow Wallpaper",
+             "Trinity Street Theatre presents The Yellow Wallpaper")):
+        assert not df._page_denies_this_row(row_title, (heading,)), (row_title,
+                                                                    heading)
+    # And the shapes that now deny, including the STATED cost.
+    for row_title, heading in (("Dominic Fike", "Dominic Fike Tribute"),
+                               ("Boeing Boeing", "Boeing Boeing Jr"),
+                               ("Dominic Fike", "Dominic Fike at The Other Room")):
+        assert df._page_denies_this_row(row_title, (heading,)), (row_title,
+                                                                 heading)
+    # Absence is still not denial (r17, unchanged).
+    assert not df._page_denies_this_row("", ("Anything",))
+    assert not df._page_denies_this_row("Dominic Fike", ())
+
+
+def test_a_page_that_declares_its_language_is_read_in_it():
+    """Evaluator, PR #235 r24, openai/attacker-smuggle — the fifth round on R-115
+    and the first to name the harm precisely: an unreadable word clock is not a
+    fail-closed residual, it is a FALSE PRECISE TIME published to users.
+
+    r22 measured the vocabulary-free close (require every structured clock to be
+    corroborated) at 33 of 136 tests, because "the card says nothing about time"
+    is the dominant and CORRECT shape. That measurement stands. What it misses is
+    that the page itself will often say which vocabulary it is written in, and
+    `<html lang>` is the page's own statement, not our guess.
+
+    So two closes, both keyed on that declaration and both costing nothing where
+    it is absent:
+
+      1. The words admission rule 2 keeps OUT of the always-on list are admitted
+         for a page that declares their language. French `midi` is noon on an
+         `<html lang="fr">` page; on this repo's English music desks it is a MIDI
+         set and stays unread. Rule 2's cost is now paid only where it buys
+         something.
+      2. A page declaring a language whose time words we cannot read at all has
+         told us that "the card printed no clock" may mean "printed one we could
+         not see". There, and ONLY there, silence stops corroborating: the day
+         stands and the precise time is refused.
+
+    Everywhere else — English, and every page declaring nothing — silence still
+    means silence, which is what keeps r22's 33 tests green."""
+    node = ('<script type="application/ld+json">{"@type":"Event",'
+            '"name":"Dominic Fike","url":"%s",'
+            '"startDate":"2026-09-18T19:30:00-05:00"}</script>' % HERE)
+
+    def read(card, lang=None):
+        tag = f'<html lang="{lang}">' if lang else "<html>"
+        return df.field_read(
+            f"{tag}<head>{node}</head><body><article><h1>Dominic Fike</h1>"
+            f"{card}</article></body></html>",
+            url=HERE, as_of=AS_OF, patterns=PATTERNS)
+
+    quiet = "<p>September 18, 2026 — an evening of songs</p>"
+    midi = "<p>September 18, 2026 — live MIDI set, 7:30PM</p>"
+
+    # (1) The per-language words, only for the page that declares the language.
+    for lang, word in (("fr", "midi"), ("nl", "middag")):
+        got = read(f"<p>September 18, 2026 — {word}</p>", lang)
+        assert got.when == "2026-09-18", (lang, got.when)
+        assert "card-contradicts-its-own-markup" in got.codes, lang
+    # `pt-BR` is Portuguese: the primary subtag is what counts.
+    assert read("<p>September 18, 2026 — meia-noite</p>", "pt-BR").when \
+        == "2026-09-18"
+    # And MIDI stays a music protocol wherever French is not declared.
+    for lang in ("en", None):
+        assert read(midi, lang).when == "2026-09-18T19:30:00-05:00", lang
+
+    # (2) A declared language we carry no time words for: silence stops
+    # corroborating, the DAY stands, and the refusal says which rule fired.
+    korean = read("<p>September 18, 2026 — 공연</p>", "ko")
+    assert korean.when == "2026-09-18", korean.when
+    assert "clock-unreadable-in-this-language" in korean.codes, korean.codes
+    # ... but only when nothing on the card was readable. A card that
+    # corroborates keeps its precise time in any language.
+    assert read("<p>September 18, 2026 — 7:30PM</p>", "ko").when \
+        == "2026-09-18T19:30:00-05:00"
+
+    # THE CONVERSE THAT KEEPS r22's MEASUREMENT INTACT: silence is still silence
+    # for a language we read, and for a page that declares nothing at all.
+    for lang in ("en", "es", "ja", None):
+        assert read(quiet, lang).when == "2026-09-18T19:30:00-05:00", lang
+
+
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
     """Evaluator, PR #235 r20, openai/attacker-smuggle — r18's sub-card rule
     excluded nested SECTIONING elements, and `<div>` is a block boundary and not

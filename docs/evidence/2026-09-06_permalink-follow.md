@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-138 passed in 0.53s
+140 passed in 0.56s
 ```
 
 | ticket case | test | result |
@@ -2066,6 +2066,89 @@ less than a residual measured. r23 adds the half that was missing: measuring the
 close I did NOT want to take says nothing about the close I should have taken.
 The cheap check is not "what does my preferred fix cost" but "is the line I am
 drawing a property of the problem, or of me".
+
+### 13z. Round 24 — one rule asked in both directions, and the page's own answer
+
+Two blocking findings, both openai seats; both gemini APPROVE. The two openai
+seats also disagreed with each other about the second, which is worth noting:
+absence-only wrote that it was "not treating the remaining residual as a
+separate blocker here" while attacker-smuggle blocked on it.
+
+**(a) The row/page tie ran in both directions and only one of them is safe.**
+
+```
+PRE-FIX   row 'Dominic Fike' + page headed 'Dominic Fike Tribute'
+          -> when=2026-12-25T20:00:00-06:00  place='The Other Room'
+             filled_from_detail=('when','place_text')  codes=[]
+```
+
+r17 tied the page to the row with `_same_name`, whose containment runs both
+ways. A ROW with extra words is a decorated list card and containment is right
+for it. A PAGE with extra words may be a different happening, and a recycled or
+stale permalink is how a row meets one.
+
+What separates decoration from a different name is the punctuation `name_key`
+discards — "Dominic Fike — tickets" breaks, "Dominic Fike Tribute" does not — so
+the row's name must fill the END of a phrase rather than merely open one.
+`destructive-normalization`, eighth in this ticket: the normalizer was doing its
+job and the decision that needed the discarded character asked it anyway.
+
+The first cut of the fix required the name to fill a WHOLE phrase, and the suite
+priced it immediately at two tests, one of them the `<presenter> presents
+<title>` shape the code's own docstring cites as a real desk heading:
+
+```
+FAILED  test_a_page_that_calls_itself_something_else_is_not_this_rows_page
+        'Trinity Street Theatre presents Dominic Fike' -> when=None
+```
+
+Extra words BEFORE the name are context; extra words after it inside the same
+phrase are a different name. With that asymmetry the whole suite passes. The
+cost that remains is stated rather than discovered: a heading that qualifies
+without punctuating ("Dominic Fike at The Other Room") no longer ties, and that
+row keeps its holes.
+
+**(b) R-115, fifth round — and this time the page answers.**
+
+attacker-smuggle named the harm more precisely than four earlier rounds had: an
+unreadable word clock is not a fail-closed residual, it is a **false precise
+time** published to users. That reframing is correct and r22's measurement does
+not answer it.
+
+What r22 through r23 all missed is that the page usually says which vocabulary
+it is written in. `<html lang>` is the page's own statement, not our guess, and
+it closes both open halves at zero measured cost:
+
+1. The words admission rule 2 keeps out — French `midi`, Dutch `middag` — are
+   admitted for a page that DECLARES that language. `midi` is noon on
+   `lang="fr"`; on this repo's English music desks it is a MIDI set and stays
+   unread. Rule 2's cost is now paid only where it buys something.
+2. A page declaring a language whose time words we cannot read AT ALL has told
+   us that "the card printed no clock" may mean "printed one we could not see".
+   There, and only there, silence stops corroborating: the day stands, the
+   precise time is refused, and the refusal names the rule
+   (`clock-unreadable-in-this-language`).
+
+Everywhere else — English, and every page declaring nothing — silence still
+means silence, which is exactly what keeps r22's 33 tests green. Verified across
+ten shapes, then pinned:
+
+```
+ok  fr midi holes         -> 2026-09-18  card-contradicts-its-own-markup
+ok  en MIDI keeps         -> 2026-09-18T19:30:00-05:00
+ok  ko silent card holes  -> 2026-09-18  clock-unreadable-in-this-language
+ok  en silent card keeps  -> 2026-09-18T19:30:00-05:00
+ok  no-lang silent keeps  -> 2026-09-18T19:30:00-05:00
+```
+
+**What this round teaches, and it is not the same lesson as r22 or r23.** r22
+said measure the fix instead of arguing it. r23 said check whether the line you
+are drawing is a property of the problem or of yourself. r24 adds the cheapest
+of the three: **before deciding what we cannot know, ask what the artefact
+already states about itself.** Five rounds of this residual were spent choosing
+between our vocabulary and an expensive corroboration rule, and the page had
+been declaring its own language the whole time, in an attribute every desk in
+this corpus already sets.
 
 ## 14. What this ticket did NOT do
 

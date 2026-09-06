@@ -152,6 +152,36 @@ _WORD_CLOCKS_UNSPACED = (
     # Japanese / Chinese
     "正午", "真夜中", "午夜", "中午",
 )
+
+#: The words admission rule 2 keeps out of the always-on list, filed under the
+#: language they are a clock IN. A page that DECLARES that language has told us
+#: which reading it means, so the ambiguity rule 2 protects against is gone and
+#: the word is admitted for that page only (evaluator, PR #235 r24,
+#: openai/attacker-smuggle: an unreadable word clock is not a fail-closed
+#: residual, it is a false precise time). `midi` on an `<html lang="fr">` page
+#: is noon; on this repo's own English desks it is a MIDI set, and stays unread.
+_WORD_CLOCKS_BY_LANGUAGE = {
+    "fr": ("midi",),
+    "nl": ("middag",),
+}
+
+#: Languages whose word clocks this module can read at all — the union of the
+#: always-on list and the per-language one. A page declaring anything else is
+#: telling us its time words are outside our vocabulary, which is the one case
+#: where "the card printed no clock" is not evidence of agreement.
+_LANGUAGES_WITH_WORD_CLOCKS = frozenset(
+    {"en", "es", "pt", "fr", "de", "it", "nl", "ja", "zh"})
+
+#: What the page says it is written in. Read from the document's own `lang`,
+#: primary subtag only ("pt-BR" -> "pt"), empty when it declares nothing —
+#: absence is not a claim, so an undeclared page keeps the behaviour it had.
+_LANG_ATTR_RE = re.compile(
+    r"<html\b[^>]*?\b(?:xml:)?lang\s*=\s*[\"']?([A-Za-z]{2,3})", re.IGNORECASE)
+
+
+def _declared_language(html: str) -> str:
+    match = _LANG_ATTR_RE.search(html or "")
+    return match.group(1).lower() if match else ""
 _WORD_CLOCK_LOCATOR = (
     r"\b(?:" + "|".join(re.escape(w) for w in _WORD_CLOCKS_LATIN) + r")\b"
     r"|(?:" + "|".join(re.escape(w) for w in _WORD_CLOCKS_UNSPACED) + r")")
@@ -1121,7 +1151,7 @@ _MERIDIEM_RE = re.compile(r"[ap]\.?\s?m\b", re.I)
 
 
 def _clock_agrees(token: str, stated: Tuple[int, int], day: str,
-                  as_of: Optional[_date]) -> Optional[bool]:
+                  as_of: Optional[_date], lang: str = "") -> Optional[bool]:
     """Does this printed time agree with the instant the markup states?
 
     `None` when the token cannot be read at all — an unreadable statement is
@@ -1156,8 +1186,14 @@ def _clock_agrees(token: str, stated: Tuple[int, int], day: str,
         # it cannot agree — `False`, not `None`. Everything else that fails to
         # resolve is the locator's own noise and stays `None`, which is the r14
         # rule unchanged: our inability to parse a numeric edge case is not the
-        # desk contradicting itself.
-        return False if _WORD_CLOCK_RE.match(token.strip()) else None
+        # desk contradicting itself. The per-language words count here only for
+        # a page that DECLARED that language, exactly as the locator admits them.
+        bare = token.strip()
+        if _WORD_CLOCK_RE.match(bare):
+            return False
+        if bare.lower() in _WORD_CLOCKS_BY_LANGUAGE.get(lang or "", ()):
+            return False
+        return None
     if _MERIDIEM_RE.search(token):
         return wall == stated
     return (wall[0] % 12, wall[1]) == (stated[0] % 12, stated[1])
@@ -1336,7 +1372,68 @@ def _page_denies_this_row(row_title: Optional[str],
     """
     if not row_title or not headings:
         return False
-    return not any(_same_name(row_title, heading) for heading in headings)
+    return not any(_heading_is_this_row(row_title, heading)
+                   for heading in headings)
+
+
+_PHRASE_BREAK_RE = re.compile(r"[^\w\s]+")
+
+
+def _phrases(text: str) -> List[List[str]]:
+    """A name split at the punctuation `name_key` throws away.
+
+    NOT a second normalizer — each piece still goes through `name_key`, the one
+    this repo owns. What this adds is the BOUNDARY that normalizing destroys,
+    which is the whole content of the distinction below.
+    """
+    out = []
+    for part in _PHRASE_BREAK_RE.split(text or ""):
+        tokens = _name_tokens(part)
+        if tokens:
+            out.append(tokens)
+    return out
+
+
+def _heading_is_this_row(row_title: str, heading: str) -> bool:
+    """Is a page under this heading the page for a row under this title?
+
+    `_same_name`'s containment is right in ONE direction and wrong in the other,
+    and until r24 this asked it in both (evaluator, PR #235 r24,
+    openai/absence-only, reproduced — a row titled "Dominic Fike" took
+    2026-12-25T20:00:00-06:00 at 'The Other Room' from a page headed "Dominic
+    Fike Tribute", `filled_from_detail=('when','place_text')`, codes `[]`).
+
+    The two directions are not symmetric:
+
+      * The ROW carrying extra words is decoration on a list card — "The Yellow
+        Wallpaper" against a page headed "Trinity Street Theatre presents The
+        Yellow Wallpaper". Containment is exactly right, and tightening it
+        refuses legitimate pages.
+      * The PAGE carrying extra words may be A DIFFERENT HAPPENING. "Dominic
+        Fike Tribute" is not "Dominic Fike", and a recycled or stale permalink
+        is precisely how a row meets one.
+
+    What separates decoration from a different name is the punctuation
+    `name_key` discards — "Dominic Fike — tickets" breaks, "Dominic Fike
+    Tribute" does not — so the rule is that the row's name must fill a whole
+    PHRASE of the heading rather than merely open it. That is
+    `destructive-normalization` for the eighth time in this ticket: the
+    normalizer was doing its job, and the decision that needed the discarded
+    character was asking it anyway.
+
+    The cost is stated rather than discovered: a heading that qualifies without
+    punctuating ("Prodigal Sun at Saengerrunde Hall") no longer ties to a row
+    titled "Prodigal Sun", and that row keeps its holes. Fail-closed, and
+    measured against the suite before landing.
+    """
+    if not _same_name(row_title, heading):
+        return False
+    row_tokens = _name_tokens(row_title)
+    head_tokens = _name_tokens(heading)
+    if len(head_tokens) <= len(row_tokens):
+        return True
+    return any(phrase[len(phrase) - len(row_tokens):] == row_tokens
+               for phrase in _phrases(heading))
 
 
 def _contradicts_this_page(event: Dict[str, object],
@@ -1534,16 +1631,26 @@ def _others_on_this_page(links: Sequence[str], url: str,
     return out
 
 
-def _clocks_printed(html: str) -> List[str]:
+def _clocks_printed(html: str, lang: str = "") -> List[str]:
     """Every DISTINCT clock this text prints, in the order it prints them.
 
     Split out at r11 so the two callers cannot drift: `_clock_claim` wants the
     one clock a page settles on, and the cross-tier check wants all of them.
     Reading them twice is how the r3 instant keys and the r8 card days each
     went wrong — one walk, one answer, two questions asked of it.
+
+    `lang` is what the DOCUMENT declares, and it only ever ADDS the words
+    `_WORD_CLOCKS_BY_LANGUAGE` files under it — a page that says it is French
+    means noon by "midi". Passing nothing reads the always-on list alone.
     """
+    locator = _CLOCK_TOKEN_RE
+    extra = _WORD_CLOCKS_BY_LANGUAGE.get(lang or "")
+    if extra:
+        locator = re.compile(
+            _CLOCK_TOKEN_RE.pattern + r"|\b(?:"
+            + "|".join(re.escape(w) for w in extra) + r")\b", re.IGNORECASE)
     found: List[str] = []
-    for hit in _CLOCK_TOKEN_RE.findall(_visible(html)):
+    for hit in locator.findall(_visible(html)):
         token = " ".join(hit.split()).lower().replace(".", "")
         if token not in found:
             found.append(token)
@@ -1990,18 +2097,39 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 said_text = " ".join(said)
                 day = hit.date.isoformat()
                 stated_wall = _wall_clock(when)
+                lang = _declared_language(html)
                 verdicts = [v for v in (
-                    _clock_agrees(token, stated_wall, day, as_of)
-                    for token in _clocks_printed(said_text)) if v is not None]
+                    _clock_agrees(token, stated_wall, day, as_of, lang)
+                    for token in _clocks_printed(said_text, lang))
+                    if v is not None]
                 clock_uncorroborated = not verdicts
                 if verdicts and not any(verdicts):
-                    shown = ", ".join(_clocks_printed(said_text)[:4])
+                    shown = ", ".join(_clocks_printed(said_text, lang)[:4])
                     refuse(
                         "card-contradicts-its-own-markup",
                         f"this happening's own card prints {shown} while "
                         f"its structured data states {when}, which is none of "
                         f"them — the desk is contradicting itself about the "
                         f"time, so the day stands and the clock stays a hole")
+                    when, when_precision = hit.date.isoformat(), "date"
+                    when_text = hit.raw
+                elif (clock_uncorroborated
+                      and lang and lang not in _LANGUAGES_WITH_WORD_CLOCKS):
+                    # THE PAGE TOLD US ITS TIME WORDS ARE OUTSIDE OUR
+                    # VOCABULARY, so "the card printed no clock" stops being
+                    # evidence that it agrees (evaluator, PR #235 r24,
+                    # openai/attacker-smuggle). Everywhere else silence is
+                    # silence — the dominant and CORRECT shape, measured at r22
+                    # as 33 of 136 tests — but a declared language we cannot
+                    # read time words in is a page whose clock we may simply
+                    # not have SEEN. The day stands; only the precision goes.
+                    refuse(
+                        "clock-unreadable-in-this-language",
+                        f"this page declares lang={lang!r}, whose time words "
+                        f"this repo cannot read, and its own card prints no "
+                        f"clock we recognise — so nothing here corroborates "
+                        f"the {when} its structured data states, and the "
+                        f"clock stays a hole while the day stands")
                     when, when_precision = hit.date.isoformat(), "date"
                     when_text = hit.raw
             else:
