@@ -71,7 +71,8 @@ import re
 from dataclasses import dataclass, field, replace
 from datetime import date as _date, datetime, timezone as _tz
 from html.parser import HTMLParser
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import (Callable, Dict, FrozenSet, List, Optional, Sequence,
+                    Tuple)
 from urllib.parse import urlsplit
 
 from worker.datetime_normalize import normalize_datetime_claim
@@ -132,7 +133,6 @@ _HAS_CLOCK_RE = re.compile(r"\d:[0-5]\d|T[0-2]\d[0-5]\d")
 #: schema.org properties that name where a happening is.
 _PLACE_ITEMPROPS = frozenset({"location", "address"})
 
-#: Elements whose text is never a place (or anything else printed).
 #: Elements whose text is never a place (or anything else this page STATES).
 #: Form controls earn their place here from the live run: a `<select>` of
 #: restaurant categories sitting inside a venue-labelled block was read as one of
@@ -168,6 +168,13 @@ _BLOCK_TAGS = frozenset({
 #: on its own let a sidebar's node publish 2026-12-25 at "The Other Room" onto a
 #: row titled something else (evaluator, PR #235 r2).
 _EVENT_SCOPED_KINDS = frozenset({"jsonld", "ics"})
+
+#: Carriers that are not part of any printed statement: a `<script>` payload, an
+#: embedded calendar body. They state a moment on their own authority and own no
+#: segment of the page's prose, so no clock printed elsewhere is theirs to take.
+#: (Same members as the set above today, and a different question — that one asks
+#: WHOSE start a carrier states, this one asks WHERE on the page it lives.)
+_DOCUMENT_LEVEL_KINDS = frozenset({"jsonld", "ics"})
 
 
 class DeskFollowError(ValueError):
@@ -490,8 +497,60 @@ def _instant_key(value: Optional[str]):
     return moment.astimezone(_utc).timestamp()
 
 
+def _named_urls(event: Dict[str, object], url: str) -> FrozenSet[str]:
+    """The absolute addresses a node names, as addresses the identity table can
+    be asked about. ONE definition: the arm of `speaks_for` that consults the
+    table and the refusal that explains it must ask the same question, or the
+    report describes a rule the code did not apply.
+
+    A relative `url` or `@id` is resolved against the page. Written as a bare
+    string comparison it bound nothing, so a desk publishing `/event/1846201`
+    on `https://desk.test/event/1846201` looked like a node about somewhere
+    else (gemini NIT, PR #235 r3).
+    """
+    from urllib.parse import urljoin
+    out = set()
+    for key in ("url", "uid"):
+        raw = str(event.get(key) or "").strip()
+        if raw and not raw.startswith(("mailto:", "tel:", "#")):
+            out.add(raw if raw.lower().startswith(("http://", "https://"))
+                    else urljoin(url, raw))
+    return frozenset(out)
+
+
+def _states_the_day(event: Dict[str, object], page_dates: FrozenSet[_date],
+                    stated: Sequence[object]) -> bool:
+    """Does the page's OWN printed content state the day this node claims?
+
+    The corroboration the weak arm of `speaks_for` rests on. A node the page
+    does not otherwise back up is one witness whose identity we could not
+    establish; a node whose day the page also prints in its own content is the
+    page agreeing with itself.
+
+    NEVER COMPARE A DAY ACROSS TWO NORMALISATIONS. `parse_jsonld` hands back a
+    node whose start is already UTC (`2026-12-26T02:00:00Z`) while the page
+    prints the local day it means (`2026-12-25`) — comparing those directly is
+    wrong by one day for every evening show west of Greenwich, and it silently
+    refused a page that corroborates itself perfectly. So the node's own day is
+    read back out of `same_page_dates`, which is also what read the prose:
+    ONE module's convention on both sides, and the node is found in it by the
+    same instant key the per-hit bind uses.
+    """
+    key = _instant_key(str(event.get("start_time") or ""))
+    if key is None:
+        # It states no start. Nothing to corroborate and nothing to publish
+        # from — it cannot date this row either way.
+        return False
+    return any(getattr(hit, "kind", None) in _DOCUMENT_LEVEL_KINDS
+               and _instant_key(getattr(hit, "raw", "")) == key
+               and getattr(hit, "date", None) in page_dates
+               for hit in stated)
+
+
 def speaks_for(events: Sequence[Dict[str, object]], url: str,
-               patterns: Sequence[IdentityPattern] = ()
+               patterns: Sequence[IdentityPattern] = (),
+               *, page_dates: FrozenSet[_date] = frozenset(),
+               stated: Sequence[object] = ()
                ) -> List[Dict[str, object]]:
     """The structured nodes on this page that are about THIS happening.
 
@@ -508,14 +567,25 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
 
       * it names THIS address (`url` or `@id` resolving to the followed
         permalink) — the strong bind, and the common case;
-      * or it is the page's only Event node and the address it names is not
-        ANOTHER HAPPENING'S. A node naming no address at all is a permalink page
-        publishing an Event about itself; so is one naming an address that no
-        committed identity pattern calls a happening.
+      * or it is the page's only Event node AND it names no address at all — a
+        permalink page publishing an Event about itself;
+      * or it is the page's only Event node, the address it names is not
+        ANOTHER HAPPENING'S, AND the page's own printed content states the day
+        that node claims.
 
-    That last arm is the committed identity table doing the work, and the live
-    run is why it exists. Requiring the node to name the followed permalink
-    refused 29 of 40 real pages, and the addresses they named say what they are:
+    That third arm needs both halves, and the second half is round 4's finding
+    (evaluator, PR #235 r4, openai/attacker-smuggle): ABSENCE FROM THE IDENTITY
+    TABLE IS NOT PROOF THE NODE IS THIS HAPPENING. A stale or promotional Event
+    at an unpatterned address — a vanity URL, a ticket link, a partner site —
+    passes the table test and is about something else entirely, and on a page
+    whose own listing carries no structured markup it would be the lone node.
+    So the page has to corroborate it: if the content this page prints never
+    states the day that node claims, we have one witness we could not identify,
+    and the row keeps its hole.
+
+    The first half is the committed identity table, and the live run is why it
+    exists. Requiring the node to name the followed permalink refused 29 of 40
+    real pages, and the addresses they named say what they are:
 
         /backtotheranch     on  /event/back-to-the-ranch-the-lbj-bbq-returns-14329073
         /texarts_26_BB_ac   on  /event/boeing-boeing-14285657
@@ -537,15 +607,15 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
         return bound
     if len(events) != 1:
         return []
-    from urllib.parse import urljoin
-    named = set()
-    for key in ("url", "uid"):
-        raw = str(events[0].get(key) or "").strip()
-        if raw and not raw.startswith(("mailto:", "tel:", "#")):
-            named.add(raw if raw.lower().startswith(("http://", "https://"))
-                      else urljoin(url, raw))
+    named = _named_urls(events[0], url)
     if any(match_identity(one, patterns) is not None for one in named):
         # It names another happening. That is a different row's statement.
+        return []
+    if named and not _states_the_day(events[0], page_dates, stated):
+        # It names SOMETHING, and the table cannot tell us what. Unrecognised is
+        # not the same as ours: without the page's own content standing behind
+        # the day it claims, this node is unidentified, and an unidentified
+        # witness dates nothing.
         return []
     return list(events)
 
@@ -651,7 +721,16 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         ld_events = []
         refuse("jsonld-raised", f"JSON-LD parse raised ({exc}); the page's other "
                                 f"statements were still read")
-    mine = speaks_for(ld_events, url, patterns)
+    # The page's own printed content, read BEFORE the structured statement is
+    # judged, because the weak arm of `speaks_for` is corroborated by it: a lone
+    # node at an address the identity table cannot classify speaks for this page
+    # only while the page itself also prints the day that node claims.
+    said = segments(html)
+    page_dates = frozenset(d.date for s in said
+                           for d in same_page_dates(s, as_of=as_of))
+    stated = same_page_dates(html, as_of=as_of)
+    mine = speaks_for(ld_events, url, patterns,
+                      page_dates=page_dates, stated=stated)
     if ld_events and not mine:
         # Name the addresses. "A different address" is a verdict; WHICH address
         # is the evidence, and it is the difference between a sidebar event and
@@ -662,11 +741,17 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
             f"page publishes {len(ld_events)} schema.org event(s), and they name "
             f"{', '.join(named[:3]) or 'no address'} while this happening's "
             f"address is {_address(url)[1]} — so none of them speaks for this "
-            f"row, and none of them dates or places it")
+            f"row, and none of them dates or places it"
+            + ("" if len(ld_events) != 1 or not named
+               or any(match_identity(a, patterns) is not None
+                      for a in _named_urls(ld_events[0], url)) else
+               f"; the address it names is one no committed pattern classifies, "
+               f"and the page's own content states "
+               f"{', '.join(sorted(d.isoformat() for d in page_dates)[:3]) or 'no date'}"
+               f", which does not corroborate the day it claims"))
 
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
-    said = segments(html)
     page_clock, clock_refusal = _clock_claim(" ".join(said))
 
     # WHOSE DATE IT IS IS ASKED FIRST, AND CARDINALITY OVER THE ANSWER.
@@ -708,7 +793,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                    or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}
                    for s in said)
 
-    stated = same_page_dates(html, as_of=as_of)
+    # `stated` was read above, before the structured statement was judged —
+    # every date carrier on this page, in ONE module's convention.
     # NEVER MIX TIERS (ONE-LIVE-ENTITY-SPLIT-LAW.md §2, the ladder's own rule,
     # here applied to fields rather than identities). A schema.org
     # `Event.startDate` or an ICS `DTSTART` states WHOSE start it is; printed
@@ -771,9 +857,22 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # was asked before the count. What is still needed is WHICH statement
         # carries it, because that statement is the only place a clock may come
         # from. A structured carrier belongs to no segment and gets none.
-        owning = [s for s in said
-                  if (hit.raw and hit.raw in s)
-                  or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}]
+        if hit.kind in _DOCUMENT_LEVEL_KINDS:
+            # A STRUCTURED CARRIER BELONGS TO NO SEGMENT, SO IT BORROWS NO
+            # CLOCK. A `<script type="application/ld+json">` payload and an ICS
+            # body are not sentences the page prints; matching them to a segment
+            # BY DATE hands a structured `startDate: 2026-09-06` whatever clock
+            # happens to sit in the one content block that also mentions Sep 6 —
+            # "Box office Sep 6, 10:00AM" becomes a 10am show (evaluator, PR
+            # #235 r4, openai/attacker-smuggle). The comment below has said this
+            # since r1; the date-matching arm quietly did the opposite. A
+            # structured node that states a day and no time has told us the day
+            # and no time, and that is the honest output.
+            owning = []
+        else:
+            owning = [s for s in said
+                      if (hit.raw and hit.raw in s)
+                      or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}]
         when_carrier, when_text = hit.kind, hit.raw
         if _HAS_CLOCK_RE.search(hit.raw or ""):
             # The carrier states the whole instant (an ISO startDate, a

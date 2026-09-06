@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-84 passed in 0.39s
+87 passed in 0.29s
 ```
 
 | ticket case | test | result |
@@ -539,7 +539,61 @@ default 40 pages and found 1568 rows; run 34007753540 walked 3 and found 120.
 by the list walk. `still_null_n` differs for the same reason — 1529 against 81 —
 and neither number moved because of the r3 code.
 
-## 13. What this ticket did NOT do
+## 13. Evaluator round 4 — absence is not proof, and a script is not a sentence
+
+Three seats APPROVE, one REQUEST-CHANGES (openai/attacker-smuggle) with two
+blocking findings. Both reproduced on the pre-fix head before anything changed.
+
+**(a) `speaks_for`'s weak arm trusted an absence.** Round 2 refused a lone node
+that names ANOTHER HAPPENING, asking the committed identity table. The evaluator's
+point: absence from that table is not proof the node is ours. A stale or
+promotional Event at an address the table cannot classify — a vanity URL, a
+ticket link, a partner site — passes the test while being about something else,
+and on a page whose own listing carries no structured markup it is the lone node.
+
+```
+PRE-FIX  f1 unpatterned lone node  when=2026-12-25T20:00:00-06:00  place=The Other Room  codes=()
+POST-FIX f1 unpatterned lone node  when=None                      place=None            codes=('structured-not-bound', …)
+```
+
+The arm now needs both halves: the address is not another happening's AND the
+page's own printed content states the day the node claims. An unidentified
+witness dates nothing.
+
+**A trap inside that fix, caught by the test the fix was written for.** The
+corroboration first compared the node's day against the page's — and
+`parse_jsonld` hands back a start already converted to UTC (`2026-12-26T02:00Z`)
+while the page prints the local day it means (`2026-12-25`). That is wrong by
+one day for every evening show west of Greenwich, and it refused a page that
+corroborates itself perfectly. Both sides now read through `same_page_dates`:
+one module's convention, with the node found in it by the same instant key the
+per-hit bind uses. This is the third appearance of one class in this ticket —
+comparing a moment across two normalisations — after r3's naive-vs-aware key.
+
+**(b) A structured day borrowed a clock from unrelated prose.** A bound JSON-LD
+node states `2026-09-06` and no time. The carrier was matched to a segment BY
+DATE, so the one content block that also mentioned Sep 6 became the statement
+that "gave" the day — and its clock became the show's start:
+
+```
+PRE-FIX   when=2026-09-06T10:00:00  precision=datetime  text='2026-09-06 10:00am'  codes=()
+POST-FIX  when=2026-09-06           precision=date      text='2026-09-06'          codes=('clock-elsewhere',)
+```
+
+The code's own comment had said "a structured carrier belongs to no segment and
+gets none" since round 1. The date-matching arm quietly did the opposite. A
+`<script>` payload and an ICS body are not sentences the page prints; they own
+no segment and borrow no clock. A structured node stating a day and no time has
+told us the day and no time.
+
+**A test that passed for the wrong reason, caught before pushing.** The first
+fixture wrote the box-office line as "Box office opens Sep 6 at 10:00AM" — no
+year, so it resolves to no date at all, so the segment never becomes the
+carrier's owner and the test went green without reaching the defect. Printing
+the year is what makes it reproduce. That is `false-confidence-gate` in a test I
+wrote to close a finding, which is the most expensive place to have one.
+
+## 14. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,
   no login, no Planomato, no touching PRs #230/#231/#232.

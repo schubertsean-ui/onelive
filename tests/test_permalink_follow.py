@@ -1085,13 +1085,17 @@ def test_a_vanity_url_for_the_same_happening_is_not_another_event():
 
     None of those is an address the identity table calls a happening, which is
     exactly what separates them from a sidebar's link to another PERMALINK.
+
+    The table alone is not enough, though — see the test below. The page has to
+    corroborate the day, and here it does: the article prints Dec 25 itself.
     """
-    def page(url_value):
+    def page(url_value, printed="<p>Friday, December 25, 2026</p>"):
         return f"""<html><head><script type="application/ld+json">
         {{"@type":"Event","name":"X","url":"{url_value}",
           "startDate":"2026-12-25T20:00:00-06:00",
           "location":{{"@type":"Place","name":"The Room"}}}}</script></head>
-        <body><article><h1>Dominic Fike</h1></article></body></html>"""
+        <body><article><h1>Dominic Fike</h1>
+        {printed}</article></body></html>"""
 
     for vanity in ("https://desk.test/backtotheranch",
                    "https://desk.test/events/269428"):
@@ -1099,11 +1103,96 @@ def test_a_vanity_url_for_the_same_happening_is_not_another_event():
         assert read.when == "2026-12-25T20:00:00-06:00", vanity
         assert read.place_text == "The Room", vanity
 
-    # And the sidebar case the evaluator found stays closed.
-    read = df.field_read(page("https://desk.test/event/other-99"), url=HERE,
-                         as_of=AS_OF, patterns=PATTERNS)
+    # And the sidebar case the evaluator found stays closed. Its page prints no
+    # date of its own, so nothing here can date the row from any direction.
+    read = df.field_read(page("https://desk.test/event/other-99", printed=""),
+                         url=HERE, as_of=AS_OF, patterns=PATTERNS)
     assert read.when is None
     assert "structured-not-bound" in read.codes
+    # The refusal names the TABLE, not corroboration — this node named another
+    # happening's permalink, and saying otherwise would send the next reader at
+    # the wrong rule.
+    assert not any("does not corroborate" in r for r in read.refusals), read.refusals
+
+    # A sidebar node cannot borrow the page's own printed day either: the page
+    # states Dec 25 in its content, and the node is still refused — what the
+    # row gets is the PAGE's date, never the sidebar's venue.
+    read = df.field_read(page("https://desk.test/event/other-99"), url=HERE,
+                         as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text is None, read.place_text
+
+
+def test_an_unrecognised_address_is_not_proof_the_node_is_ours():
+    """Evaluator, PR #235 r4, openai/attacker-smuggle — reproduced before fixing.
+
+    ABSENCE FROM THE IDENTITY TABLE IS NOT PROOF. A stale or promotional Event
+    at an address the table cannot classify — a vanity URL, a ticket link, a
+    partner site — passes the "not another happening" test while being about
+    something else entirely. On a page whose own listing carries no structured
+    markup, it is the lone node, and it published its day and its venue here.
+
+    The page has to stand behind it. This page prints nothing about December,
+    so the node is one witness we could not identify, and the row keeps its
+    hole."""
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Something Else","url":"https://desk.test/promo-xyz",
+      "startDate":"2026-12-25T20:00:00-06:00",
+      "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+    <body><article><h1>Dominic Fike</h1>
+    <p>Tickets at the door.</p></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None
+    assert read.place_text is None
+    assert "structured-not-bound" in read.codes
+    # The refusal says WHY, so a live run can tell this apart from a sidebar
+    # naming another permalink.
+    assert any("does not corroborate" in r for r in read.refusals), read.refusals
+
+
+def test_a_structured_day_never_borrows_a_clock_printed_elsewhere():
+    """Evaluator, PR #235 r4, openai/attacker-smuggle — reproduced before fixing.
+
+    A bound JSON-LD node states `2026-09-06` and no time. One content block on
+    the page also mentions Sep 6 — the box office notice. Matching the carrier
+    to a segment BY DATE made that block the statement that "gave" the day, so
+    its 10:00AM became the show's start: a precise time no source stated.
+
+    A `<script>` payload is not a sentence the page prints. It owns no segment
+    and borrows no clock.
+
+    The box-office line carries its YEAR deliberately. Written "Sep 6" it does
+    not resolve to a date at all, so the segment never becomes the carrier's
+    owner and the test passes without ever reaching the defect — green for a
+    reason that has nothing to do with the rule (RED_CLASSES:
+    false-confidence-gate). Verified against the pre-fix code, which published
+    `2026-09-06T10:00:00` with `when_text='2026-09-06 10:00am'` and no refusal
+    code at all."""
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike",
+      "url":"https://desk.test/event/dominic-fike-1",
+      "startDate":"2026-09-06"}</script></head>
+    <body><article><h1>Dominic Fike</h1>
+    <p>Box office opens September 6, 2026 at 10:00AM.</p>
+    <div class="venue">The Hall</div></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-06"
+    assert read.when_precision == "date", read.when
+    assert "clock-elsewhere" in read.codes, read.refusals
+    assert read.place_text == "The Hall"
+
+
+def test_a_printed_day_still_takes_the_clock_from_its_own_sentence():
+    """The converse, so the fix above cannot be mistaken for "no clock ever
+    combines". A day printed in the page's own text still takes the time
+    printed in that same sentence — which is the founder's (a) case and the
+    whole reason the same-page rule exists."""
+    page = """<html><head></head>
+    <body><article><h1>Dominic Fike</h1>
+    <p>Sat Sep 5 &mdash; 9:00PM</p>
+    <div class="venue">The Hall</div></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when_precision == "datetime", read.refusals
+    assert read.when.startswith("2026-09-05T21:00")
 
 
 def test_forgetting_the_pattern_table_gets_the_STRICT_answer():
