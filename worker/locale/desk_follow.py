@@ -31,6 +31,13 @@ that tick, and every rule in it is a refusal to guess.
     hole stays. Which of them belongs to this happening is exactly what we
     cannot know, and picking the first would publish a real, well-formed date
     that is simply not this event's (RED_CLASSES: missing-cardinality-check).
+  * A STATEMENT MUST BE ABOUT THIS HAPPENING. Structured markup says whose start
+    it is about ITSELF, so a node naming another address — a sidebar, a featured
+    show, a stale leftover — speaks for nothing here (`speaks_for`); printed text
+    must sit in the page's content rather than its plumbing, and a clock must
+    come from the same statement as the day. And the page that ANSWERS must be
+    the page we asked for: a same-origin redirect onto the desk's index is a
+    different address, so it is not read.
   * HOLES ONLY, NEVER AN OVERWRITE. A value the list page stated is never
     replaced. The follow can only ever turn None into something the event page
     said. `when_precision` and `when_text` travel WITH `when` as one unit, so a
@@ -139,10 +146,17 @@ _BLOCK_TAGS = frozenset({
     "ul",
 })
 
-#: Date carriers that are a statement ABOUT THE EVENT by construction: a
-#: schema.org `Event.startDate` and an ICS `VEVENT`'s `DTSTART` say whose start
-#: they are. Everything else — a `<time>` tag, printed prose — is just text on a
-#: page, and has to be tied to this happening before it may date it.
+#: Date carriers that can say WHOSE start they are. A `<time>` tag and printed
+#: prose cannot: they are text on a page, and have to be tied to this happening
+#: by where they sit before they may date it.
+#:
+#: Being in this set is necessary, not sufficient. ICS qualifies outright — a
+#: calendar file served AT this address is this happening's. JSON-LD says whose
+#: start it is about ITSELF, and a permalink page can carry a node for something
+#: else entirely, so a node must also SPEAK FOR this row (`speaks_for`) before
+#: `field_read` treats it as event-scoped. Reading this constant as sufficient
+#: on its own let a sidebar's node publish 2026-12-25 at "The Other Room" onto a
+#: row titled something else (evaluator, PR #235 r2).
 _EVENT_SCOPED_KINDS = frozenset({"jsonld", "ics"})
 
 
@@ -265,6 +279,24 @@ def segments(html: str) -> List[str]:
 def _host(url: Optional[str]) -> str:
     host = (urlsplit(url or "").hostname or "").lower()
     return host[4:] if host.startswith("www.") else host
+
+
+def _address(url: Optional[str]) -> Tuple[str, str]:
+    """The (host, path) a URL names, as one address.
+
+    The QUERY is dropped and the fragment with it, because a desk that appends
+    its own tracking parameter on a redirect (`?ref=calendar`) has sent us to
+    the same page — and a trailing slash is the same address too, which is the
+    rule `desk_read._identity_of` already applies on the way in.
+    """
+    parts = urlsplit(url or "")
+    path = (parts.path or "/").rstrip("/") or "/"
+    return _host(url), path
+
+
+def same_identity(landed: Optional[str], asked: Optional[str]) -> bool:
+    """True when the page that answered is the page we asked for."""
+    return _address(landed) == _address(asked)
 
 
 # --------------------------------------------------------------------------
@@ -395,6 +427,49 @@ class _PlaceScanner(HTMLParser):
             self._parts.append(data)
 
 
+def _addresses_named(event: Dict[str, object]) -> set:
+    """Every address a structured node names for ITSELF (`url`, `@id`/`uid`)."""
+    out = set()
+    for key in ("url", "uid"):
+        raw = str(event.get(key) or "").strip()
+        if raw.lower().startswith(("http://", "https://")):
+            out.add(_address(raw))
+    return out
+
+
+def speaks_for(events: Sequence[Dict[str, object]], url: str
+               ) -> List[Dict[str, object]]:
+    """The structured nodes on this page that are about THIS happening.
+
+    A schema.org `Event` says whose start it is — but only about ITSELF, and a
+    permalink page can publish one for something else entirely: a "related
+    events" sidebar, a site-wide featured show, a stale node left behind when
+    the listing changed. Treating any Event node on the page as this
+    happening's took a sidebar's `startDate` and published 2026-12-25 at "The
+    Other Room" for a row titled something else (evaluator, PR #235 r2,
+    openai/attacker-smuggle; reproduced before fixing).
+
+    So a node speaks for this happening only when it does not name a DIFFERENT
+    address:
+
+      * it names THIS address (`url` or `@id` resolving to the followed
+        permalink) — the strong bind, and the common case;
+      * or it is the page's only Event node and names no address at all, which
+        is a permalink page publishing an Event about itself.
+
+    Anything else returns nothing, and the caller falls back to the page's
+    printed text — where the plumbing and same-statement rules apply. That is
+    the fail-closed direction: a hole rather than another event's day.
+    """
+    here = _address(url)
+    bound = [ev for ev in events if here in _addresses_named(ev)]
+    if bound:
+        return bound
+    if len(events) == 1 and not _addresses_named(events[0]):
+        return list(events)
+    return []
+
+
 def _labelled_places(html: str) -> List[str]:
     scanner = _PlaceScanner()
     try:
@@ -480,6 +555,23 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     # that rule makes of one.
     html = html.replace("\r\n", "\n")
 
+    # The page's structured statement is read FIRST, because whether it speaks
+    # for this happening decides both the date tier below and the place.
+    try:
+        ld_events = parse_jsonld(html)
+    except Exception as exc:  # noqa: BLE001 — a pathological block must not lose the page
+        ld_events = []
+        refuse("jsonld-raised", f"JSON-LD parse raised ({exc}); the page's other "
+                                f"statements were still read")
+    mine = speaks_for(ld_events, url)
+    if ld_events and not mine:
+        refuse(
+            "structured-not-bound",
+            f"page publishes {len(ld_events)} schema.org event(s) and every one "
+            f"names a different address than this happening's — a sidebar, a "
+            f"featured show, or a stale node. None of them speaks for this row, "
+            f"so none of them dates or places it")
+
     # --- 1/2. when ---------------------------------------------------------
     when = when_precision = when_text = when_carrier = None
     said = segments(html)
@@ -495,8 +587,19 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     # every page anybody does. Scope first, then count what is left: a
     # schema.org/ICS property says whose start it is, and printed text has to be
     # in the page's content rather than its plumbing.
+    def event_scoped(hit) -> bool:
+        """Does this carrier say WHOSE start it is, for THIS happening?
+
+        ICS does by construction: a calendar file served at this address is this
+        happening's. JSON-LD does only when a node on the page speaks for this
+        row — an unbound node is a statement about some OTHER event, and the one
+        thing it must not get is the exemption meant for statements about this
+        one (evaluator, PR #235 r2).
+        """
+        return hit.kind == "ics" or (hit.kind == "jsonld" and bool(mine))
+
     def owned_by_this_happening(hit) -> bool:
-        if hit.kind in _EVENT_SCOPED_KINDS:
+        if event_scoped(hit):
             return True
         return any((hit.raw and hit.raw in s)
                    or hit.date in {d.date for d in same_page_dates(s, as_of=as_of)}
@@ -512,7 +615,12 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
     # dateless the moment it also prints a calendar widget beside it, which is
     # what the live run found on every page it opened. Within the tier,
     # cardinality still bites: two different `startDate`s refuse.
-    structured = [hit for hit in stated if hit.kind in _EVENT_SCOPED_KINDS]
+    # ICS stays event-scoped by construction: a calendar file served AT this
+    # address is this happening's. JSON-LD only counts when a node on the page
+    # speaks for this row (`speaks_for`) — otherwise its dates are just more
+    # text on the page, and the plumbing/locality rules judge them like any
+    # other, which for a `<script>` payload means owning no statement at all.
+    structured = [hit for hit in stated if event_scoped(hit)]
     if structured:
         stated = structured
     dates = [hit for hit in stated if owned_by_this_happening(hit)]
@@ -616,14 +724,8 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None) -> FieldRe
 
     # --- 3. place ----------------------------------------------------------
     place_text = place_carrier = None
-    try:
-        ld_events = parse_jsonld(html)
-    except Exception as exc:  # noqa: BLE001 — a pathological block must not lose the page
-        ld_events = []
-        refuse("jsonld-raised", f"JSON-LD parse raised ({exc}); the page's other "
-                                f"statements were still read")
     ld_places: List[str] = []
-    for ev in ld_events:
+    for ev in mine:
         stated = ev.get("venue_name") or ev.get("venue_address") or ev.get("venue_city")
         stated = " ".join((stated or "").split())
         if stated and stated not in ld_places:
@@ -829,12 +931,20 @@ def follow(rows: Sequence[Happening], fetch: Callable[[str], PageFetch], *,
                 url, f"HTTP {page.status} — triage, not 'this happening has no date'"))
             continue
         landed = page.landed_url
-        if _host(landed) != _host(url):
-            # A redirect off the origin is a different door, and reading fields
-            # off it would attach a stranger's page to this happening.
+        if not same_identity(landed, url):
+            # THE PAGE THAT ANSWERS MUST BE THE PAGE WE ASKED FOR. Same host is
+            # not enough: a deleted or soft-redirected permalink lands on the
+            # desk's own index, its search page, or ANOTHER event — all on the
+            # same origin — and reading fields off that publishes a stranger's
+            # date and venue onto this happening (evaluator, PR #235 r2,
+            # openai/absence-only; reproduced as `/whats-on` supplying
+            # 2026-09-30 at "Front Desk"). The identity gate that chose this URL
+            # has to hold after the redirect too, or it only ever guarded the
+            # request.
             result.unread += 1
             result.queued.append((
-                url, f"redirected off-origin to {_host(landed)} — not read"))
+                url, f"redirected to {landed} — a different address is a "
+                     f"different happening (or none), so it is not read"))
             continue
         if not page.body or not page.body.strip():
             result.unread += 1

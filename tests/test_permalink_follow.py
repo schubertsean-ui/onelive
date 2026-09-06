@@ -500,14 +500,31 @@ def test_a_structured_start_date_is_not_outvoted_by_a_calendar_widget():
 
 
 def test_within_the_structured_tier_cardinality_still_bites():
-    """Not a loosening: two different `startDate`s are still two answers."""
+    """Not a loosening: two `startDate`s BOTH claiming this address are still
+    two answers to one question."""
+    here = "https://desk.test/event/dominic-fike-1"
+    page = f"""<html><head>
+    <script type="application/ld+json">{{"@type":"Event","url":"{here}",
+      "startDate":"2026-09-06T21:00:00"}}</script>
+    <script type="application/ld+json">{{"@type":"Event","url":"{here}",
+      "startDate":"2026-09-08T21:00:00"}}</script>
+    </head><body><article><h1>A</h1></article></body></html>"""
+    read = df.field_read(page, url=here, as_of=AS_OF)
+    assert read.when is None
+    assert "dates-ambiguous" in read.codes
+
+
+def test_two_unaddressed_structured_nodes_speak_for_nobody():
+    """Two Event nodes and neither names an address: the page has published two
+    events and said nothing about which is its own. The lone-node allowance is
+    exactly that — for ONE node."""
     page = """<html><head>
     <script type="application/ld+json">{"@type":"Event","startDate":"2026-09-06T21:00:00"}</script>
     <script type="application/ld+json">{"@type":"Event","startDate":"2026-09-08T21:00:00"}</script>
     </head><body><article><h1>A</h1></article></body></html>"""
-    read = df.field_read(page, url="u", as_of=AS_OF)
+    read = df.field_read(page, url="https://desk.test/event/a-1", as_of=AS_OF)
     assert read.when is None
-    assert "dates-ambiguous" in read.codes
+    assert "structured-not-bound" in read.codes
 
 
 def test_prose_beside_a_calendar_widget_is_still_refused():
@@ -624,7 +641,111 @@ def test_a_redirect_off_the_origin_is_not_read():
         patterns=PATTERNS, as_of=AS_OF)
     assert result.rows[0].when is None
     assert result.unread == 1
-    assert any("redirected off-origin" in why for _, why in result.queued)
+    assert any("different happening" in why for _, why in result.queued)
+
+
+def test_a_same_origin_redirect_to_another_page_is_not_read_either():
+    """Evaluator, PR #235 r2 (openai/absence-only). Same host is NOT enough: a
+    deleted or soft-redirected permalink lands on the desk's own index, and
+    reproduced before fixing that page supplied 2026-09-30 at "Front Desk" as
+    this happening's date and venue. The identity gate that chose the URL has to
+    hold after the redirect too, or it only ever guarded the request."""
+    index = ('<html><body><article><h1>This week</h1>'
+             '<time datetime="2026-09-30T19:00">Wed</time>'
+             '<div class="venue">Front Desk</div></article></body></html>')
+    landed = PageFetch(url="https://desk.test/event/dominic-fike-1", status=200,
+                       body=index, final_url="https://desk.test/whats-on")
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": landed}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when is None
+    assert result.rows[0].place_text is None
+    assert result.unread == 1
+
+
+def test_a_tracking_parameter_on_the_redirect_is_the_same_page():
+    """A desk that appends its own `?ref=` has sent us where we asked. Refusing
+    that would hole a page we actually read."""
+    landed = PageFetch(url="https://desk.test/event/dominic-fike-1", status=200,
+                       body=EVENT_PAGE_DATED,
+                       final_url="https://desk.test/event/dominic-fike-1/?ref=cal")
+    result = df.follow([row()], fetcher({
+        "https://desk.test/event/dominic-fike-1": landed}),
+        patterns=PATTERNS, as_of=AS_OF)
+    assert result.rows[0].when == "2026-09-05T21:00:00"
+
+
+# --- whose event is this structured node about? -------------------------------
+# Evaluator, PR #235 r2 (openai/attacker-smuggle), BLOCKING and reproduced: any
+# schema.org Event on the page was treated as this happening's, so a sidebar's
+# node published 2026-12-25 at "The Other Room" onto a row titled something else.
+
+HERE = "https://desk.test/event/dominic-fike-1"
+SIDEBAR_EVENT = """<html><head><script type="application/ld+json">
+{"@type":"Event","name":"Some Other Show","url":"https://desk.test/event/other-99",
+ "startDate":"2026-12-25T20:00:00-06:00",
+ "location":{"@type":"Place","name":"The Other Room"}}</script></head>
+<body><article><h1>Dominic Fike</h1></article></body></html>"""
+
+
+def test_a_structured_node_naming_another_address_speaks_for_nobody_here():
+    read = df.field_read(SIDEBAR_EVENT, url=HERE, as_of=AS_OF)
+    assert read.when is None
+    assert read.place_text is None
+    assert "structured-not-bound" in read.codes
+
+
+def test_the_same_node_naming_THIS_address_speaks_for_this_happening():
+    page = SIDEBAR_EVENT.replace("https://desk.test/event/other-99", HERE)
+    read = df.field_read(page, url=HERE, as_of=AS_OF)
+    assert read.when == "2026-12-25T20:00:00-06:00"
+    assert read.place_text == "The Other Room"
+
+
+def test_a_lone_node_naming_no_address_is_the_pages_own_event():
+    """A permalink page publishing ONE Event and no address for it is publishing
+    it about itself. Requiring a `url` there would hole every desk whose markup
+    simply omits one."""
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Dominic Fike","startDate":"2026-09-06T21:00:00-05:00",
+     "location":{"@type":"Place","name":"The Hall"}}</script></head>
+    <body><article><h1>Dominic Fike</h1></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF)
+    assert read.when == "2026-09-06T21:00:00-05:00"
+    assert read.place_text == "The Hall"
+
+
+def test_an_unbound_node_does_not_even_get_the_event_scope_exemption():
+    """The first cut of this fix stopped the unbound node from WINNING its tier
+    and left it holding the exemption from the plumbing/locality rules — so it
+    still dated the row. A statement about another event gets neither."""
+    assert df.speaks_for([{"url": "https://desk.test/event/other-99"}], HERE) == []
+    read = df.field_read(SIDEBAR_EVENT, url=HERE, as_of=AS_OF)
+    assert read.when is None and read.when_carrier is None
+
+
+def test_the_bind_reads_id_as_well_as_url():
+    page = f"""<html><head><script type="application/ld+json">
+    {{"@type":"Event","@id":"{HERE}","name":"Dominic Fike",
+      "startDate":"2026-09-06T21:00:00-05:00"}}</script></head>
+    <body><article><h1>Dominic Fike</h1></article></body></html>"""
+    assert df.field_read(page, url=HERE, as_of=AS_OF).when == "2026-09-06T21:00:00-05:00"
+
+
+def test_a_bound_node_beside_a_sidebar_node_still_speaks():
+    """The page's own event names this address; the sidebar names its own. Only
+    the first speaks here, so the sidebar's December date never competes."""
+    page = f"""<html><head>
+    <script type="application/ld+json">{{"@type":"Event","url":"{HERE}",
+      "startDate":"2026-09-06T21:00:00-05:00",
+      "location":{{"@type":"Place","name":"The Hall"}}}}</script>
+    <script type="application/ld+json">{{"@type":"Event",
+      "url":"https://desk.test/event/other-99",
+      "startDate":"2026-12-25T20:00:00-06:00",
+      "location":{{"@type":"Place","name":"The Other Room"}}}}</script>
+    </head><body><article><h1>Dominic Fike</h1></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF)
+    assert read.place_text == "The Hall"
 
 
 # --- walls: knock once, queue, keep the happening -----------------------------

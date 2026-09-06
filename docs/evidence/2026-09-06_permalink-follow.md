@@ -352,7 +352,61 @@ published as "Date TBA", because that would hide a date the desk gave us.
 `do512-today` is unchanged and still walled at its list page (403, class D,
 queued for a claim) — an UNKNOWN list, never an empty one.
 
-## 10. What this ticket did NOT do
+## 10. Evaluator round 2 — whose statement is this?
+
+Two blocking findings, both openai seats, both reproduced before fixing. They
+are ONE class asked from two sides, and the r1 tier fix **caused** the first.
+
+**(a) `attacker-smuggle`** — any schema.org Event on a permalink page was
+treated as this happening's. `field_read()` never saw the row, and
+`owned_by_this_happening()` returned true for any structured hit:
+
+```
+sidebar node: url = /event/other-99, startDate 2026-12-25T20:00, "The Other Room"
+row:          "Dominic Fike" at /event/dominic-fike-1
+   ->  when = 2026-12-25T20:00:00-06:00, place = The Other Room
+```
+
+**(b) `absence-only`** — after a redirect only the HOST was re-checked:
+
+```
+/event/dominic-fike-1  ->  302  ->  /whats-on   (same origin)
+   ->  when = 2026-09-30T19:00:00, place = Front Desk
+```
+
+Structured markup says whose fact it is **about itself**, so "the page carries
+an Event" is not "this row has a date". And an identity gate that runs before
+the request and not after the response only ever guarded the request.
+
+Both ends now bind:
+
+* `speaks_for()` keeps only nodes that do not name a DIFFERENT address — a node
+  naming this `url`/`@id`, or the page's lone node naming none at all (a
+  permalink page publishing one Event about itself). Requiring a `url` outright
+  would hole every desk whose markup omits one.
+* `same_identity()` requires the landed URL to be the address we asked for,
+  compared on host + path so a desk's own `?ref=` tracking parameter is still
+  the same page.
+
+| page | before | after |
+|---|---|---|
+| sidebar node naming another address | `2026-12-25T20:00` / The Other Room | `None` / `None` |
+| the same node naming THIS address | dated | unchanged |
+| lone node naming no address | dated | unchanged |
+| bound node beside a sidebar node | the sidebar could win | the bound one speaks |
+| same-origin redirect to `/whats-on` | `2026-09-30T19:00` / Front Desk | `None`, queued |
+| redirect adding `?ref=cal` | dated | unchanged |
+
+**A trap inside the fix, caught by re-running rather than trusting it:** the
+first cut stopped the unbound node from WINNING its tier and left it holding the
+scope EXEMPTION that tier granted — so it still dated the row. Removing a
+statement from its tier is not the same as removing its waiver; both had to go.
+
+11 tests pin this round (75 in the file). The other two lenses APPROVE'd the
+same head, and `gemini/spec-vs-contract` independently verified all three
+founder acceptance criteria and `mash_n = 0`.
+
+## 11. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,
   no login, no Planomato, no touching PRs #230/#231/#232.
