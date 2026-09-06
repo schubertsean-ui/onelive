@@ -2005,6 +2005,136 @@ def test_a_page_with_no_heading_and_no_sections_states_nothing():
         == "2026-09-05T21:00:00"
 
 
+def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
+    """Evaluator, PR #235 r15, openai/absence-only — asked for as a regression by
+    the seat, and written because THE INVARIANT IS REAL EVEN THOUGH THE DEFECT
+    IS NOT.
+
+    The finding describes accepting a carrier "by matching only the date to the
+    card". That is the day-match arm of `owned_by_this_happening`, and it was
+    REMOVED at r12 for this exact class — a day is not a fingerprint. Four
+    shapes of the attack were run against the reviewed head and all four already
+    behaved: the card's day at `date` precision, `no-clock`, no outside clock
+    adopted. The reproduction is in the evidence doc §13q.
+
+    What was missing is not the guard but this test. "It happens to work" and
+    "it is pinned" are different states, and the seat is right that only one of
+    them survives the next refactor — the r5 lesson from the other direction,
+    where a test that WAS present had been asserting the defect for four rounds.
+
+    Every shape below states the same day as the card, so nothing here is caught
+    by cardinality: the day agrees, and only the CLOCK is somebody else's."""
+    card = '<article><h1>Dominic Fike</h1><p>September 18, 2026</p></article>'
+    for label, outside in (
+            ("sibling card",
+             '<article><h2>Related</h2>'
+             '<time datetime="2026-09-18T23:00">Late</time></article>'),
+            ("aside", '<aside><time datetime="2026-09-18T23:00">Late</time></aside>'),
+            ("body level", '<time datetime="2026-09-18T23:00">Late</time>'),
+            ("visible prose in a sibling card",
+             '<article><h2>Related</h2>'
+             '<p>September 18, 2026 &mdash; 11:00PM</p></article>'),
+            ("page footer", '<footer><p>September 18, 2026 at 11:00PM</p></footer>'),
+    ):
+        read = df.field_read(f"<html><body>{card}{outside}</body></html>",
+                             url=HERE, as_of=AS_OF, patterns=PATTERNS)
+        assert read.when == "2026-09-18", (label, read.when)
+        assert read.when_precision == "date", label
+        assert "no-clock" in read.codes, (label, read.codes)
+
+    # A `<time>` carrier INSIDE the card is this happening's, clock and all —
+    # the converse, so the rule above cannot be satisfied by reading nothing.
+    inside = ('<html><body><article><h1>Dominic Fike</h1>'
+              '<time datetime="2026-09-18T23:00">Late</time></article></body></html>')
+    read = df.field_read(inside, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-18T23:00:00", read.refusals
+
+
+def test_a_bare_clock_face_is_not_a_contradiction():
+    """Found by reading the first LIVE run of r14's own rule — the third time in
+    this ticket a check was corrected by its own diagnostics.
+
+    That run reported `/event/boeing-boeing-14285657` as contradicting itself:
+    its card prints "7:30" while its markup states 19:30. And 19:30 IS half past
+    seven. A bare "7:30" states a clock FACE, not an hour of the day; anchoring
+    it read 07:30 and called the desk a liar for agreeing with itself — a hole
+    on a row where card and markup say the same thing, and a refusal reason that
+    misdescribes the page (`diagnostics-as-data`).
+
+    A token carrying no am/pm agrees with either reading, because the desk did
+    not say which it meant. AN AMBIGUOUS STATEMENT IS NOT A CONTRADICTING ONE —
+    the principle r12 stated and r14 then applied backwards. The cost is stated
+    and small: a bare "9:00" no longer contradicts markup saying 21:00, which is
+    exactly the case where the card has not said which it means.
+
+    The comparison is asymmetric on purpose: the markup's instant is unambiguous
+    by construction, and only the printed side can be a bare face."""
+    def page(body):
+        return """<html><body><article><h1>The Show</h1>
+        <script type="application/ld+json">
+        {"@type":"Event","name":"The Show","url":"%s",
+         "startDate":"2026-09-18T19:30:00-05:00",
+         "location":{"@type":"Place","name":"The Hall"}}</script>
+        %s</article></body></html>""" % (HERE, body)
+
+    def when(body):
+        return df.field_read(page(body), url=HERE, as_of=AS_OF,
+                             patterns=PATTERNS).when
+
+    # The live case, and the whole run of clocks that page prints.
+    assert when("<p>Curtain 7:30</p>") == "2026-09-18T19:30:00-05:00"
+    assert when("<p>7:30. Late show 10:15 pm. Matinees 4:45 pm.</p>") \
+        == "2026-09-18T19:30:00-05:00"
+    # A bare face that does NOT match either reading still contradicts.
+    assert when("<p>Curtain 8:00</p>") == "2026-09-18"
+    # And a token that says which half of the day it means is compared exactly,
+    # so r10's finding is untouched.
+    assert when("<p>Show 8:00PM</p>") == "2026-09-18"
+    assert when("<p>Curtain 7:30 pm</p>") == "2026-09-18T19:30:00-05:00"
+    # The live `story-sessions` shape: the card says eight, twice; markup says
+    # six. Still a contradiction, and this is what the rule is FOR.
+    assert when("<p>8 pm and 8:00 pm</p>") == "2026-09-18"
+
+
+def test_a_venue_block_that_contains_the_node_s_name_is_not_a_contradiction():
+    """Found by the same live run, and it is r13's coverage cost arriving.
+
+    r13 tightened `_same_name` so a lone token must OPEN the longer name. Right
+    for IDENTITY — a false yes binds another happening's node — and wrong for
+    the PLACE check, where a false no invents a contradiction and holes a place
+    we had. `/event/boeing-boeing`'s card labels "Venue Details TexARTS 1110 S
+    RR 620, …" against a node saying "TexARTS": the block CONTAINS the venue, it
+    simply does not start with it, and the run refused the place.
+
+    This repo had already written the lesson down — `destructive-normalization`
+    r9: when one helper serves two callers whose dangerous answers point in
+    opposite directions, they share a NAME rather than a helper. Split on the
+    QUESTION. Identity asks "are these the same name"; a labelled block asks
+    "does this text NAME this place"."""
+    block = ("Venue Details TexARTS 1110 S RR 620, Lakeway West Austin and "
+             "Lakeway tex-arts.org 2 events")
+    assert df._names_within(block, "TexARTS")
+    assert not df._same_name(block, "TexARTS")      # identity, still strict
+    assert not df._names_within(block, "The Other Room")
+    assert not df._names_within(block, "A")         # the one-token floor stands
+
+    page = """<html><body><article><h1>Boeing Boeing</h1>
+    <script type="application/ld+json">
+    {"@type":"Event","name":"Boeing Boeing","url":"%s",
+     "startDate":"2026-09-18T19:30:00-05:00",
+     "location":{"@type":"Place","name":"TexARTS"}}</script>
+    <div class="venue">Venue Details TexARTS 1110 S RR 620, Lakeway West
+      Austin and Lakeway tex-arts.org 2 events</div></article></body></html>""" % HERE
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text == "TexARTS", read.refusals
+
+    # The converse: a card naming a DIFFERENT venue still contradicts.
+    other = page.replace("TexARTS 1110 S RR 620", "The Other Room 1110 S RR 620")
+    clash = df.field_read(other, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert clash.place_text is None
+    assert "card-contradicts-its-own-markup" in clash.codes
+
+
 def test_a_card_clock_with_no_date_of_its_own_still_contradicts():
     """Evaluator, PR #235 r14, openai/absence-only — the clock comparison only
     counted tokens `resolve_same_page_datetime` could turn into a full INSTANT,

@@ -824,6 +824,51 @@ def _wall_clock(iso: Optional[str]) -> Optional[Tuple[int, int]]:
     return moment.hour, moment.minute
 
 
+#: Does a printed time say WHICH HALF OF THE DAY it means? Not a second clock
+#: parser — one boolean about the raw characters, so the armed `same_page_dates`
+#: stays the only thing that reads a time. Written narrowly on purpose: it is
+#: asked only of tokens that module has already agreed are clocks.
+_MERIDIEM_RE = re.compile(r"[ap]\.?\s?m\b", re.I)
+
+
+def _clock_agrees(token: str, stated: Tuple[int, int], day: str,
+                  as_of: Optional[_date]) -> Optional[bool]:
+    """Does this printed time agree with the instant the markup states?
+
+    `None` when the token cannot be read at all — an unreadable statement is
+    not a contradicting one, and holing a field over text nobody could parse
+    would fail closed on our own limits rather than on the desk's.
+
+    Found by reading the first live run of r14's own rule, which is the third
+    time this ticket a check was corrected by its own diagnostics. The run
+    reported `/event/boeing-boeing-14285657` as contradicting itself because its
+    card prints "7:30" while its markup states `19:30` — and 19:30 IS half past
+    seven. A bare "7:30" states a clock face, not an hour of the day; anchoring
+    it read 07:30 and called the desk a liar for agreeing with itself.
+
+    So a token carrying no am/pm is compared modulo twelve hours: it agrees with
+    either reading, because the desk did not say which it meant. That is the
+    conservative direction and it is the same principle r12 stated and r14 then
+    applied backwards — AN AMBIGUOUS STATEMENT IS NOT A CONTRADICTING ONE. The
+    cost is real and small: a card printing a bare "9:00" no longer contradicts
+    markup saying 21:00, which is precisely the case where the card has not said
+    which one it means.
+
+    A token that DOES say am or pm is compared exactly, so "8:00PM" against a
+    19:30 node still refuses — the r10 finding, untouched. The comparison is
+    ASYMMETRIC and has to be: the markup's instant is unambiguous by
+    construction, and only the printed side can be a bare face.
+    """
+    iso, _refusal, _evidence = resolve_same_page_datetime(
+        token, block_text=f"{day} {token}", as_of=as_of)
+    wall = _wall_clock(iso)
+    if wall is None:
+        return None
+    if _MERIDIEM_RE.search(token):
+        return wall == stated
+    return (wall[0] % 12, wall[1]) == (stated[0] % 12, stated[1])
+
+
 def _name_tokens(name: str) -> List[str]:
     """A name as comparable words, in ANY script.
 
@@ -847,6 +892,36 @@ def _name_tokens(name: str) -> List[str]:
     answer, imported.
     """
     return name_key(name).split()
+
+
+def _names_within(text: str, name: str) -> bool:
+    """Does this text NAME this place — anywhere inside it?
+
+    A different question from `_same_name`, split out at r15 because the two
+    callers' dangerous answers point in opposite directions and this repo has
+    already paid for that once (`destructive-normalization` r9: "if they do not,
+    they share a NAME rather than a helper"). Identity fails badly on a false
+    YES — another happening's node binds to this row. A labelled block fails
+    badly on a false NO — the desk is reported as contradicting itself and a
+    place we had is holed.
+
+    So identity keeps r13's leading-token rule and this keeps plain containment:
+    a card printing "Venue Details TexARTS 1110 S RR 620, Lakeway…" beside a
+    node saying "TexARTS" names the same place, and the live run holed it as a
+    contradiction until this split.
+
+    Containment only, and only in this direction: the TEXT may say more than
+    the name. A one-token floor still applies — a block containing the letter
+    "A" has not named a venue called "A".
+    """
+    haystack, needle = _name_tokens(text), _name_tokens(name)
+    if not haystack or not needle:
+        return False
+    if len(needle) < 2 and len(needle[0]) < 2:
+        return False
+    span = len(needle)
+    return any(haystack[i:i + span] == needle
+               for i in range(len(haystack) - span + 1))
 
 
 def _same_name(a: str, b: str) -> bool:
@@ -1518,11 +1593,11 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
                 # already paid for five times.
                 said_text = " ".join(said)
                 day = hit.date.isoformat()
-                printed = [c for c in (
-                    _wall_clock(resolve_same_page_datetime(
-                        token, block_text=f"{day} {token}", as_of=as_of)[0])
-                    for token in _clocks_printed(said_text)) if c is not None]
-                if printed and _wall_clock(when) not in printed:
+                stated_wall = _wall_clock(when)
+                verdicts = [v for v in (
+                    _clock_agrees(token, stated_wall, day, as_of)
+                    for token in _clocks_printed(said_text)) if v is not None]
+                if verdicts and not any(verdicts):
                     shown = ", ".join(_clocks_printed(said_text)[:4])
                     refuse(
                         "card-contradicts-its-own-markup",
@@ -1611,14 +1686,25 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # contradicting itself about this show, and neither is settled
         # (evaluator, PR #235 r8, openai/attacker-smuggle).
         #
-        # Compared with `_same_name`, not equality — a card routinely prints
-        # "Saengerrunde Hall 1607 San Jacinto, Austin" where the node says
-        # "Saengerrunde Hall", and calling that a contradiction would refuse
-        # every desk that gives its readers an address. One rule for "these
-        # name the same thing", shared with the identity check.
+        # ASKED AS CONTAINMENT, NOT AS IDENTITY, AND THAT IS THE WHOLE POINT.
+        # This shared `_same_name` with the identity check until r15, when the
+        # live run showed the cost: r13 tightened `_same_name` so a lone token
+        # must OPEN the longer name, which is right for identity (a false YES
+        # binds another happening's node) and wrong here (a false NO invents a
+        # contradiction and holes a place we had). `/event/boeing-boeing`'s card
+        # labels "Venue Details TexARTS 1110 S RR 620, …" against a node saying
+        # "TexARTS": the block CONTAINS the venue, it simply does not start with
+        # it, and the run refused the place for it.
+        #
+        # This repo already wrote that lesson down — `destructive-normalization`
+        # r9: "When one helper serves two callers, check whether their failure
+        # modes point the same way; if they do not, they share a NAME rather
+        # than a helper. Split on the QUESTION, not on the data." The questions
+        # here are different: identity asks "are these the same name", a
+        # labelled block asks "does this text NAME this place".
         on_the_card, _links = _scan_places(html)
         clashing = [one for one in on_the_card
-                    if not _same_name(one, ld_places[0])]
+                    if not _names_within(one, ld_places[0])]
         if clashing:
             refuse(
                 "card-contradicts-its-own-markup",

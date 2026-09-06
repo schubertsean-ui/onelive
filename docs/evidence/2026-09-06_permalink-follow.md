@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-125 passed in 0.43s
+128 passed in 0.43s
 ```
 
 | ticket case | test | result |
@@ -347,7 +347,7 @@ Center", "Hyde Park Theatre", "Saengerrunde Hall": the dump was outside the
 page's card, and excluding it left the clean labelled element inside. Two rows
 refuse a place outright rather than take a neighbouring card's.
 
-**The earlier table, kept****The earlier table, kept** — run
+**The earlier table, kept** — run
 [34006786824](https://github.com/schubertsean-ui/onelive/actions/runs/34006786824)
 on head `7925f00`, `--real --dry-run --max-pages 40 --follow-budget 40`. Every
 number below is pasted from that job log; the one derivation is marked.
@@ -1118,7 +1118,14 @@ happening, not a wrong happening. The cheap wrong fix would put a language's
 vocabulary back into the reader module, which is the defect I just removed.
 Recorded rather than silently dropped: `docs/RECORD.md` R-113.
 
-### 13l. The final table, on the shipped head
+### 13l. The table on head `7676b59` — HISTORICAL, superseded by r12/r14
+
+> **This is not this ticket's final number.** It was final when written, and
+> rounds 12 and 14 have since changed which rows are dated — §13n's date
+> ownership rule and §13p's clock anchoring both move it, and §13p says so
+> explicitly. Kept because the r7 → r8 → r8-corrected comparison inside it is
+> the measurement that justified the r8 check, and that comparison is still
+> true of those heads. The final table is §13q.
 
 Run [34015650549](https://github.com/schubertsean-ui/onelive/actions/runs/34015650549)
 on head `7676b59`, `--max-pages 3 --follow-budget 40`. This is the ticket's
@@ -1484,6 +1491,119 @@ ticket's measurement of how much of this desk is runs.
 The diagnostic rule the boeing fixture originally pinned (do not record
 `clocks-ambiguous` against a row with no clock hole — §9a) is unchanged and now
 stated on a page whose printed clocks include the node's.
+
+### 13q. Round 15 — a finding that did not reproduce, and two the live run found instead
+
+Three of four seats APPROVE. The blocking finding (openai/absence-only) says a
+same-day carrier outside the card can supply this row's clock "because the check
+accepts the carrier by matching only the date to the card".
+
+**That check was removed at r12**, for exactly this class — a day is not a
+fingerprint (§13n). Five shapes of the attack were run against the reviewed
+head `52a5e30` and all five already behaved:
+
+| the outside carrier | result |
+|---|---|
+| `<time>` in a sibling `<article>` | `2026-09-18` at `date` precision, `no-clock` |
+| `<time>` in an `<aside>` | same |
+| `<time>` at body level | same |
+| visible `11:00PM` prose in a sibling card | same |
+| `11:00PM` in the page footer | same |
+
+**So the finding is answered rather than coded**, and the seat's own NIT is
+taken: the invariant is real even though the defect is not, and it was not
+PINNED. "It happens to work" and "it is pinned" are different states — the r5
+lesson from the other side, where a test that WAS present had asserted the
+defect for four rounds. `test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time`
+covers all five shapes plus the converse, and it is not vacuous: restoring the
+arm r12 deleted turns it red.
+
+Both documentation nits are taken too — §13l is retitled as historical, and a
+duplicated bold run is removed.
+
+**And then the live run of r14 found two defects in my own last two rounds.**
+Run [34019858312](https://github.com/schubertsean-ui/onelive/actions/runs/34019858312)
+on `52a5e30`, read in the desk's own words:
+
+```
+card-contradicts-its-own-markup — /event/boeing-boeing-14285657:
+  this happening's own card prints 7:30, 10:15 pm, 4:45 pm while its structured
+  data states 2026-09-18T19:30:00-05:00, which is none of them
+```
+
+**19:30 IS half past seven.** A bare "7:30" states a clock FACE, not an hour of
+the day; r14's anchoring read it as 07:30 and called the desk a liar for
+agreeing with itself. A token carrying no am/pm now agrees with either reading —
+**an ambiguous statement is not a contradicting one**, which is the principle
+r12 stated and r14 applied backwards. Cost, stated: a bare "9:00" no longer
+contradicts markup saying 21:00, which is precisely the case where the card has
+not said which it means. A token that DOES say am or pm is still compared
+exactly, so r10's `8:00PM` finding is untouched.
+
+```
+card-contradicts-its-own-markup — /event/boeing-boeing-14285657:
+  this happening's own card labels Venue Details TexARTS 1110 S RR 620, Lakeway
+  West Austin and Lakeway tex-arts.org 2 events while the page's structured data
+  for it states TexARTS
+```
+
+**That is r13's coverage cost arriving.** r13 tightened `_same_name` so a lone
+token must OPEN the longer name — right for IDENTITY, where a false yes binds
+another happening's node, and wrong for the PLACE check, where a false no
+invents a contradiction and holes a place we had. The block CONTAINS "TexARTS";
+it simply does not start with it.
+
+**This repo had already written that lesson down.** `destructive-normalization`
+r9: *"When one helper serves two callers, check whether their failure modes
+point the same way; if they do not, they share a NAME rather than a helper.
+Split on the QUESTION, not on the data."* Identity asks "are these the same
+name"; a labelled block asks "does this text NAME this place". Split into
+`_names_within`, and both directions pinned.
+
+**Both were proven against `52a5e30` before fixing and after.** Neither was
+reported by any seat: they came from reading the run's own sentences, which is
+now the fourth, fifth and sixth defect this ticket's diagnostics found in its
+own rules.
+
+### The table, on the rules that ship
+
+Run [34019858312](https://github.com/schubertsean-ui/onelive/actions/runs/34019858312)
+on `52a5e30` — every rule through r14. **This is the last table produced before
+the two r15 corrections above, and both of them RELEASE clocks and places this
+run holed**, so the numbers below are a FLOOR in one more way than the budget
+already makes them:
+
+| desk | rows_n | dated_n | still_null_n | 403_n | mash_n |
+|---|---:|---:|---:|---:|---:|
+| `austin-chronicle-eventsearch` | 120 | 33 | 87 | 0 | **0** |
+| `do512-today` | 0 | 0 | 0 | 1 | 0 |
+
+| pages opened | page stated no date | could not be read | not asked (budget) | no followable address |
+|---:|---:|---:|---:|---:|
+| 40 | 7 | 0 | **80** | 0 |
+
+| listing_url | start_time | place |
+|---|---|---|
+| `/event/back-to-the-ranch-…-14329073` | `2026-09-26` | Lyndon B. Johnson National Historical Park |
+| `/event/texas-renaissance-festival-14311742` | `2026-10-10T09:00:00-05:00` | Texas Renaissance Festival |
+| `/event/zz-fest-w-amplified-heat-…-14325034` | `2026-09-12T14:00:00-05:00` | Lightnin' Bar |
+
+`mash_n` is **0**, which is the precondition for this tick being safe at all.
+
+**The arc of `dated_n`, and what each step bought:**
+
+| head | rule added | dated of 40 opened | `card-contradicts…` |
+|---|---|---:|---:|
+| `f436fe3` (r7) | no cross-tier check | 38 | — |
+| `e3f5d7f` (r8, as first written) | fired on elaboration | 23 | 15 (37%) |
+| `7676b59` (r8 corrected + r10) | contradiction only | 34 | 5 (12%) |
+| `52a5e30` (r12 + r14) | clock anchoring, card-scoped dates | 33 | 14 (35%) |
+
+The r14 rise from 12% to 35% is the clock check becoming able to see cards that
+print a time and no date — and reading those 14 is what found the bare-face
+defect. **A number is not a result until you read the sentences under it**: this
+is the third time in this ticket that the count moved as predicted and the
+prediction was still concealing a wrong rule.
 
 ## 14. What this ticket did NOT do
 
