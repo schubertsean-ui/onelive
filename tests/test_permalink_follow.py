@@ -1585,6 +1585,48 @@ def test_a_run_of_performances_disagreeing_about_the_day_still_binds():
     assert "card-contradicts-its-own-markup" in read.codes
 
 
+def test_a_card_listing_more_days_than_its_markup_is_not_a_contradiction():
+    """Found by the first LIVE run of the r8 check, in two steps.
+
+    That run refused 15 of 40 opened pages, and the desk's own words showed the
+    rule was broader than its message: `/event/boeing-boeing-14285657` had a
+    card stating three performance days and markup naming one. A card that
+    lists MORE days than the markup is the desk agreeing with itself at
+    different resolutions — elaboration, not contradiction — and calling it one
+    made the code's own sentence untrue (RED_CLASSES: diagnostics-as-data).
+
+    THEN the narrowed rule still refused, and the reason is the r3 class again:
+    R-030 reports each date under the STRONGEST carrier that stated it, so the
+    18th — printed on the card AND named in the markup — came back as `jsonld`
+    and vanished from a "what the card printed" filter over the document-wide
+    scan. The card's days are now read FROM THE CARD."""
+    def page(card_line):
+        return f"""<html><head><title>Boeing Boeing</title>
+        <script type="application/ld+json">
+        {{"@type":"Event","name":"Boeing Boeing",
+          "url":"https://desk.test/tickets/9",
+          "startDate":"2026-09-18T19:30:00-05:00",
+          "location":{{"@type":"Place","name":"TexARTS"}}}}</script></head>
+        <body><article><h1>Boeing Boeing</h1><p>{card_line}</p></article>
+        </body></html>"""
+
+    listed = page("September 18, 2026; September 19, 2026; September 20, 2026")
+    read = df.field_read(listed, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-18T19:30:00-05:00", read.refusals
+    assert "card-contradicts-its-own-markup" not in read.codes
+
+    # And the real contradiction — the card's days do NOT include the markup's.
+    omitted = page("September 19, 2026; September 20, 2026")
+    read = df.field_read(omitted, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when is None, read.when
+    assert "card-contradicts-its-own-markup" in read.codes
+
+    # A card that states nothing contradicts nothing.
+    silent = page("Tickets at the door.")
+    read = df.field_read(silent, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.when == "2026-09-18T19:30:00-05:00", read.refusals
+
+
 def test_a_card_agreeing_with_its_own_markup_settles_the_day():
     """The converse, and the common case: when the card and the node state the
     same day, the node's fuller answer (its clock and offset) is the row's."""

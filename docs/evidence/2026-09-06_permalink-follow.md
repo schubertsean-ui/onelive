@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-114 passed in 0.50s
+115 passed in 0.51s
 ```
 
 | ticket case | test | result |
@@ -981,6 +981,55 @@ that card is the subject — it is the only thing the page could be about; with
 two or more there is nothing to choose between them, so only page-level
 statements count and every section is excluded, which is the seat's case
 exactly. Both directions tested.
+
+### 13j. The r8 check met the live desk, and the desk corrected it twice
+
+The prediction held. Run
+[34013696335](https://github.com/schubertsean-ui/onelive/actions/runs/34013696335)
+on head `e3f5d7f`:
+
+| | run 18 (`f436fe3`) | run 21 (`e3f5d7f`) |
+|---|---:|---:|
+| `dated_n` | 38 | **23** |
+| `card-contradicts-its-own-markup` | — | **15 of 40 opened (37%)** |
+
+And the reason was the one predicted, in the desk's own words:
+
+```
+boeing-boeing-14285657: this happening's own card states 2026-09-19,
+  2026-09-20, 2026-09-24 while the page's structured data states 2026-09-18
+pecan-street-fall-festival: card states 2026-09-13, structured data 2026-09-12
+```
+
+Runs and multi-day festivals. **But reading that back showed the rule was
+broader than its own message, twice over.**
+
+**(1) It fired on elaboration, not just contradiction.** `card_days -
+node_days` is non-empty whenever the card lists MORE days than the markup — a
+card naming three performances and markup naming one is the desk agreeing with
+itself at different resolutions. Narrowed to `node_days - card_days`: a
+contradiction is the card NOT carrying the markup's day.
+
+**(2) The narrowed rule still refused, for the r3 reason.** R-030 reports each
+date under **the strongest carrier that stated it**, so a day the card prints
+AND the markup names comes back as `jsonld` — and vanished from a "what the
+card printed" filter applied to the document-wide scan. The card's days are now
+read FROM THE CARD, segment by segment, where no structured carrier is in
+scope. Two computations of one thing, compared: the same class as the r3
+instant keys, third instance.
+
+| the card says | the markup says | result |
+|---|---|---|
+| Sep 18, 19, 20 | Sep 18 | `2026-09-18T19:30:00-05:00` — elaboration |
+| Sep 19, 20 | Sep 18 | `None` + `card-contradicts-its-own-markup` |
+| Sep 18 | Sep 18 | `2026-09-18T19:30:00-05:00` |
+| nothing | Sep 18 | `2026-09-18T19:30:00-05:00` |
+
+**What the 37% still means, after both corrections, is the next run's to say.**
+Some of those pages were elaboration and will come back; the rest are genuine
+disagreement, and that residue is the measurement the run-modelling ticket
+needs. Publishing this ticket's final number before that run would be reporting
+a rule that no longer ships.
 
 ## 14. What this ticket did NOT do
 

@@ -1155,11 +1155,27 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
         # is visibly not claiming. Modelling runs is the next ticket's; holing
         # the day and COUNTING it is this one's, so that ticket opens with a
         # number instead of a hunch.
-        card_days = {hit.date for hit in stated
-                     if hit.kind not in _DOCUMENT_LEVEL_KINDS
-                     and owned_by_this_happening(hit)}
+        # WHAT THE CARD PRINTS, READ FROM THE CARD. Not from the document-wide
+        # scan filtered by carrier: R-030 reports each date under the STRONGEST
+        # carrier that stated it, so a day the card prints AND the markup
+        # states comes back as `jsonld` and disappears from a
+        # "non-document-level kinds" filter. That is how the first cut of this
+        # check refused a card listing "September 18, 19, 20" against markup
+        # saying the 18th — the card's own 18th had been credited to the
+        # script. Same class as the r3 instant keys: two computations of one
+        # thing, compared.
+        card_days = {found.date for segment in said
+                     for found in same_page_dates(segment, as_of=as_of)}
         node_days = {hit.date for hit in structured}
-        if card_days and card_days - node_days:
+        # A CONTRADICTION IS THE CARD NOT CARRYING THE NODE'S DAY — not the
+        # card carrying MORE days than the node. The first live run of this
+        # check read `card_days - node_days`, which fired on elaboration too:
+        # a card listing four performances and the markup naming one of them is
+        # the desk agreeing with itself at different resolutions, and refusing
+        # it made the code's own sentence ("contradicting itself") untrue. That
+        # is `diagnostics-as-data` — a reason that misdescribes what happened
+        # sends the next reader at the wrong repair.
+        if card_days and node_days - card_days:
             refuse(
                 "card-contradicts-its-own-markup",
                 f"this happening's own card states "
