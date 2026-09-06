@@ -96,6 +96,7 @@ matches its own date. This only bites a page that is wrong about itself.
 | prints two different clocks | keeps the DAY, holes the time |
 | publishes two schema.org events naming different places | no place |
 | labels two different places | no place |
+| carries a structured date on a node that speaks for a DIFFERENT happening | that date is not read (`structured-hit-not-bound`) |
 | answers 401/402/403/407/429 | hole, queued for a claim, **one knock**, row kept |
 | answers a proxy 403 with no HTTP status | still counted as a wall |
 | answers 404/5xx | triage, not "this happening has no date" |
@@ -418,7 +419,53 @@ statement from its tier is not the same as removing its waiver; both had to go.
 same head, and `gemini/spec-vs-contract` independently verified all three
 founder acceptance criteria and `mash_n = 0`.
 
-## 11. What this ticket did NOT do
+## 11. Evaluator round 3 — the page is not the grain; the node is
+
+Round 2 asked the right question at the wrong grain. `speaks_for()` correctly
+worked out WHICH nodes speak for this row, and then `event_scoped()` threw that
+answer away:
+
+```python
+if hit.kind == "jsonld":
+    return bool(mine)          # ANY bound node ⇒ EVERY jsonld date is scoped
+```
+
+So a permalink whose own node carries no `startDate`, sitting beside a sidebar
+node for a different happening, published the sidebar's date. Reproduced on the
+pre-fix head, and note what is missing from the second half of the line:
+
+```
+REPRO r3: 2026-12-25T20:00:00-06:00 | carrier: jsonld | codes: ()
+```
+
+No refusal code. The row did not merely take a wrong date — it reported nothing
+wrong at all, which is the part that would have reached `--write` unnoticed.
+
+The check is now per hit. Each bound node's `startDate` becomes an instant key;
+a JSON-LD date carries scope only if its own instant is one of them, and an
+unmatched hit is refused as `structured-hit-not-bound` so the hole says why.
+
+| page | before | after |
+|---|---|---|
+| bound node has NO date, sidebar has one | `2026-12-25T20:00:00-06:00`, no code | `None` + `structured-hit-not-bound` |
+| bound node HAS a date, sidebar has one | could take either | `2026-09-06T21:00:00-05:00` / The Hall |
+| the live shape (one bound node) | dated | unchanged — `2026-09-26T18:00:00-05:00` / LBJ Park |
+| bound node named by a RELATIVE url | bound nothing | `2026-09-26T18:00:00-05:00` |
+
+**Two traps inside the fix, both caught by re-running rather than by reading
+the patch.** The instant keys were first compared naive-against-aware, which
+would have holed every desk that omits an offset — naive is now read as UTC,
+the same reading `_to_utc_z` already gives the node side (`Z vs offset: True`,
+`naive vs Z: True`, `different: False`). And `speaks_for()` compared a relative
+`url` (`/event/1846201`) against an absolute address and bound nothing; relative
+addresses are resolved against the page before the comparison.
+
+This is the same red class as round 2 — `whose-statement-is-this` — one level
+finer, so the class now carries the triggers that would have caught it: a
+page-level `bool()` or `any()` standing in for a per-hit question. 86 tests pin
+the file.
+
+## 12. What this ticket did NOT do
 
 * No Tonight redesign, no catalog upsert, no `ai_extract` change, no new vendor,
   no login, no Planomato, no touching PRs #230/#231/#232.
