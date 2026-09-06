@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-136 passed in 0.77s
+136 passed in 0.51s
 ```
 
 | ticket case | test | result |
@@ -1919,6 +1919,50 @@ ticket authorised to edit `same_page_dates.py` teaches the armed parser word
 clocks, and this module's check then covers them with no change of its own —
 **the detector and the comparator are the same import.** Live exposure on the
 walked corpus is zero: every clock the runs have reported is numeric.
+
+### 13w. Round 21 — four residuals, four reopenings, and the reasons were mine
+
+One blocking finding (openai/absence-only), and it is **R-115, recorded one
+round earlier**. That makes four residuals in one ticket reopened by the very
+next review — R-112 at r5, R-113 at r13, R-114 at r18, R-115 at r21 — and the
+seat was right every time.
+
+**So the useful work this round is not the code. It is taking my own three
+objections apart.**
+
+| what I wrote at r20 | what is actually true |
+|---|---|
+| "a second, English-only time vocabulary beside the armed one" | `_CLOCK_TOKEN_RE` is **already** this module's own detector and says so in its docstring — *"This is a LOCATOR, not a parser"*. Extending it is that design, not a duplication. |
+| "detection alone would not close it — comparing needs a word→hour mapping" | False. Detection alone is enough for the **fail-closed** direction: being unable to read a time the desk states is exactly a reason not to publish a different one. No mapping needed. |
+| "an English-only detector is the locale-refused-in-code defect r10 removed" | It **adds** coverage for English and refuses nothing. That is asymmetry, not refusal — and I reached for the stronger word to justify not doing the work. |
+
+Each objection was individually plausible and collectively they let me file a
+reproduced defect instead of fixing it. The pattern across all four residuals is
+now unmistakable: **when I reason my way to "recorded, not fixed", the reasoning
+is the thing to check hardest**, because it is doing the work of a decision
+without the scrutiny of one.
+
+**What shipped.** The locator finds `noon`/`midday`/`midnight`; a clock it finds
+that R-030 cannot read resolves to `False` rather than `None` — a time the desk
+states and we cannot check cannot AGREE — so a precise structured time with
+nothing on the card agreeing with it is refused and the day stands.
+
+**Composed, not blunt**, which is where this could easily have over-corrected:
+
+| the card prints | the node states | result |
+|---|---|---|
+| `Show at noon` | 19:30 | day only + refusal |
+| `midnight` / `midday` | 19:30 | day only + refusal |
+| `noon, 7:30PM` | 19:30 | **dated** — the desk corroborates itself |
+| `noon, 8:00PM` | 19:30 | day only — neither printed time is the node's |
+| nothing | 19:30 | dated (r14, unchanged) |
+| `teatime` (the locator finds nothing) | 19:30 | dated — still noise, r14 unchanged |
+
+**R-115 is narrowed rather than closed**, to the non-English word clock, and its
+home is unchanged and still checked: the armed parser cannot read those either,
+Must-do 1 names that file imported-never-edited, and the first ticket authorised
+to edit it teaches the parser every language at once — the detector and the
+comparator being the same import.
 
 ## 14. What this ticket did NOT do
 

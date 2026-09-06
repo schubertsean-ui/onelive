@@ -2062,26 +2062,30 @@ def test_a_same_day_clock_outside_the_card_never_becomes_this_rows_time():
     assert read.when == "2026-09-18T23:00:00", read.refusals
 
 
-def test_a_word_clock_is_a_hole_in_the_contradiction_check_and_it_is_pinned():
-    """R-115, opened at r20 rather than closed, and PINNED HERE so the residual
-    is visible in the suite and not only in a record.
+def test_a_word_clock_the_parser_cannot_read_cannot_agree_with_the_markup():
+    """Evaluator, PR #235 r21, openai/absence-only — and this test asserted the
+    OPPOSITE one round ago, because r20 RECORDED this as R-115 instead of fixing
+    it. That made four residuals in one ticket reopened by the very next review
+    (R-112, R-113, R-114, R-115), and the seat was right every time.
 
-    Evaluator PR #235 r20 (openai/absence-only): a card whose only time
-    expression is a WORD — "Show at noon" — cannot contradict a structured
-    clock, so a node stating 19:30 publishes beside a page visibly saying noon.
+    My three objections at r20 were each overstated:
 
-    Not closed because the reason is checked, not asserted: the ARMED
-    `same_page_dates` cannot read a word clock either (this test proves it), so
-    detecting one here would need a second, English-only time vocabulary beside
-    the armed one — `one-rule-expressed-twice` plus the locale-refused-in-code
-    defect r10 removed — and comparing would need a second clock PARSER, refused
-    at r14 and r15. The founder's Must-do 1 names that file imported-never-edited.
+      1. "a second time vocabulary" — `_CLOCK_TOKEN_RE` is already this module's
+         own locator and says so in its docstring ("a LOCATOR, not a parser"),
+         so extending it is its design, not a duplication of the armed rule.
+      2. "detection without comparison is useless" — false. Detection alone is
+         enough for the FAIL-CLOSED direction: not being able to read a stated
+         time is exactly a reason not to publish a different one.
+      3. "English-only refuses a locale" — this ADDS coverage for English and
+         refuses nothing. That is asymmetry, not the locale REFUSAL r10 removed,
+         and I used the stronger word to justify not doing the work.
 
-    THE BOUND IS MEASURED HERE, NOT REASONED, which is the lesson R-112, R-113
-    and R-114 each cost a round to learn: the arms below run the shape past
-    every live guard and show exactly which one catches it."""
-    # The armed parser's own limit — the fact the record's trigger rests on.
+    So a word clock resolves to `False`, not `None`: a time the desk states and
+    this repo cannot read cannot AGREE. Everything else that fails to resolve
+    stays `None` — the r14 rule unchanged, because our inability to parse a
+    numeric edge case is not the desk contradicting itself."""
     from worker.same_page_dates import resolve_same_page_datetime
+    # The armed parser's limit is unchanged; what changed is what we do about it.
     iso, refusal, _ev = resolve_same_page_datetime(
         "noon", block_text="2026-09-18 noon", as_of=AS_OF)
     assert iso is None and (refusal or {}).get("reason") == "unparseable"
@@ -2096,16 +2100,24 @@ def test_a_word_clock_is_a_hole_in_the_contradiction_check_and_it_is_pinned():
             f"{card}</article></body></html>",
             url=HERE, as_of=AS_OF, patterns=PATTERNS)
 
-    # THE RESIDUAL, stated as it actually behaves today.
-    assert read("<p>September 18, 2026 — Show at noon</p>").when \
-        == "2026-09-18T19:30:00-05:00"
-    assert read("<p>Show at noon</p>").when == "2026-09-18T19:30:00-05:00"
+    # The finding: a word clock holes the precise time and keeps the day.
+    for card in ("<p>September 18, 2026 — Show at noon</p>",
+                 "<p>Show at noon</p>",
+                 "<p>September 18, 2026 — midnight</p>",
+                 "<p>September 18, 2026 — midday</p>"):
+        got = read(card)
+        assert got.when == "2026-09-18", (card, got.when)
+        assert "card-contradicts-its-own-markup" in got.codes, card
 
-    # AND THE GUARD THAT DOES CATCH IT: any numeric clock printed beside the
-    # word brings the membership rule (r12/r14) back into play.
-    beside = read("<p>September 18, 2026 — noon, 8:00PM</p>")
-    assert beside.when == "2026-09-18", beside.when
-    assert "card-contradicts-its-own-markup" in beside.codes
+    # AND NOT AN OVER-CORRECTION, which is where this could have gone wrong: a
+    # word clock beside a numeric one that AGREES is the desk corroborating
+    # itself, and the membership rule keeps it.
+    assert read("<p>September 18, 2026 — noon, 7:30PM</p>").when \
+        == "2026-09-18T19:30:00-05:00"
+    # Beside one that disagrees, it still holes — neither printed time is 19:30.
+    assert read("<p>September 18, 2026 — noon, 8:00PM</p>").when == "2026-09-18"
+    # A card printing no clock at all still contradicts nothing (r14).
+    assert read("<p>September 18, 2026</p>").when == "2026-09-18T19:30:00-05:00"
 
 
 def test_a_promo_written_as_a_plain_div_is_still_another_card():
@@ -2586,8 +2598,12 @@ def test_a_card_clock_with_no_date_of_its_own_still_contradicts():
     # The converse — a card clock with no date that AGREES settles nothing new
     # and holes nothing.
     assert read("<p>Show 7:30PM</p>").when == "2026-09-18T19:30:00-05:00"
-    # A clock the parser cannot read is still not a contradiction.
-    assert read("<p>Show at noon</p>").when == "2026-09-18T19:30:00-05:00"
+    # A clock the parser cannot read: this arm asserted "still dated" until r21,
+    # when a WORD clock became a statement we cannot check rather than noise.
+    # The r14 rule it was written for is unchanged and is asserted below on a
+    # token the LOCATOR does not find at all.
+    assert read("<p>Show at noon</p>").when == "2026-09-18"
+    assert read("<p>Show at teatime</p>").when == "2026-09-18T19:30:00-05:00"
     # And a card printing no clock at all contradicts nothing.
     assert read("<p>Check listings</p>").when == "2026-09-18T19:30:00-05:00"
 

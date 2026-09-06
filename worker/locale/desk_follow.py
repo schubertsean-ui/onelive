@@ -111,7 +111,29 @@ DEFAULT_BUDGET = 40
 #: FEWER clocks — it cannot change what a found one is taken to mean.
 _CLOCK_TOKEN_RE = re.compile(
     r"\b\d{1,2}(?::[0-5]\d)?\s*[ap]\.?m\.?\b"
-    r"|\b(?:[01]?\d|2[0-3]):[0-5]\d\b", re.IGNORECASE)
+    r"|\b(?:[01]?\d|2[0-3]):[0-5]\d\b"
+    r"|\b(?:noon|midday|midnight)\b", re.IGNORECASE)
+
+#: Times this locator finds that R-030's rule cannot READ. Detected on purpose
+#: at r21, and the distinction they carry is the whole point: a time the desk
+#: PRINTS and we cannot parse is not noise, it is a statement we cannot check —
+#: so it cannot AGREE with a structured clock, and a precise time with nothing
+#: on the card agreeing with it is refused.
+#:
+#: r20 recorded this as R-115 instead of fixing it, on three objections that
+#: were each overstated (evaluator, PR #235 r21, openai/absence-only — the
+#: FOURTH residual this ticket that the next review reopened). (1) "a second
+#: time vocabulary": `_CLOCK_TOKEN_RE` is already this module's own locator and
+#: says so in its docstring — "a LOCATOR, not a parser" — so extending it is
+#: its design, not a duplication of the armed rule. (2) "detection without
+#: comparison is useless": false — detection alone is enough for the
+#: FAIL-CLOSED direction, because not being able to read a stated time is
+#: exactly a reason not to publish a different one. (3) "English-only refuses a
+#: locale": this ADDS coverage for English and refuses nothing, which is
+#: asymmetry, not the locale REFUSAL r10 removed. The narrowed residual —
+#: word clocks in other languages — stays R-115, with the armed parser as its
+#: home.
+_WORD_CLOCK_RE = re.compile(r"^(?:noon|midday|midnight)$", re.IGNORECASE)
 
 #: Tag-stripping for that locator only, mirroring R-030's `_visible_text`:
 #: script/style bodies go FIRST so a JSON-LD payload's own times are not read as
@@ -1069,7 +1091,12 @@ def _clock_agrees(token: str, stated: Tuple[int, int], day: str,
         token, block_text=f"{day} {token}", as_of=as_of)
     wall = _wall_clock(iso)
     if wall is None:
-        return None
+        # A WORD clock is a time the desk states and this repo cannot read, so
+        # it cannot agree — `False`, not `None`. Everything else that fails to
+        # resolve is the locator's own noise and stays `None`, which is the r14
+        # rule unchanged: our inability to parse a numeric edge case is not the
+        # desk contradicting itself.
+        return False if _WORD_CLOCK_RE.match(token.strip()) else None
     if _MERIDIEM_RE.search(token):
         return wall == stated
     return (wall[0] % 12, wall[1]) == (stated[0] % 12, stated[1])
