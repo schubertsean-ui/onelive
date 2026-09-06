@@ -133,6 +133,10 @@ _HAS_CLOCK_RE = re.compile(r"\d:[0-5]\d|T[0-2]\d[0-5]\d")
 #: schema.org properties that name where a happening is.
 _PLACE_ITEMPROPS = frozenset({"location", "address"})
 
+#: What a page uses to say what it is ABOUT. The first one outside plumbing is
+#: the page's own subject, and the section holding it is the page's own card.
+_HEADING_TAGS = frozenset({"h1", "h2", "h3"})
+
 #: Elements whose text is never a place (or anything else this page STATES).
 #: Form controls earn their place here from the live run: a `<select>` of
 #: restaurant categories sitting inside a venue-labelled block was read as one of
@@ -384,6 +388,18 @@ class _PlaceScanner(HTMLParser):
         self._skip = 0
         self._furniture = 0
         self._open: List[str] = []
+        #: A monotonic id per opened element, so an ancestor can be named
+        #: without buffering its subtree.
+        self._next_id = 0
+        #: The id of the sectioning element the page's FIRST heading sits in —
+        #: the page's own card. None until a heading is seen, and None forever
+        #: on a page whose heading is in no section at all, which means the
+        #: whole page is one card.
+        self.subject_scope: Optional[int] = None
+        self._saw_heading = False
+        #: Open element ids at the moment each place was captured.
+        self._here: List[int] = []
+        self.place_scopes: List[Tuple[int, ...]] = []
 
     @staticmethod
     def _labelled(attrs: Dict[str, str]) -> bool:
@@ -407,7 +423,20 @@ class _PlaceScanner(HTMLParser):
             tag in SCOPED_FURNITURE_TAGS and not self._in_sectioning())
         if furniture:
             self._furniture += 1
+        self._next_id += 1
+        mine = self._next_id
         self._open.append((tag, furniture))
+        self._here.append(mine)
+        if tag in _HEADING_TAGS and not self._saw_heading and not self._furniture:
+            # The page's own subject. Its nearest sectioning ancestor is the
+            # card this page is ABOUT; a venue outside that card belongs to
+            # whatever else the page happens to carry.
+            self._saw_heading = True
+            for (open_tag, _f), ident in zip(reversed(self._open),
+                                             reversed(self._here)):
+                if open_tag in SECTIONING_TAGS:
+                    self.subject_scope = ident
+                    break
         if tag == "a" and not self._skip and not self._furniture:
             href = " ".join(
                 (dict((k.lower(), v or "") for k, v in attrs).get("href") or "").split())
@@ -422,6 +451,7 @@ class _PlaceScanner(HTMLParser):
         if self._labelled(flat):
             self._depth = 1
             self._parts = []
+            self._opened_in = tuple(self._here)
             # schema.org may state the value in `content` when the visible text
             # is something else; that stated value is the place.
             stated = " ".join((flat.get("content") or "").split())
@@ -436,6 +466,8 @@ class _PlaceScanner(HTMLParser):
         if any(open_tag == tag for open_tag, _ in self._open):
             while self._open:
                 closed, opened_furniture = self._open.pop()
+                if self._here:
+                    self._here.pop()
                 if opened_furniture:
                     self._furniture = max(0, self._furniture - 1)
                 if closed == tag:
@@ -447,6 +479,7 @@ class _PlaceScanner(HTMLParser):
             text = " ".join(" ".join(self._parts).split())
             if text:
                 self.places.append(text)
+                self.place_scopes.append(getattr(self, "_opened_in", ()))
             self._parts = []
 
     def handle_data(self, data):
@@ -556,12 +589,37 @@ def _same_name(a: str, b: str) -> bool:
     right = re.sub(r"[^0-9a-z]+", " ", b.casefold()).split()
     if not left or not right:
         return False
+    if left == right:
+        # Identical names need no floor. A desk heading a page "D" with a node
+        # called "D" has said the same thing twice, and refusing that was the
+        # floor misfiring on an exact match rather than on a short containment.
+        return True
     shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
     if len(shorter) < 2 and len(shorter[0]) < 2:
         return False
     span = len(shorter)
     return any(longer[i:i + span] == shorter
                for i in range(len(longer) - span + 1))
+
+
+def _node_name(event: Dict[str, object]) -> str:
+    return " ".join(str(event.get("title") or event.get("name") or "").split())
+
+
+def _contradicts_this_page(event: Dict[str, object],
+                           headings: Sequence[str]) -> bool:
+    """Does this node call itself something this page does NOT call itself?
+
+    The weaker half of the identity question, for a node that has already
+    asserted its address. ABSENCE IS NOT DISAGREEMENT: a node with no name, or
+    a page with no heading, contradicts nothing and keeps the bind it earned by
+    naming this address. Only two names that both exist and match nothing in
+    each other are a contradiction.
+    """
+    name = _node_name(event)
+    if not name or not headings:
+        return False
+    return not any(_same_name(name, heading) for heading in headings)
 
 
 def _names_this_page(event: Dict[str, object], headings: Sequence[str]) -> bool:
@@ -582,7 +640,7 @@ def _names_this_page(event: Dict[str, object], headings: Sequence[str]) -> bool:
     exactly the evaluator's case (PR #235 r4: a node called "Something Else" on
     a page headed "Dominic Fike").
     """
-    name = " ".join(str(event.get("title") or event.get("name") or "").split())
+    name = _node_name(event)
     if not name:
         return False
     return any(_same_name(name, heading) for heading in headings)
@@ -644,7 +702,15 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
     here = _address(url)
     bound = [ev for ev in events if here in _named(ev, url)]
     if bound:
-        return bound
+        # A node naming THIS address has asserted whose page it is on, which is
+        # the strongest thing markup can say — so here the name is asked only
+        # not to CONTRADICT it. A node claiming to be about this permalink while
+        # calling itself another show is a desk publishing two different answers
+        # about one page, and there is no reading of that which dates this row
+        # (evaluator, PR #235 r5, openai/attacker-smuggle). Silence is not
+        # contradiction: a page with no heading, or a node with no name, still
+        # binds on the address it named, because absence is not disagreement.
+        return [ev for ev in bound if not _contradicts_this_page(ev, headings)]
     if len(events) != 1:
         return []
     named = _named_urls(events[0], url)
@@ -666,11 +732,24 @@ def speaks_for(events: Sequence[Dict[str, object]], url: str,
 
 
 def _scan_places(html: str) -> Tuple[List[str], List[str]]:
-    """(places this page labels, addresses its content links to) — one pass.
+    """(places this page states about ITSELF, addresses its content links to).
 
     Both answers come from the SAME walk under the SAME plumbing rule, because
     the second is used to judge the first: two passes would be two definitions
     of what counts as this page's content, and they would drift.
+
+    THE CARD BOUNDARY. A place is this page's only when it sits inside the
+    section holding the page's own heading. That section IS the card, and HTML
+    already names it — the sectioning elements the date path's scope rule
+    reads. A page whose heading is in no section at all is one card, and every
+    labelled place on it is that card's.
+
+    This is the tie round 4 said the module could not build, recorded as R-112:
+    a promotional or static block carrying venue markup and NO link was still
+    read as this row's place, and both openai seats blocked on that residual
+    (PR #235 r5). It needed no chrome-word list and no title match — only the
+    observation that the page's heading has a section, and a block outside it
+    is about something else.
     """
     scanner = _PlaceScanner()
     try:
@@ -680,7 +759,9 @@ def _scan_places(html: str) -> Tuple[List[str], List[str]]:
         log.debug("place scan raised on a followed page: %s", exc)
         return [], []
     out: List[str] = []
-    for place in scanner.places:
+    for place, scope in zip(scanner.places, scanner.place_scopes):
+        if scanner.subject_scope is not None and scanner.subject_scope not in scope:
+            continue
         if place not in out:
             out.append(place)
     return out, list(scanner.links)
@@ -1039,25 +1120,24 @@ def field_read(html: str, *, url: str, as_of: Optional[_date] = None,
             f"different places ({'; '.join(ld_places[:3])}) — which one this "
             f"happening is at is not stated")
     else:
+        # The UNBOUND fallback, and everything it now has to survive. A place
+        # here is one this page states INSIDE the section holding its own
+        # heading (`_scan_places`), on a page whose content does not also point
+        # at other happenings. Round 4 built the second half from the split
+        # ladder's own discriminator; round 5 built the first, which is the
+        # residual R-112 recorded and both openai seats then blocked on — and
+        # they were right on this repo's own rule, that a RECORD row is not a
+        # safe harbour when the bound it states does not cover the harm it
+        # names (RED_CLASSES: deferred-trust-work).
         labelled, links = _scan_places(html)
         others = _others_on_this_page(links, url, patterns)
         if len(labelled) == 1 and others:
-            # THE PLACE PATH NEEDS THE ENTITY TIE THE DATE PATH HAS.
-            # Rounds 1-4 gave dates their scope (plumbing excluded
-            # structurally), their locality (a clock comes from the statement
-            # that gave the day) and their per-node binding. The place fallback
-            # still took "the one labelled venue anywhere in the content" — so a
-            # page whose own listing carries no venue markup, beside a related
-            # card that does, published that card's room as this happening's:
-            # cardinality of one, nothing ambiguous to refuse, nothing to notice
-            # (evaluator, PR #235 r4 second pass, openai/attacker-smuggle).
-            #
-            # A structured node that speaks for this row is bound and is read
-            # above; this is the UNBOUND fallback, and it has no way to say
-            # whose venue it found. So when the page's content also points at
-            # other happenings, one labelled venue is not evidence — it is a
-            # coin flip between this row and the card beside it, and the hole
-            # is the honest answer.
+            # A structured node that speaks for this row is bound and read
+            # above; this fallback has no way to say whose venue it found. When
+            # the page's content also points at other happenings, one labelled
+            # venue is not evidence — it is a coin flip between this row and the
+            # card beside it, and the hole is the honest answer (evaluator, PR
+            # #235 r4 second pass, openai/attacker-smuggle).
             refuse(
                 "place-among-other-happenings",
                 f"page labels one place ({labelled[0]}) and its content also "

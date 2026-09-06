@@ -397,6 +397,23 @@ def test_a_related_cards_venue_is_not_this_happenings_place():
     read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
     assert read.when == "2026-09-06T21:00:00"      # the date path is unaffected
     assert read.place_text is None
+    # r5 added the CARD boundary, which catches this one step earlier: the
+    # related card's venue is outside the section holding the page's heading,
+    # so it is never a candidate at all and the page labels no place of its own.
+    assert "no-place" in read.codes, read.refusals
+
+
+def test_the_other_happenings_rule_still_bites_on_a_page_with_no_sections():
+    """A page whose heading is in no section is ONE card, so the card boundary
+    cannot separate anything on it — and that is exactly where round 4's rule
+    is still the only thing standing between a promo venue and the row."""
+    page = """<html><body><h1>Dominic Fike</h1>
+      <time datetime="2026-09-06T21:00">Sun Sep 6</time>
+      <a href="/event/other-99">Some Other Show</a>
+      <div class="venue">The Other Room</div>
+    </body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF, patterns=PATTERNS)
+    assert read.place_text is None
     assert "place-among-other-happenings" in read.codes, read.refusals
     assert any("other-99" in r for r in read.refusals), read.refusals
 
@@ -809,11 +826,42 @@ def test_a_structured_node_naming_another_address_speaks_for_nobody_here():
     assert "structured-not-bound" in read.codes
 
 
-def test_the_same_node_naming_THIS_address_speaks_for_this_happening():
+def test_a_node_claiming_this_address_while_naming_another_show_dates_nothing():
+    """Evaluator, PR #235 r5, openai/attacker-smuggle — this test previously
+    asserted the defect.
+
+    Naming this permalink is the strongest thing markup can say about whose
+    page it is on, and until r5 it was accepted alone. But a node claiming to
+    be about THIS address while calling itself "Some Other Show", on a page
+    headed "Dominic Fike", is a desk publishing two different answers about one
+    page — and there is no reading of that which dates this row."""
     page = SIDEBAR_EVENT.replace("https://desk.test/event/other-99", HERE)
     read = df.field_read(page, url=HERE, as_of=AS_OF)
-    assert read.when == "2026-12-25T20:00:00-06:00"
+    assert read.when is None, read.when
+    assert read.place_text is None
+
+
+def test_a_node_claiming_this_address_and_naming_this_show_speaks_for_it():
+    """The converse, and the common case: the address and the name agree."""
+    page = (SIDEBAR_EVENT.replace("https://desk.test/event/other-99", HERE)
+            .replace('"name":"Some Other Show"', '"name":"Dominic Fike"'))
+    read = df.field_read(page, url=HERE, as_of=AS_OF)
+    assert read.when == "2026-12-25T20:00:00-06:00", read.refusals
     assert read.place_text == "The Other Room"
+
+
+def test_a_bound_node_on_a_page_with_no_heading_still_binds():
+    """ABSENCE IS NOT DISAGREEMENT. A page that prints no heading, or a node
+    that carries no name, contradicts nothing — the node keeps the bind it
+    earned by naming this address. Requiring positive agreement here would hole
+    every desk whose event page heads with the venue or a masthead."""
+    page = """<html><head><script type="application/ld+json">
+    {"@type":"Event","url":"https://desk.test/event/dominic-fike-1",
+     "startDate":"2026-12-25T20:00:00-06:00",
+     "location":{"@type":"Place","name":"The Room"}}</script></head>
+    <body><article><p>no heading anywhere</p></article></body></html>"""
+    read = df.field_read(page, url=HERE, as_of=AS_OF)
+    assert read.when == "2026-12-25T20:00:00-06:00", read.refusals
 
 
 def test_a_lone_node_naming_no_address_is_the_pages_own_event():

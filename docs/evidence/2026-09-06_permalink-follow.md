@@ -51,7 +51,7 @@ whatever this prints, and is not restated anywhere else in this document:
 
 ```
 $ python -m pytest tests/test_permalink_follow.py -q | tail -1
-96 passed in 0.52s
+99 passed in 0.32s
 ```
 
 | ticket case | test | result |
@@ -698,6 +698,62 @@ Fixing it broke three fixtures, and both reasons were worth having:
 * One fixture page had no `<h1>` and no `<title>` at all, so there was nothing to
   compare against. That is an artifact of terse test HTML rather than a desk
   shape; the fixtures now carry the heading a real page carries.
+
+## 13d. Evaluator round 5 — the strong bind, and the residual that would not stay recorded
+
+Two blocking findings, both reproduced on the pre-fix head, both closed.
+
+**(a) A node naming THIS address was accepted on the address alone.** That is
+the strongest thing markup can say about whose page it is on, and until now it
+needed nothing else. But a node claiming to be about this permalink while
+calling itself another show is a desk publishing two different answers about
+one page:
+
+```
+PRE-FIX   when=2026-12-25T20:00:00-06:00  place=The Other Room  codes=()
+POST-FIX  when=None                       place=None            codes=('structured-not-bound', …)
+```
+
+The test that covered this shape was previously asserting the defect — it took
+`SIDEBAR_EVENT`, rewrote its `url` to this page, and asserted the row was dated.
+It now asserts the opposite.
+
+The bound arm asks only that the node not CONTRADICT the page, not that it
+positively agree, because the evidence is different in kind: an explicit address
+assertion plus silence is still an assertion, while a lone node with no address
+has only its name to stand on. **Absence is not disagreement** — a page with no
+heading, or a node with no name, keeps the bind it earned, and that has its own
+test. Requiring positive agreement there would hole every desk whose event page
+heads with the venue or a masthead.
+
+**(b) R-112's residual would not stay recorded, and the repo's own rule says so.**
+Both seats blocked on the unlinked promotional block. `deferred-trust-work`:
+*a RECORD row is not a safe harbour when the bound it states does not cover the
+harm it names.* R-112's bound did not.
+
+The CARD BOUNDARY that row said this module did not have was already in the
+HTML, in the vocabulary the date path's scope rule has read since round 1: **the
+page's own heading sits in a sectioning element; that element is the card; a
+labelled place outside it is about something else.** No chrome-word list, no
+title match. `_PlaceScanner` numbers each open element and remembers the section
+holding the first non-plumbing heading; `_scan_places` keeps only the places
+opened inside it. A page whose heading is in no section at all is ONE card and
+keeps every place on it.
+
+```
+PRE-FIX   an unlinked <section class="sponsors">  ->  place='The Sponsor Lounge'  codes=()
+POST-FIX                                              place=None                 codes=('no-place',)
+```
+
+Round 4's other-happenings rule is kept rather than replaced: on a page whose
+heading is in no section, the boundary cannot separate anything, and that rule
+is the only thing left between a promo venue and the row. It has its own test.
+
+An attempt to close (b) by DELETING the unbound fallback outright broke 18
+tests, including the founder's own case (b) — "event page clock-only -> the
+place still fills". That was the useful answer: the fallback is what fills the
+place on every page without structured venue markup, and the defect was never
+the fallback but the absence of a boundary around it.
 
 ## 14. What this ticket did NOT do
 
