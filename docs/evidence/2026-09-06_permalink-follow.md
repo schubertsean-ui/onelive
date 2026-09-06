@@ -2390,6 +2390,28 @@ record (an English class-name list at r1/r23; refusing every prose-stated date,
 measured at r22 as 33 of 136 tests and the founder's own acceptance case (a); a
 block-depth rule at r12). R-116 stays open, bounded, and now honestly counted.
 
+**The corrected numbers, run 34035078704 on `57eaf23`:**
+
+```
+0 of 40   took a PRECISE time from markup with no card clock at all  (R-115)
+0 of 40   took their DATE from the page's own prose                  (R-116, date)
+8 of 40   took their PLACE from a labelled element                   (R-116, place)
+```
+
+**R-116's date exposure on these desks is ZERO.** The whole "8 of 40" was
+places. Every dated row on this desk got its date from a structured carrier or
+from a card the page ties to the happening — so the shape both seats block on
+has no measured incidence here at all.
+
+The same run also shows r27's clock fix working, and shows honestly what it did
+NOT do. `clocks-ambiguous` fell from 2 of 40 to 1 — the survivor is
+`barbie-dream-heist`, printing "11 pm, 8:30, 9:30 pm", which is genuinely three
+clocks. And `story-sessions` now reports `card prints 8 pm` where it used to say
+`8 pm, 8:00 pm`. But `dated_n` is unchanged at 27: that page has a SECOND and
+real problem — its card says 8 pm while its markup says 18:00 — so it is dated
+to the day either way. A fix that removes a false refusal need not move the
+headline number, and saying otherwise would be the easy lie here.
+
 **The lesson.** r22 said a residual argued is worth less than a residual
 measured. This is its missing corollary: **a measurement is a claim.** Derive it
 once against a case whose answer you already know before you quote it to anyone.
