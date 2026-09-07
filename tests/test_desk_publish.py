@@ -168,7 +168,7 @@ def test_a_lookalike_domain_is_not_the_publisher(doors):
 
 def test_an_unregistered_door_refuses_rather_than_publishing_unlabelled(doors):
     with pytest.raises(DeskPublishError) as exc:
-        registration_for(doors[DO512], [])
+        registration_for(doors["facebook-events"], [])
     assert "LABELLED" in str(exc.value)
 
 
