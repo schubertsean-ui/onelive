@@ -8,7 +8,7 @@ export default function TonightLoading() {
   return (
     <main className="flow">
       <div className="wrap skel" aria-busy="true">
-        <p className="visually-hidden" role="status">Loading tonight&rsquo;s events…</p>
+        <p className="visually-hidden" role="status">Loading what&rsquo;s on…</p>
         <div aria-hidden="true">
           <div className="sk sk-title" />
           <div className="sk sk-line" />
