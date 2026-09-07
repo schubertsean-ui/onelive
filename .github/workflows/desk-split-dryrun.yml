@@ -17,13 +17,23 @@ on:
   workflow_dispatch:
     inputs:
       doors:
-        description: "Space-separated door_ids to walk"
+        description: >-
+          Space-separated door_ids to walk, or `all` (the default) for every
+          public door in the locale pack — the same default as desk-ingest.yml,
+          derived from sources/locale_packs/, never typed here.
         type: string
-        default: "austin-chronicle-eventsearch do512-today"
+        default: "all"
       max_pages:
-        description: "Page ceiling per desk"
+        description: "Page ceiling per DOOR (few pages x many doors, not the reverse)"
         type: string
-        default: "40"
+        # FEW PAGES x MANY DOORS (Operating Law, effectiveness rule 3, verbatim:
+        # "Prefer round-robin (few pages x many sources)"). This job answers ONE
+        # question — did every door in the pack open, and what did it print? —
+        # and the whole pack at 40 pages a door is ~35 minutes of politeness
+        # delay before a single byte moves. 8 pages a door walks every door
+        # inside this job's ceiling; the walk that goes DEEP is the write job,
+        # which has its own ceiling. Raise it here for one door with `doors`.
+        default: "8"
       locale:
         description: "Locale pack holding the doors"
         type: string
@@ -39,7 +49,10 @@ concurrency:
 jobs:
   dry-run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 20 covered two desks. The default walk is now the whole pack, whose
+    # politeness floor is ~14 minutes at the defaults above (26 doors x 8 pages
+    # + 200 event pages, at --min-interval 2.0s) BEFORE any page is transferred.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -70,7 +83,12 @@ jobs:
           : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
           : "${IN_LOCALE:?dispatch input 'locale' is empty}"
           args=(--real --dry-run --locale "$IN_LOCALE" --max-pages "$IN_MAX_PAGES")
-          for door in $IN_DOORS; do
+          # `all` PASSES NO --door, so the tool walks every public door in the
+          # pack (desk-ingest.yml, same rule, same anchored substitution, same
+          # reason it is not an `if`). An input that arrives EMPTY is a
+          # misconfigured dispatch and still stops at the guard above.
+          doors_to_walk=$(printf '%s' "$IN_DOORS" | sed -e 's/^all$//')
+          for door in $doors_to_walk; do
             args+=(--door "$door")
           done
           python tools/desk_ingest.py "${args[@]}" | tee "$RUNNER_TEMP/split-report.md"

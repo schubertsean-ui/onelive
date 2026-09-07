@@ -42,11 +42,14 @@ on:
         type: string
         default: "168"
       doors:
-        description: "Space-separated door_ids to walk"
+        description: >-
+          Space-separated door_ids to walk, or `all` (the default) for every
+          public door in the locale pack — the founder's default walk, derived
+          from sources/locale_packs/, never typed here.
         type: string
-        default: "austin-chronicle-eventsearch do512-today"
+        default: "all"
       max_pages:
-        description: "Page ceiling per desk"
+        description: "Page ceiling per desk (per DOOR, not per run)"
         type: string
         default: "40"
 
@@ -67,7 +70,17 @@ jobs:
     # branch could pair edited scripts with the production DB secrets below.
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 60 COVERED TWO DESKS; THE DEFAULT WALK IS NOW THE WHOLE PACK (2026-09-07).
+    # The politeness floor alone is `doors x max_pages + follow_cap` fetches at
+    # --min-interval seconds, which for this pack is ~41 minutes before a byte
+    # is transferred or a row is written — and run 34079785167 showed that 20
+    # minutes of writing was not enough for 1584 rows, at two desks. Both halves
+    # grew, so the ceiling grows: `tests/test_desk_ingest_workflow_contract.py`
+    # recomputes that floor from the pack, the cap and the delay, and fails if
+    # the walk ever grows into the time the write needs. HONEST LIMIT: nobody
+    # has yet completed a whole-pack write, so 120 is arithmetic plus headroom,
+    # not a measured duration. The dry run reports what the walk actually cost.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -113,7 +126,23 @@ jobs:
           : "${IN_DOORS:?dispatch input 'doors' is empty}"
           : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
           args=(--real --city "$IN_CITY" --hours "$IN_HOURS" --max-pages "$IN_MAX_PAGES")
-          for door in $IN_DOORS; do
+          # `all` IS HOW A DISPATCH SAYS "NO --door" (2026-09-07): the tool's
+          # own default is every public door in the locale pack, derived from
+          # the pack file, so the widest walk is expressed by passing no door
+          # rather than by listing 26 of them here. A WORD, not an empty
+          # string: an input that arrives empty is still a misconfigured
+          # dispatch and still stops the run at the guard above, which is what
+          # `tools/workflow_env_lint.py` requires of every expression-backed
+          # value. The sentinel is blanked by an ANCHORED substitution, so it
+          # matches the whole word and nothing else (a door id that merely
+          # starts with "all" is untouched), and it is unconditional — a door
+          # list assembled inside an `if` is code that may never run, which is
+          # the shape that same linter refuses. Named doors OVERRIDE the
+          # default; they do not add to it. `$doors_to_walk` is unquoted on
+          # purpose — this is the word split that turns "a b" into two ids —
+          # and reaches the script only as argv entries, never as shell code.
+          doors_to_walk=$(printf '%s' "$IN_DOORS" | sed -e 's/^all$//')
+          for door in $doors_to_walk; do
             args+=(--door "$door")
           done
           if [ "$IN_WRITE" = "true" ]; then

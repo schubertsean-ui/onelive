@@ -32,16 +32,21 @@ a budget.
 """
 import pathlib
 import re
+import sys
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _WF = (_ROOT / ".github" / "workflows" / "desk-ingest.yml").read_text()
 
 # The minutes the walk must leave behind for the write. Every input to
 # the arithmetic is READ from the tree (below), never retyped: the page
-# ceiling the workflow dispatches with, the founder follow cap, and the
-# politeness delay between live fetches. Two desks are walked, so the
-# LIST phase can spend `2 * max_pages` fetches before a single event page
-# is followed.
+# ceiling the workflow dispatches with, the founder follow cap, the
+# politeness delay between live fetches, and HOW MANY DOORS A DEFAULT
+# DISPATCH WALKS. That last one was the literal `2` until 2026-09-07,
+# when the default became every public door in the locale pack: the LIST
+# phase can now spend `doors * max_pages` fetches before a single event
+# page is followed, so a test still multiplying by two would compute a
+# floor for a walk this workflow no longer does — and would keep passing
+# while the job it guards was cancelled mid-write.
 #
 # 20 is deliberately a KNOWN-INSUFFICIENT floor — run 34079785167 spent
 # 20 minutes writing and did not finish. So this constant is a drift
@@ -70,6 +75,24 @@ def _dispatched_max_pages() -> int:
                       _WF, re.MULTILINE)
     assert block, "desk-ingest.yml no longer declares a max_pages default"
     return int(block.group(1))
+
+
+def _default_doors_walked() -> int:
+    """How many doors a dispatch with an EMPTY `doors` input walks.
+
+    Read from the tool and the pack, never counted by hand: the workflow
+    passes no `--door` in that case, and `desk_ingest.default_doors`
+    derives the list from `sources/locale_packs/<locale>.json`.
+    """
+    sys.path.insert(0, str(_ROOT))
+    from tools.desk_ingest import default_doors  # noqa: PLC0415
+
+    src = (_ROOT / "tools" / "desk_ingest.py").read_text()
+    locale = re.search(r'"--locale",\s*default="([^"]+)"', src)
+    assert locale, "tools/desk_ingest.py no longer defaults --locale"
+    doors = default_doors(locale.group(1))
+    assert doors, f"the {locale.group(1)!r} pack offers no public door to walk"
+    return len(doors)
 
 
 def _walk_constants() -> tuple:
@@ -102,12 +125,14 @@ def test_the_ceiling_still_covers_the_walk_with_the_write_left_over():
     """
     follow_cap, interval = _walk_constants()
     max_pages = _dispatched_max_pages()
+    doors = _default_doors_walked()
     # Politeness sleeps are the walk's floor: fetch time is on top of them.
-    walk_floor_minutes = (2 * max_pages + follow_cap) * interval / 60.0
+    walk_floor_minutes = (doors * max_pages + follow_cap) * interval / 60.0
     headroom = _job_timeout_minutes() - walk_floor_minutes
     assert headroom >= _WALK_FLOOR_MINUTES_MUST_LEAVE_FOR_THE_WRITE, (
         f"the walk's politeness floor is {walk_floor_minutes:.1f} min "
-        f"({2 * max_pages} list + {follow_cap} event fetches at {interval}s), "
+        f"({doors} door(s) x {max_pages} = {doors * max_pages} list + "
+        f"{follow_cap} event fetches at {interval}s), "
         f"leaving only {headroom:.1f} min of the "
         f"{_job_timeout_minutes()}-minute job for the write itself — "
         f"under the {_WALK_FLOOR_MINUTES_MUST_LEAVE_FOR_THE_WRITE} min that "
