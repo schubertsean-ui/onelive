@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** The desks wrote to the live catalog. `desk-ingest.yml` `timeout-minutes` 30 -> 60 (PR #244) after run 34079785167 was cancelled mid-write at the 30-minute wall. The authorized write (34085972074) came back green: promoted 2, held 546, skipped 977, changed 5, mash_n 0, tba_public_n 0; /events 24277 -> 24279, /tonight Austin 168h 3 -> 4. It finished in 11.6 min, so 60 is NOT yet proven sufficient for a cold write — 977 rows were already present from the cancelled run and were skipped. Contract #75 closed.
 **2026-09-07:** First public write ticket — a public promote requires title + when + place; no-date and unplaced rows HOLD (R-111's answer, widened). Contracts #71/#72 closed.
 **2026-09-07:** Locale Launch Law in force — ONE-LIVE-LOCALE-LAUNCH.md at root (a locale is a query; demand starts gather; a pack is cache; Apple-level location privacy; anti-attention); CLAUDE.md points to it. Docs only.
 **2026-09-03:** Trust doctrine committed — ONE-LIVE-TRUST.md at root (existence vs field vs mutation); CLAUDE.md points to it. Docs only.
@@ -14,7 +15,7 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
-## Session Contract #75 (2026-09-07, founder — desk-ingest write timeout 30 -> 60, branch claude/desk-ingest-write-timeout-p146ds) — OPEN
+## Session Contract #75 (2026-09-07, founder — desk-ingest write timeout 30 -> 60, branch claude/desk-ingest-write-timeout-p146ds) — CLOSED (merged 3d46070, PR #244)
 
 Contract #74 CLOSED at merge e9e441d (PR #243).
 WHAT: `.github/workflows/desk-ingest.yml` `timeout-minutes` goes 30 -> 60 (one token, nothing else in that file), and a new `tests/test_desk_ingest_workflow_contract.py` pins it so the number cannot drift back quietly.
@@ -23,7 +24,13 @@ WHY: the authorized write (run 34079785167) walked both desks, printed a ~1584-r
 WHY-IT-MATTERS: a cancelled writer is not a failed writer — python died mid-walk with an open connection, so the catalog may hold a partial wave, and every retry at 30 minutes dies at the same place and writes another partial. The reason THAT matters is that partial waves are the one failure the ingest key cannot see: each cancelled run leaves keys the next run reads as already-written, so the honest count of what the desks published stops being recoverable from the catalog itself.
 EXPECTED OUTCOMES: (a) the write job's ceiling is 60 minutes, matching `ingest.yml`, the repo's other write job; (b) a test fails if anyone lowers it below 60 or grows the walk past what 60 covers; (c) draft PR, trust-gate + db-integration + adversarial APPROVE, no merge without the founder's word; (d) after the founder merges: ONE `write=true` dispatch on master, default doors, follow 200 — stop if mash_n or tba_public_n is not 0, and stop and say so if the job is cancelled again.
 OUT OF SCOPE: dispatching write before this is on master, raising DEFAULT_FOLLOW_PAGES, lowering the 2.0s politeness, a second writer, a batch rewrite of ingest, Tonight redesign, `ingest.yml` / armed cron / `ai_extract.py`, PRs #231/#232/#235, Kaizen/ledger/hats.
-STATUS: OPEN.
+STATUS: CLOSED — merged 3d46070 (PR #244); founder merged on his word, all three gates green on the final head aee98d0 (db-integration, Trust Gate, Adversarial Review non-Claude).
+
+THE AUTHORIZED WRITE (run 34085972074, master 3d46070, write=true, default doors, follow 200 by the script default — the workflow passes no --follow-pages): GREEN, failed=0. Founder-read outcome: promoted 2 · held 546 · skipped 977 · changed 5 · mash_n 0 · tba_public_n 0. Before/after: /tonight Austin 12h 0 -> 0, 168h 3 -> 4; /events 24277 -> 24279. The +2 on /events matches promoted 2 exactly.
+
+WHAT THIS RUN DID **NOT** PROVE — the ticket's own question is still open. run_duration 697s = 11.6 minutes, so the 60-minute ceiling was never approached, let alone tested. 30 stays PROVEN insufficient (34079785167 died at 1822s mid-write). 60 stays UNPROVEN for a COLD 1584-row write, because this run was WARM: 977 of the rows were already present and skipped, so almost no writing was left to do. The next cold write is what would exercise the ceiling, and no such run exists. tests/test_desk_ingest_workflow_contract.py states this same limit in its docstring; nothing here upgrades it.
+
+WHY publish_n CAME IN AT 2, NOT THE 94 BAND: the partial wave predicted in PR #244 did occur — the cancelled run 34079785167 wrote ~977 keys, including ~92 of the 94 publishable rows, before GitHub killed it. Those keys are SAFE, and this is checkable rather than assumed: 34079785167 ran on head e9e441d, which already carried PR #243 (--write follows event pages), so its rows were keyed as night~place~title exactly as this run keys them — not under the `url:<listing_url>` fallback. So the 977 are genuine idempotent skips, not orphaned keys, and no happening was double-written. That is the failure mode #244 existed to prevent, and it did not occur.
 
 ## Session Contract #74 (2026-09-07, founder — --write follows event pages, same as dry-run, branch claude/event-page-follow-write-iswbl5) — CLOSED (merged e9e441d, PR #243)
 
