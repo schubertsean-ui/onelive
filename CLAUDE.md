@@ -17,10 +17,8 @@ Ceremony does not.
 ## Conductor (founder, 2026-09-07)
 Canonical copy: ONE-LIVE-CONDUCTOR.md.
 
-Narrow invariants, wide execution. Invariants are CI and Coverage Law.
-The machine: one job per ticket, cancel duplicates, tools on, hooks that ate the
-budget are off. Retry with the failure, on the same PR. Finish the diff when
-the remaining work is known. Not a turn ration.
+Narrow invariants, wide execution. Impediments are work — conflict, red check,
+empty PR, master-red: name it and fix it. Not a wait and not a new "do not".
 
 ## Coverage Law (founder, 2026-09-01)
 If any instruction in this file, STATE.md, or a session contract
