@@ -339,6 +339,13 @@ class _FakeCursor:
 
 
 class _FakeConnection:
+    #: psycopg2 sets this when the server is gone; `one_connection` reads it
+    #: before handing the connection out again.
+    closed = 0
+
+    def close(self):
+        self.closed = 1
+
     def __enter__(self):
         return self
 
@@ -361,7 +368,17 @@ def _fake_store(monkeypatch):
     written = {"candidates": [], "evidence": [], "promoted": []}
 
     store = types.ModuleType("worker.candidate_store")
-    store.db = lambda: _FakeConnection()
+    # ONE connection, handed to every seam (`desk_ingest.one_connection`), so
+    # the fake counts its dials: a write that went back to dialling per row
+    # shows up here as more than one.
+    dialled = []
+
+    def _dial():
+        dialled.append(_FakeConnection())
+        return dialled[-1]
+
+    store.db = _dial
+    written["dialled"] = dialled
 
     def create_candidate(**kw):
         written["candidates"].append(kw)
@@ -376,10 +393,19 @@ def _fake_store(monkeypatch):
     promote = types.ModuleType("worker.promote")
 
     def promote_candidate(cid):
-        written["promoted"].append(cid)
+        # The REAL `promote_candidate` opens a connection of its own
+        # (`worker/promote.py` has its own module-level `db`), so this
+        # stand-in does too — otherwise a lease that left the publisher
+        # dialling per row would look identical to one that did not.
+        with promote.db():
+            written["promoted"].append(cid)
         return f"event-{len(written['promoted'])}"
 
     promote.promote_candidate = promote_candidate
+    # The publisher opens its own connections too (`worker/promote.py` has its
+    # own module-level `db`), so the stand-in must have one or it would prove
+    # the lease over a seam the real write path does not have.
+    promote.db = _dial
 
     monkeypatch.setitem(sys.modules, "worker.candidate_store", store)
     monkeypatch.setitem(sys.modules, "worker.promote", promote)
@@ -1081,3 +1107,54 @@ def test_the_round_robin_still_spreads_at_the_founder_budget():
     assert len(picked["desk-a"]) == 100
     assert len(picked["desk-b"]) == 100
     assert sum(len(v) for v in picked.values()) == DEFAULT_FOLLOW_PAGES
+
+
+# --------------------------------------------------------------------------
+# (h) the first write must FINISH (founder, 2026-09-07) — proven through
+# `main()`, because a lease the write path does not use is not a lease
+# --------------------------------------------------------------------------
+
+def test_a_write_run_opens_one_connection_for_the_whole_write(monkeypatch, capsys):
+    """The bottleneck the founder measured: `create_candidate`, `add_evidence`
+    and `promote_candidate` each dialled a fresh remote connection, three or
+    four per row, and run 34079785167 was killed at 30 minutes still writing.
+
+    Behavioural on purpose (the same rule Contract #74 was corrected by): this
+    counts what the run DIALLED, so defining `one_connection` and forgetting to
+    use it fails here rather than passing a grep.
+    """
+    _fixture_seams(monkeypatch)
+    written = _fake_store(monkeypatch)
+    monkeypatch.setenv("ONELIVE_DB_DSN", "postgresql://invalid.test/does-not-exist")
+
+    assert main(["--write", "--real"]) == 0
+    assert written["promoted"], "a write that published nothing proves nothing here"
+    assert len(written["dialled"]) == 1, (
+        f"the write opened {len(written['dialled'])} connections; the whole "
+        f"run — before-counts, key scan, every seam call, after-counts — gets "
+        f"ONE")
+    assert written["dialled"][0].closed, (
+        "and it is closed when the write is over, never leaked to whatever "
+        "runs next")
+
+
+def test_a_write_run_writes_its_public_rows_before_its_held_ones(monkeypatch, capsys):
+    """Founder, 2026-09-07: "If the job dies, /tonight still has listings."
+
+    The committed fixtures plan both kinds, so the order the seam SAW is the
+    order the write used.
+    """
+    _fixture_seams(monkeypatch)
+    written = _fake_store(monkeypatch)
+    monkeypatch.setenv("ONELIVE_DB_DSN", "postgresql://invalid.test/does-not-exist")
+
+    assert main(["--write", "--real"]) == 0
+    created = [f"cand-{i}" for i in range(1, len(written["candidates"]) + 1)]
+    promoted = written["promoted"]
+    assert 0 < len(promoted) < len(created), (
+        "these fixtures must plan BOTH publishing and held rows, or this test "
+        f"proves nothing (created {len(created)}, promoted {len(promoted)})")
+    assert promoted == created[:len(promoted)], (
+        "the rows that publish are the FIRST rows written, so a run killed by "
+        "the job timeout still leaves /tonight with listings; the seam saw "
+        f"created={created} promoted={promoted}")

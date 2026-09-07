@@ -852,3 +852,101 @@ def test_unusable_clock_claims_with_no_clock_of_its_own_refuse_to_publish(pg, re
         cur.execute("select status from event_candidate where candidate_id=%s", (cid,))
         assert cur.fetchone()[0] == "needs_review", (
             "an unreadable clock claim belongs in the review queue")
+
+
+# --------------------------------------------------------------------------
+# The first write must FINISH (founder, 2026-09-07) — against a real database,
+# because shared-transaction semantics are exactly what a hermetic fake cannot
+# show (red class db-type-mismatch-invisible-to-hermetic-tests)
+# --------------------------------------------------------------------------
+
+def test_the_whole_write_runs_on_one_connection_and_still_publishes(
+        pg, registrations):
+    """Founder, 2026-09-07: run 34079785167 was killed at 30 minutes still
+    writing, because each of `create_candidate` / `add_evidence` /
+    `promote_candidate` opened its own connection — three or four remote TLS
+    handshakes per row.
+
+    `desk_ingest.one_connection` leases ONE connection to every seam. Proven
+    here on real PostgreSQL, not on a fake, because the risk of sharing a
+    connection is entirely in what a real server does with it: the seams write
+    inside `with conn:` blocks that COMMIT and do not close, so this asserts
+    that the publishing rows are durably committed and readable by `/tonight`'s
+    own query on a SEPARATE connection (`pg`) after the lease closes.
+    """
+    import importlib
+    import pathlib as _pathlib
+
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    when = _clock_correction_base(5)
+    rows = [
+        # A hold (a night, no clock) FIRST in the plan, so the order the seams
+        # see can only come from the write's own ordering.
+        _happening(f"Held Leased {tag}", when=None, place=f"Room {tag}",
+                   via="Austin Chronicle", door_id=CHRONICLE_DOOR,
+                   listing_url=f"https://chronicle.example/h/{tag}"),
+        _happening(f"Public Leased {tag}", when=when, place=f"Room {tag}",
+                   via="Austin Chronicle", door_id=CHRONICLE_DOOR,
+                   listing_url=f"https://chronicle.example/p/{tag}"),
+    ]
+    writes = plan(_live_union(_walk(CHRONICLE_DOOR, "Austin Chronicle", rows)),
+                  registrations)
+    assert [bool(w.hold_reason) for w in writes] == [True, False], (
+        "this fixture only tests the order if the PLAN puts the hold first")
+
+    root = _pathlib.Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location(
+        "_desk_ingest_lease_it", root / "tools" / "desk_ingest.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    import worker.candidate_store as store
+    from worker.promote import promote_candidate
+
+    dialled = []
+    real_db = store.db
+
+    def counting_connect():
+        dialled.append(real_db())
+        return dialled[-1]
+
+    created = []
+    with pg.cursor() as cur:
+        seen = tool.existing_keys(cur)
+    with tool.one_connection(connect=counting_connect):
+        def create(**kw):
+            created.append(kw["extracted"]["title"])
+            return store.create_candidate(**kw)
+
+        result = tool.ingest(writes, seen=seen, create=create,
+                            add_evidence=store.add_evidence,
+                            promote=promote_candidate,
+                            dispute=tool.dispute_superseded)
+
+    assert len(dialled) == 1, (
+        f"the write dialled {len(dialled)} times; the whole run gets ONE")
+    assert dialled[0].closed, "the leased connection is closed on the way out"
+    assert not result["failed"], result["failed"]
+    assert created == [f"Public Leased {tag}", f"Held Leased {tag}"], (
+        "the row a friend can act on is written first, so a killed run still "
+        f"leaves /tonight with listings; the seams saw {created}")
+
+    # Durable, and readable from a DIFFERENT connection: a shared connection
+    # that had swallowed a commit would show nothing here.
+    titles = [r[0] for r in _tonight_rows(pg)]
+    assert f"Public Leased {tag}" in titles
+    assert f"Held Leased {tag}" not in titles, "a held row never reaches the feed"
+    with pg.cursor() as cur:
+        cur.execute("select count(*) from event_candidate where title = any(%s)",
+                    ([f"Public Leased {tag}", f"Held Leased {tag}"],))
+        assert cur.fetchone()[0] == 2, "both rows are in the store as candidates"
+        cur.execute(
+            """
+            select count(*) from candidate_evidence ce
+            join event_candidate c on c.candidate_id = ce.candidate_id
+            where c.title = %s
+            """, (f"Public Leased {tag}",))
+        assert cur.fetchone()[0] == 1, (
+            "evidence written on the leased connection is committed too")

@@ -1241,3 +1241,291 @@ def test_one_desk_stating_two_times_is_held_not_published_as_a_settled_tba():
         promote=lambda cid: promoted.append(cid) or "event")
     assert promoted == [], "it must not reach the feed as a confirmed TBA"
     assert len(result["held"]) == 1
+
+
+# --------------------------------------------------------------------------
+# The first write must FINISH (founder, 2026-09-07): publics before holds, and
+# one connection instead of one per seam call
+# --------------------------------------------------------------------------
+
+def _mixed_writes():
+    """Two rows that publish and two that hold, INTERLEAVED in the plan.
+
+    Interleaved on purpose: a plan whose publics happened to come first would
+    pass an ordering assertion no matter what the loop does.
+    """
+    rows = [
+        _row("Held A", when="2026-09-13"),                       # night, no clock
+        _row("Public A", when="2026-09-13T20:00:00-05:00", place="Room A"),
+        _row("Held B", when="2026-09-14"),
+        _row("Public B", when="2026-09-14T21:00:00-05:00", place="Room B"),
+    ]
+    return plan(_union(_walk(CHRONICLE, "Austin Chronicle", rows)), REGS)
+
+
+def test_public_rows_are_written_before_held_ones():
+    writes = _mixed_writes()
+    assert [bool(w.hold_reason) for w in writes] == [True, False, True, False], (
+        "this fixture only tests the loop's order if the PLAN interleaves them")
+    created = []
+    result = ingest_tool.ingest(
+        writes, seen={},
+        create=lambda **kw: created.append(kw["extracted"]["title"]) or "cand",
+        add_evidence=lambda *a: None, promote=lambda cid: "event")
+    assert created == ["Public A", "Public B", "Held A", "Held B"], (
+        "the rows a friend can act on are written first (founder, 2026-09-07); "
+        f"got {created}")
+    assert len(result["promoted"]) == 2
+    assert len(result["held"]) == 2, "and the holds are still all written"
+
+
+def test_publish_first_is_a_permutation_never_a_filter():
+    """The founder's rule is an ORDER, not a budget: "holds still get written
+    when time remains — do not drop them"."""
+    writes = _mixed_writes()
+    ordered = ingest_tool.publish_first(writes)
+    assert len(ordered) == len(writes)
+    assert sorted(id(w) for w in ordered) == sorted(id(w) for w in writes), (
+        "every planned row survives the ordering, exactly once")
+
+
+def test_a_run_killed_after_the_publics_still_published_every_public():
+    """The runner's timeout kills the process mid-write. Whatever was already
+    committed stays committed, so the question this pins is WHICH rows had
+    their turn before the kill.
+    """
+    writes = _mixed_writes()
+    promoted = []
+
+    def create(**kw):
+        if kw["extracted"]["title"].startswith("Held"):
+            raise KeyboardInterrupt("timeout-minutes killed the job")
+        return "cand-" + kw["extracted"]["title"]
+
+    with pytest.raises(KeyboardInterrupt):
+        ingest_tool.ingest(
+            writes, seen={}, create=create, add_evidence=lambda *a: None,
+            promote=lambda cid: promoted.append(cid) or "event")
+    assert promoted == ["cand-Public A", "cand-Public B"], (
+        "a killed run still leaves /tonight with its listings; got "
+        f"{promoted}")
+
+
+def test_a_second_write_skips_every_row_the_first_one_keyed():
+    """skip_n matches the rows already in the store — the re-run writes nothing
+    and, in particular, does not double the catalog."""
+    writes = _mixed_writes()
+    first = ingest_tool.ingest(
+        writes, seen={}, create=lambda **kw: "cand", add_evidence=lambda *a: None,
+        promote=lambda cid: "event")
+    assert not first["skipped"], "nothing was in the store before the first run"
+
+    seen = {w.ingest_key: ("cand", "promoted", "event",
+                           w.extracted[DESK_KEY]["statement"]) for w in writes}
+    created = []
+    second = ingest_tool.ingest(
+        writes, seen=seen, create=lambda **kw: created.append(kw) or "cand2",
+        add_evidence=lambda *a: None, promote=lambda cid: "event2")
+    assert len(second["skipped"]) == len(writes)
+    assert created == [], "a re-run of an unchanged desk writes no candidate"
+    assert not second["promoted"] and not second["held"] and not second["failed"]
+
+
+def test_the_zero_counters_are_unchanged_by_the_write_order(
+        fixture_union, fixture_walks):
+    """mash_n and tba_public_n are the founder's two must-be-zero numbers, and
+    reordering the write must not move any number the run prints.
+
+    Read off the SAME table the founder reads, computed over the reordered
+    rows: a reordering that silently dropped, duplicated or re-planned a row
+    would show up here as a different table, not just as a different order.
+    """
+    writes = plan(fixture_union, REGS)
+    ordered = ingest_tool.publish_first(writes)
+    as_planned = ingest_tool.plan_counters(
+        plan_digest(writes), fixture_walks, {})
+    as_written = ingest_tool.plan_counters(
+        plan_digest(ordered), fixture_walks, {})
+    assert as_written == as_planned, (
+        "the write order is an order, not a re-plan — every printed counter "
+        "must be identical")
+    cells = dict(zip(
+        [c.strip() for c in as_written.splitlines()[0].strip("| ").split("|")],
+        [c.strip() for c in as_written.splitlines()[2].strip("| ").split("|")]))
+    assert cells["mash_n"] == "0"
+    assert cells["tba_public_n"] == "0"
+
+
+class _FakeConn:
+    """Enough psycopg2 connection for the lease: `closed`, and a close()."""
+
+    def __init__(self):
+        self.closed = 0
+
+    def close(self):
+        self.closed = 1
+
+
+def _dialler():
+    made = []
+
+    def connect():
+        made.append(_FakeConn())
+        return made[-1]
+
+    return connect, made
+
+
+def test_the_whole_write_runs_on_one_connection():
+    """The bottleneck the founder measured: every seam call opened its own
+    remote connection. Inside the lease they all get the SAME one."""
+    from worker import candidate_store, promote
+
+    connect, made = _dialler()
+    with ingest_tool.one_connection(connect=connect) as db:
+        handed = [db(), candidate_store.db(), promote.db(),
+                  candidate_store.db(), promote.db()]
+    assert len(made) == 1, f"one dial for the whole write, not {len(made)}"
+    assert all(c is made[0] for c in handed), (
+        "candidate_store and promote must both write through the leased "
+        "connection — a seam left dialling its own defeats the lease")
+
+
+def test_the_seams_are_handed_back_even_when_the_write_fails():
+    from worker import candidate_store, promote
+
+    before = (candidate_store.db, promote.db)
+    connect, made = _dialler()
+    with pytest.raises(RuntimeError):
+        with ingest_tool.one_connection(connect=connect):
+            assert candidate_store.db is not before[0]
+            raise RuntimeError("the write blew up")
+    assert (candidate_store.db, promote.db) == before, (
+        "a patched db() outliving the write would hand a closed connection to "
+        "whatever ran next")
+    assert made[0].closed, "the leased connection is closed on the way out"
+
+
+def test_a_connection_the_server_hung_up_on_is_re_dialled():
+    """One held connection is one thing a server can drop. Where the old code
+    silently got a fresh one on the next call, a lease handing back a corpse
+    would fail every remaining row."""
+    connect, made = _dialler()
+    with ingest_tool.one_connection(connect=connect) as db:
+        first = db()
+        first.closed = 1          # the server hung up mid-run
+        second = db()
+        # Asserted INSIDE the block: the lease closes what it holds on the way
+        # out, so a check after it would read the teardown, not the re-dial.
+        assert second is not first and len(made) == 2
+        assert not second.closed
+        assert db() is second, "and the re-dialled one is then held, not re-dialled again"
+
+
+def test_a_second_lease_refuses_rather_than_closing_the_first_ones_connection():
+    """A lease inside a lease would dial through the OUTER lease and then close
+    its connection on the way out, leaving the outer write running on a
+    connection somebody else had shut. There is one write phase per run, so
+    this is a lost caller, not a case to repair."""
+    connect, made = _dialler()
+    with ingest_tool.one_connection(connect=connect):
+        with pytest.raises(RuntimeError, match="already leased"):
+            with ingest_tool.one_connection(connect=connect):
+                pass
+        assert not made[0].closed, (
+            "the refused inner lease must not have closed the outer's "
+            "connection on its way out")
+    assert len(made) == 1
+
+
+# --------------------------------------------------------------------------
+# Evaluator, PR #245 (openai/attacker-smuggle): a row that must CORRECT a live
+# listing cannot wait behind ordinary holds
+# --------------------------------------------------------------------------
+
+def _stored(title="Corrected Show", place="Shape Hall", night="2026-09-13",
+            clocks=("2026-09-13T20:00:00-05:00",), listing_url=None,
+            vias=("Austin Chronicle",)):
+    """What the desk said when we published — the shape `_statement` writes."""
+    return {"title": title, "place": place, "night": night,
+            "clocks": list(clocks), "listing_url": listing_url,
+            "vias": list(vias)}
+
+
+def _correcting_plan():
+    """A published listing whose desk has since dropped the clock it stated.
+
+    The key (night~place~title) is unchanged, so this is the SAME happening;
+    the desk's `clocks` went from 8pm to nothing, which is a CONTRADICTING
+    field, so the live row may no longer read `confirmed`. And because the
+    desk now states a night with no time, the row itself HOLDS (R-111) — which
+    is exactly the combination that a hold-last ordering strands.
+    """
+    rows = [
+        _row("Public A", when="2026-09-12T20:00:00-05:00", place="Room A"),
+        _row("Hold Ordinary", when="2026-09-14"),
+        _row("Corrected Show", when="2026-09-13"),
+    ]
+    writes = plan(_union(_walk(CHRONICLE, "Austin Chronicle", rows)), REGS)
+    by_title = {w.extracted["title"]: w for w in writes}
+    correcting = by_title["Corrected Show"]
+    assert correcting.hold_reason, "the correcting row must itself be a HOLD here"
+    seen = {correcting.ingest_key: ("cand-old", "promoted", "event-old", _stored())}
+    return writes, seen, correcting
+
+
+def test_a_row_that_must_dispute_a_live_listing_goes_before_the_publics():
+    writes, seen, correcting = _correcting_plan()
+    ordered = ingest_tool.publish_first(writes, seen=seen)
+    assert ordered[0] is correcting, (
+        "a listing on the feed that its own desk no longer supports is a "
+        "falsehood a reader can see NOW; a row that is merely unpublished is "
+        "an absence — correcting the falsehood goes first")
+    assert sorted(id(w) for w in ordered) == sorted(id(w) for w in writes)
+
+
+def test_a_killed_run_still_corrected_every_live_listing_it_had_to():
+    """The defect the evaluator found: with holds strictly last, a correction
+    that is itself a hold waits behind every ordinary hold, so a killed run
+    leaves a published row reading `confirmed` while its own desk contradicts
+    it."""
+    writes, seen, _correcting = _correcting_plan()
+    disputed = []
+
+    def create(**kw):
+        if kw["extracted"]["title"] != "Corrected Show":
+            raise KeyboardInterrupt("timeout-minutes killed the job")
+        return "cand-new"
+
+    with pytest.raises(KeyboardInterrupt):
+        ingest_tool.ingest(
+            writes, seen=seen, create=create, add_evidence=lambda *a: None,
+            promote=lambda cid: "event", dispute=lambda eid: disputed.append(eid) or "D")
+    assert disputed == ["event-old"], (
+        "the published row was left reading `confirmed` after its own desk "
+        "contradicted it — shown-never-hidden cuts both ways")
+
+
+def test_corroboration_does_not_jump_the_queue():
+    """A SECOND desk picking up a published row changes `vias` and contradicts
+    nothing. Hoisting it would spend the head of the write on a row with no
+    correction to make (evaluator PR #229 r6, held here under the new order)."""
+    writes, seen, correcting = _correcting_plan()
+    key = correcting.ingest_key
+    fresh = correcting.extracted[DESK_KEY]["statement"]
+    # same clocks as the desk states now — only `vias` moved
+    seen = {key: ("cand-old", "promoted", "event-old",
+                  _stored(clocks=fresh["clocks"], vias=("Do512",)))}
+    ordered = ingest_tool.publish_first(writes, seen=seen)
+    assert ordered[0] is not correcting
+    assert not ordered[0].hold_reason, "the publics still lead"
+
+
+def test_a_drift_with_nothing_published_does_not_jump_the_queue():
+    """No promoted event means no live row to correct, so there is nothing for
+    the head of the write to buy."""
+    writes, seen, correcting = _correcting_plan()
+    seen = {correcting.ingest_key: ("cand-old", "needs_review", None, _stored())}
+    ordered = ingest_tool.publish_first(writes, seen=seen)
+    assert ordered[0] is not correcting
+    assert not ordered[0].hold_reason
