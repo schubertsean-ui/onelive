@@ -25,16 +25,16 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from worker.locale import pack as lp
-from worker.locale.desk_read import Happening
-from worker.locale.desk_union import (
+from worker.locale_pack import pack as lp
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_union import (
     BASIS_LOCAL, BASIS_PERFORMER, BASIS_UNION, DeskUnionError, board_table,
     bounded, certainty_note, desk_table, held_apart_table, local_night,
     near_miss_table, near_misses, performer_key, place_key, summary_line, union,
     union_table,
 )
-from worker.locale.desk_walk import DeskWalk, PageVisit, walk
-from worker.locale.kind_map import map_for_door
+from worker.locale_pack.desk_walk import DeskWalk, PageVisit, walk
+from worker.locale_pack.kind_map import map_for_door
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAPCOG = "us-tx-capcog"

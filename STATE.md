@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** Ingest and autopromote were dead: `worker/locale` shadowed Python's `locale`, so argparse crashed (`locale.normalize`). Renamed to `worker/locale_pack`. Same desks, same product. PR follows.
 **2026-09-07:** Production did not compile: `web/lib/promoted.ts` dropped the `fetch()` close (#260). Vercel red on later docs merges was that error, not a skippable docs-PR fail. Closed in PR #264. `web-compile.yml` now typechecks and `next build`s on every PR with no path filter so this cannot land again.
 **2026-09-07:** Date is the organizer. The feed lives at `/`. Tonight is one view a person picks, not the product. PR #261.
 **2026-09-07:** Chronicle nights publish. Date-only desk rows go live at 17:00 America/Chicago; Tonight fetch is bounded and cannot hang on DATE-TBA. PR #260.

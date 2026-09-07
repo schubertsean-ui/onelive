@@ -33,8 +33,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from worker.locale.desk_read import DeskReadError, read  # noqa: E402
-from worker.locale.pack import (  # noqa: E402
+from worker.locale_pack.desk_read import DeskReadError, read  # noqa: E402
+from worker.locale_pack.pack import (  # noqa: E402
     LocalePackError, available_locales, hunt, load_pack,
 )
 from worker.sourcing.source_class import (  # noqa: E402

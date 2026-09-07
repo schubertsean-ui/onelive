@@ -28,7 +28,7 @@ import re
 import pytest
 
 from tools.desk_ingest import default_doors, main
-from worker.locale.pack import load_pack
+from worker.locale_pack.pack import load_pack
 
 CAPCOG = "us-tx-capcog"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -125,7 +125,7 @@ def test_a_second_locale_needs_no_code(pack, tmp_path):
     raw["doors"] = [d for d in raw["doors"] if d["door_id"] in keep][:3]
     (tmp_path / "zz-elsewhere.json").write_text(json.dumps(raw), encoding="utf-8")
 
-    from worker.locale.pack import public_desks
+    from worker.locale_pack.pack import public_desks
     assert len(public_desks("zz-elsewhere", packs_dir=str(tmp_path))) == 3
 
 

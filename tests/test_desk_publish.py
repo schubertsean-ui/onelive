@@ -1,6 +1,6 @@
 """The desks' rows become candidates — and only what the desks stated.
 
-`worker/locale/desk_publish.py` is the seam between a walk that reads and a
+`worker/locale_pack/desk_publish.py` is the seam between a walk that reads and a
 catalog that publishes, so what it decides is what a friend eventually sees.
 These tests pin the five rules the module's docstring states, and each one is
 here because getting it wrong puts something false, something duplicated, or
@@ -18,9 +18,9 @@ import os
 import pytest
 from zoneinfo import ZoneInfo
 
-from worker.locale import pack as lp
-from worker.locale.desk_read import Happening
-from worker.locale.desk_publish import (
+from worker.locale_pack import pack as lp
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_publish import (
     DESK_KEY,
     DeskPublishError,
     DeskRegistration,
@@ -33,9 +33,9 @@ from worker.locale.desk_publish import (
     registration_for,
     write_for,
 )
-from worker.locale.desk_union import union
-from worker.locale.desk_walk import DeskWalk, PageVisit
-from worker.locale.kind_map import map_for_door
+from worker.locale_pack.desk_union import union
+from worker.locale_pack.desk_walk import DeskWalk, PageVisit
+from worker.locale_pack.kind_map import map_for_door
 
 CAPCOG = "us-tx-capcog"
 CHRONICLE = "austin-chronicle-eventsearch"
@@ -475,7 +475,7 @@ def test_every_planned_row_lands_in_exactly_one_bucket():
 
 @pytest.fixture(scope="module")
 def fixture_walks(doors):
-    from worker.locale.desk_walk import walk as run_walk
+    from worker.locale_pack.desk_walk import walk as run_walk
     walks = []
     for door_id in (CHRONICLE, DO512):
         fetch, start, _ = coverage_tool.fixture_fetcher(door_id)
@@ -1146,7 +1146,7 @@ def test_every_watched_field_is_classified_as_one_or_the_other():
     decision about what its change MEANS would otherwise be silently treated as
     a contradiction (or silently ignored), and both are wrong by default.
     """
-    from worker.locale.desk_publish import CONTRADICTING, CORROBORATING, WATCHED
+    from worker.locale_pack.desk_publish import CONTRADICTING, CORROBORATING, WATCHED
     assert set(CONTRADICTING) | set(CORROBORATING) == set(WATCHED)
     assert not (set(CONTRADICTING) & set(CORROBORATING))
 

@@ -33,7 +33,7 @@ Slicing ten characters off that string calls it a September 12th night — wrong
 against the desk's own words, and wrong in a way that also splits two desks
 that agree. So the night is the calendar date of the stated instant PROJECTED
 into the locale's timezone, and the timezone is pack DATA
-(`locale.timezone`), never a constant in code: `worker.locale.pack` exists
+(`locale.timezone`), never a constant in code: `worker.locale_pack.pack` exists
 precisely so that no home town is hardcoded. A pack that states no timezone
 gets a `DeskUnionError`, not a guess.
 
@@ -54,8 +54,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from worker.locale.desk_read import Happening
-from worker.locale.desk_walk import DeskWalk
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_walk import DeskWalk
 
 #: Key bases, printed on every row so a reader can never mistake a row that
 #: COULD have matched for one that was never eligible.
@@ -629,7 +629,7 @@ def board_table(one: DeskUnion) -> str:
 
     The bucket names come from the walks' own `via`, never from a brand written
     here: a brand literal in this package is how a locale stops being data
-    (`worker.locale.pack`, and the guard in tests/test_locale_pack.py).
+    (`worker.locale_pack.pack`, and the guard in tests/test_locale_pack.py).
 
     "X only" is a claim about EVERY OTHER desk — that it did not have the row —
     so what those other desks gave us decides what may be printed, and each

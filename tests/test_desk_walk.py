@@ -15,11 +15,11 @@ import os
 
 import pytest
 
-from worker.locale import pack as lp
-from worker.locale.desk_walk import (
+from worker.locale_pack import pack as lp
+from worker.locale_pack.desk_walk import (
     DeskWalkError, PageFetch, continuation_control, next_page_url, walk, walk_table,
 )
-from worker.locale.kind_map import load_kind_map
+from worker.locale_pack.kind_map import load_kind_map
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "fixtures", "desk_pages", "austin-chronicle-eventsearch")

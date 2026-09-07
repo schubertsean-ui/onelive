@@ -47,15 +47,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
-from worker.locale.desk_union import (  # noqa: E402
+from worker.locale_pack.desk_union import (  # noqa: E402
     DeskUnionError, board_table, certainty_note, desk_table, held_apart_table,
     near_miss_table, summary_line, union, union_table,
 )
-from worker.locale.desk_walk import (  # noqa: E402
+from worker.locale_pack.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalkError, walk,
 )
-from worker.locale.kind_map import KindMapError, map_for_door  # noqa: E402
-from worker.locale.pack import (  # noqa: E402
+from worker.locale_pack.kind_map import KindMapError, map_for_door  # noqa: E402
+from worker.locale_pack.pack import (  # noqa: E402
     LocalePackError, available_locales, load_pack,
 )
 

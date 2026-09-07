@@ -107,8 +107,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from worker.locale.desk_union import BASIS_LOCAL, DeskUnion, UnionRow
-from worker.locale.pack import Door
+from worker.locale_pack.desk_union import BASIS_LOCAL, DeskUnion, UnionRow
+from worker.locale_pack.pack import Door
 
 #: Written into `extracted` under this key, so every published row can be
 #: traced back to the desks, the doors and the key that produced it without

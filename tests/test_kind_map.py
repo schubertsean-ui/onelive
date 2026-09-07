@@ -12,8 +12,8 @@ import os
 
 import pytest
 
-from worker.locale import kind_map as km
-from worker.locale.pack import load_pack
+from worker.locale_pack import kind_map as km
+from worker.locale_pack.pack import load_pack
 
 CAPCOG = "us-tx-capcog"
 SHIPPED = "austin-chronicle"

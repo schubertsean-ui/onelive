@@ -12,10 +12,10 @@ import os
 
 import pytest
 
-from worker.locale import pack as lp
-from worker.locale.desk_read import Happening
-from worker.locale.desk_walk import PageFetch, walk
-from worker.locale.kind_map import load_kind_map
+from worker.locale_pack import pack as lp
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_walk import PageFetch, walk
+from worker.locale_pack.kind_map import load_kind_map
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAPCOG = "us-tx-capcog"

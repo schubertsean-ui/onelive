@@ -33,8 +33,8 @@ from tools.desk_ingest import (
     DEFAULT_FOLLOW_PAGES, _normalize, default_doors, follow_pages,
     follow_table, followable, main, round_robin, walk_doors,
 )
-from worker.locale.desk_read import Happening
-from worker.locale.desk_walk import DeskWalk, PageFetch, PageVisit
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_walk import DeskWalk, PageFetch, PageVisit
 
 LIST_URL = "https://desk.test/events/today"
 OTHER_DESK = "https://elsewhere.test/events/today"
@@ -973,7 +973,7 @@ def test_the_spread_counts_knocks_not_rows():
 def test_a_page_behind_our_wall_stop_is_not_counted_as_a_knock():
     """Same unit, the other direction: a page we declined to knock on after a
     run of walls cost nothing, so it cannot appear as budget spent."""
-    from worker.locale.event_page import DEFAULT_WALL_STREAK_LIMIT
+    from worker.locale_pack.event_page import DEFAULT_WALL_STREAK_LIMIT
 
     urls = [f"https://a.test/event/{i}" for i in range(6)]
     walk = walk_of([row(u, source_url="https://a.test/list") for u in urls],

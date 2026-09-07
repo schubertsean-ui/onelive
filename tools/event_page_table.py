@@ -7,16 +7,16 @@
 
 Founder, Ticket C, verbatim: "a Chronicle (or Do512) /event/… page becomes a
 Happening with when + place_text when THAT page states them. No invented dates.
-No mash." (Quoted here rather than in `worker/locale/`, where a committed gate
+No mash." (Quoted here rather than in `worker/locale_pack/`, where a committed gate
 keeps brand literals out so a locale stays data.)
 
 Ticket C's artifact — the founder's four columns:
 
     url | dated? | place? | blocked reason
 
-Ticket B (`worker/locale/desk_read.py`) split each list page into rows and gave
+Ticket B (`worker/locale_pack/desk_read.py`) split each list page into rows and gave
 each row its own address. This tool follows those addresses, SAME HOST ONLY, one
-knock each, and asks `worker.locale.event_page.read_event_page` what the page
+knock each, and asks `worker.locale_pack.event_page.read_event_page` what the page
 itself states. A date the page did not state is a hole; a place it did not state
 is a hole; a wall is a hole with its reason printed and the door queued for the
 human claim path. Nothing is guessed and nothing is filled from a neighbouring
@@ -51,10 +51,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tools.desk_coverage import (  # noqa: E402
     USER_AGENT, fixture_fetcher, live_fetcher,
 )
-from worker.locale.desk_read import Happening  # noqa: E402
-from worker.locale.desk_walk import PageFetch, walk  # noqa: E402
-from worker.locale.event_page import FollowRun, follow  # noqa: E402
-from worker.locale.pack import load_pack  # noqa: E402
+from worker.locale_pack.desk_read import Happening  # noqa: E402
+from worker.locale_pack.desk_walk import PageFetch, walk  # noqa: E402
+from worker.locale_pack.event_page import FollowRun, follow  # noqa: E402
+from worker.locale_pack.pack import load_pack  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE_ROOT = os.path.join(REPO_ROOT, "tests", "fixtures", "event_pages")

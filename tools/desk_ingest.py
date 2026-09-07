@@ -10,7 +10,7 @@ exists and write candidates + promote into the catalog (same key: night +
 place-text + title-or-performer). Single-source rows stay and are labelled. Do
 not require a second desk to publish."
 
-The walk (`worker/locale/desk_walk.py`) and the de-dup (`worker/locale/desk_union.py`)
+The walk (`worker/locale_pack/desk_walk.py`) and the de-dup (`worker/locale_pack/desk_union.py`)
 already existed and are UNCHANGED here. This tool adds the last hop and nothing
 else: for every row of the union it calls the seams the rest of the stack
 already publishes through —
@@ -78,8 +78,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.desk_coverage import fixture_fetcher, live_fetcher  # noqa: E402
 from tools.event_page_table import event_fixture_fetcher  # noqa: E402
-from worker.locale.event_page import FollowRun, apply, follow  # noqa: E402,F401
-from worker.locale.desk_publish import (  # noqa: E402
+from worker.locale_pack.event_page import FollowRun, apply, follow  # noqa: E402,F401
+from worker.locale_pack.desk_publish import (  # noqa: E402
     DESK_KEY,
     CandidateWrite,
     DeskPublishError,
@@ -92,12 +92,12 @@ from worker.locale.desk_publish import (  # noqa: E402
     refuse_fixture_write,
     registration_for,
 )
-from worker.locale.desk_union import DeskUnion, bounded, union  # noqa: E402
-from worker.locale.desk_walk import (  # noqa: E402
+from worker.locale_pack.desk_union import DeskUnion, bounded, union  # noqa: E402
+from worker.locale_pack.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, _normalize, _same_host, walk,
 )
-from worker.locale.kind_map import KindMapError, load_kind_map, map_for_door  # noqa: E402
-from worker.locale.pack import (  # noqa: E402
+from worker.locale_pack.kind_map import KindMapError, load_kind_map, map_for_door  # noqa: E402
+from worker.locale_pack.pack import (  # noqa: E402
     LocalePackError, available_locales, load_pack, public_desks,
 )
 
@@ -111,7 +111,7 @@ def default_doors(locale: str) -> List[str]:
     two sources is a defect" — with a whole locale of civic calendars, official
     lists and other local desks sitting unread in the same file.
 
-    The predicate is `worker.locale.pack.public_desks`, which is the pack's OWN
+    The predicate is `worker.locale_pack.pack.public_desks`, which is the pack's OWN
     `Door.readable`: a listable door type AND `public` AND `intake != "none"`.
     That is the founder's "public is true and intake is not none" with the door
     TYPE carried along, and the type leg subtracts nothing here — every door in
@@ -269,7 +269,7 @@ def split_table(walks: Sequence[DeskWalk]) -> str:
 # Ticket D — the event page fills the row's holes
 # --------------------------------------------------------------------------
 #
-# `worker/locale/event_page.py` (Ticket C, merged ad3a578) reads ONE event page
+# `worker/locale_pack/event_page.py` (Ticket C, merged ad3a578) reads ONE event page
 # and fills the two holes Ticket B's rows carry. Until now it ran only in tests
 # and in `tools/event_page_table.py`. This section is the GLUE that runs it on
 # the desks' own walk, and it is glue only: the reader is imported, never

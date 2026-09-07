@@ -20,9 +20,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 
-from worker.locale.desk_read import Happening
-from worker.locale.desk_walk import PageFetch
-from worker.locale.event_page import (
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_walk import PageFetch
+from worker.locale_pack.event_page import (
     EventPageError, FollowRun, apply, follow, follow_table, read_event_page,
 )
 

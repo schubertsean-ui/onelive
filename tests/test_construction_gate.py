@@ -463,7 +463,7 @@ EIGHT_LINE_STATE = """# OneLive — STATE
 
 ## Session Contract #99 (product ticket) — OPEN
 WHAT: the CapCog desk reader splits a list page into one row per happening.
-HOW: worker/locale/desk_read.py walks the identity ladder; pack data only.
+HOW: worker/locale_pack/desk_read.py walks the identity ladder; pack data only.
 WHY: the live run mashed 40 pages into one row, so friends saw one blob.
 WHY-IT-MATTERS: a blob carries no Place, Actor, or next step — display is blocked behind it.
 EXPECTED OUTCOMES: two /event/ links -> two rows; an unidentified blob -> zero rows.
@@ -488,8 +488,8 @@ def test_product_diff_is_out_of_scope_and_owes_no_citations(tmp_path, index_file
         tmp_path, "product",
         state_text=EIGHT_LINE_STATE,
         changed={
-            "worker/locale/desk_read.py": PRODUCT_DIFF_TEXT,
-            "worker/locale/pack.py": PRODUCT_DIFF_TEXT,
+            "worker/locale_pack/desk_read.py": PRODUCT_DIFF_TEXT,
+            "worker/locale_pack/pack.py": PRODUCT_DIFF_TEXT,
         },
     )
     import tools.construction_gate as gate
@@ -526,7 +526,7 @@ def test_gate_custody_diff_still_demands_citations(tmp_path, index_file,
         state_text=EIGHT_LINE_STATE,
         changed={
             "tools/validate": PRODUCT_DIFF_TEXT,
-            "worker/locale/desk_read.py": PRODUCT_DIFF_TEXT,
+            "worker/locale_pack/desk_read.py": PRODUCT_DIFF_TEXT,
         },
     )
     import tools.construction_gate as gate
@@ -548,7 +548,7 @@ def test_index_self_protection_is_scope_independent(tmp_path, index_file):
     with pytest.raises(SystemExit, match="REMOVED"):
         _run(
             tmp_path, index_file,
-            paths=["worker/locale/desk_read.py"],
+            paths=["worker/locale_pack/desk_read.py"],
             base_index=INDEX + "| deleted-class | somewhere | old |\n",
         )
 
@@ -571,7 +571,7 @@ def test_every_founder_named_custody_surface_is_covered():
         assert gate_custody_hits([path]) == [path], path
 
     for path in (
-        "worker/locale/desk_read.py",
+        "worker/locale_pack/desk_read.py",
         "web/app/tonight/page.tsx",
         "sources/locale_packs/us-tx-capcog.json",
         "docs/metrics/KAIZEN_LEDGER.md",

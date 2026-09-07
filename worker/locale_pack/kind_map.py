@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 
-from worker.locale.pack import KIND_OTHER, LocalePackError, load_pack
+from worker.locale_pack.pack import KIND_OTHER, LocalePackError, load_pack
 
 #: Where committed mappings live, alongside the packs they answer to.
 MAPS_DIR = os.path.join(

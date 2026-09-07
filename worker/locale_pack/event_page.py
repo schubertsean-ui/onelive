@@ -9,7 +9,7 @@ name a desk, and this reader has to work for a locale nobody has written yet.
 The founder's text is quoted verbatim, brands included, in `tools/event_page_table.py`
 and in the STATE contract, where the locale is chosen rather than processed.
 
-Ticket B (`worker/locale/desk_read.py`) split a list page into rows and gave
+Ticket B (`worker/locale_pack/desk_read.py`) split a list page into rows and gave
 each row its OWN address (`listing_url`). Most of those rows carry holes exactly
 where the night and the place go, because a list card often prints neither. This
 module follows that address — same host, one knock — and fills the two holes
@@ -77,12 +77,12 @@ from urllib.parse import urldefrag, urlsplit
 from worker.importers.structured_feed import (
     discover_ics_links, parse_ics, parse_jsonld,
 )
-from worker.locale.desk_read import (
+from worker.locale_pack.desk_read import (
     _FURNITURE_TAGS, _SCOPED_FURNITURE_TAGS, Happening, _TreeBuilder, _Node,
     _in_furniture, _inside_sectioning, _is_page_structure, _ws,
 )
-from worker.locale.desk_publish import _instant
-from worker.locale.desk_walk import PageFetch, _same_host
+from worker.locale_pack.desk_publish import _instant
+from worker.locale_pack.desk_walk import PageFetch, _same_host
 from worker.sourcing.source_class import ClassVerdict, demote_on_response
 
 log = logging.getLogger(__name__)

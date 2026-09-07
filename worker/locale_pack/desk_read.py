@@ -14,7 +14,7 @@ three of them:
     an honest hole (ONE-LIVE-TRUST.md: "A missing minute is not a missing
     night").
   * UNKNOWN KIND = OTHER. The kind comes from the DOOR's declared scope
-    (`worker.locale.pack.Door.declared_kind`) — a station's concert calendar
+    (`worker.locale_pack.pack.Door.declared_kind`) — a station's concert calendar
     states `music` for everything behind it. A general desk states nothing, so
     its rows are `other`. Kind is never read out of a title: that is a guess,
     and it would weight one category over another (ONE-LIVE-VISION.md, "no
@@ -51,14 +51,14 @@ from html.parser import HTMLParser
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from worker.importers.structured_feed import parse_jsonld
-from worker.locale.identity_patterns import (
+from worker.locale_pack.identity_patterns import (
     IdentityPattern,
     load_patterns,
     match as match_identity,
     patterns_for_url,
 )
-from worker.locale.kind_map import KindMap
-from worker.locale.pack import KIND_OTHER, Door, ListingSelector
+from worker.locale_pack.kind_map import KindMap
+from worker.locale_pack.pack import KIND_OTHER, Door, ListingSelector
 
 log = logging.getLogger(__name__)
 
@@ -813,7 +813,7 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
     is what keeps host knowledge in data.
 
     `kind_map`, when given, is a committed mapping of THIS desk's own category
-    labels onto our kinds (`worker.locale.kind_map`). A card that states a
+    labels onto our kinds (`worker.locale_pack.kind_map`). A card that states a
     category the mapping covers takes that kind; a card that states nothing, or
     states something unmapped, falls back to the door's declared scope and then
     to `other`. The mapping can only ever change which of OUR kinds a row gets —

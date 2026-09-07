@@ -3,7 +3,7 @@
 Founder, this session's ticket: "Paginate until the public list is exhausted (or
 write blocked_reason per page). No login."
 
-`read()` (worker/locale/desk_read.py) turns ONE page into happening rows. A
+`read()` (worker/locale_pack/desk_read.py) turns ONE page into happening rows. A
 desk's list is many pages, and page 2 onward is simply absent from the store
 until something follows it — an unpaginated read looks green while capping
 coverage at whatever the first page happened to hold, which the Coverage Law
@@ -55,10 +55,10 @@ from html.parser import HTMLParser
 from typing import Callable, List, Optional, Sequence, Tuple
 from urllib.parse import urldefrag, urljoin, urlsplit
 
-from worker.locale.desk_read import DeskReadError, Happening, fill_holes, read, row_key
-from worker.locale.identity_patterns import IdentityPattern
-from worker.locale.kind_map import KindMap
-from worker.locale.pack import Door
+from worker.locale_pack.desk_read import DeskReadError, Happening, fill_holes, read, row_key
+from worker.locale_pack.identity_patterns import IdentityPattern
+from worker.locale_pack.kind_map import KindMap
+from worker.locale_pack.pack import Door
 from worker.sourcing.source_class import ClassVerdict, demote_on_response
 
 log = logging.getLogger(__name__)
@@ -466,7 +466,7 @@ def next_page_url(html: str, current_url: str) -> Tuple[Optional[str], Optional[
 
 def _row_identity(row: Happening) -> Tuple[str, str, str]:
     """Cross-page identity — the SAME rule one page already uses for its two
-    readings (`worker.locale.desk_read.row_key`), so a listing repeated on
+    readings (`worker.locale_pack.desk_read.row_key`), so a listing repeated on
     page 2 is the same listing by the same test, with its URL defragmented.
 
     Identity is used here ONLY to avoid counting one listing twice. It is never
