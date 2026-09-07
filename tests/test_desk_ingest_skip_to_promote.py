@@ -175,6 +175,35 @@ def test_the_same_statement_already_public_is_skipped():
     assert "already PUBLIC" in result["skipped"][0][1]
 
 
+def test_a_drift_candidate_does_not_make_a_published_happening_look_unpublished():
+    """The one that bit: PUBLIC is a fact about the KEY, not about a row.
+
+    A drift candidate is written deliberately UNPROMOTED — recorded, the
+    published row disputed, never re-published beside the listing already on
+    the feed. It is also the NEWEST candidate for its key, and it carries no
+    event id. So a skip test that reads "did the newest candidate promote?"
+    answers "never published" for a happening that is public, and publishes a
+    second listing at the corrected time — the exact harm the drift seam
+    exists to prevent (`tests/integration/test_desk_ingest_pg.py` caught this
+    against real SQL; `existing_keys` now reads the event id from whichever
+    candidate of the key actually promoted).
+
+    Here that store shape is handed straight to the decision: newest candidate
+    unpromoted, key public, desk still saying what the drift candidate says.
+    """
+    writes = _writes()
+    seen = {writes[0].ingest_key: ("cand-drift", "needs_review", "event-1",
+                                   _statement(writes[0]))}
+    seams = _Seams()
+    result = seams.run(writes, seen)
+
+    assert len(result["skipped"]) == 1, (
+        f"a happening already on the feed was treated as never published: "
+        f"{result}")
+    assert seams.promoted == [], "a second listing for one happening"
+    assert seams.created == []
+
+
 def test_a_desk_that_changed_its_word_about_an_unpublished_row_publishes():
     """Drift with nothing published is not a dispute — it is the newer word.
 

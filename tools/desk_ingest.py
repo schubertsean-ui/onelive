@@ -795,15 +795,42 @@ def existing_keys(cur) -> Dict[str, Tuple[str, str, Optional[str], Optional[dict
     row for a key wins: a drift row is written as a new candidate carrying the
     desk's newer statement, so ordering by `created_at` is what makes the next
     run compare against the desk's latest word rather than its first.
+
+    THE EVENT ID IS THE KEY'S, NOT THE NEWEST CANDIDATE'S, and the difference
+    is a published row (2026-09-07, caught by
+    `tests/integration/test_desk_ingest_pg.py`). A drift candidate is written
+    deliberately UNPROMOTED — recorded, disputed, never re-published beside the
+    listing already on the feed — so it carries `promoted_event_id = NULL`
+    while the happening it describes is very much public, under an earlier
+    candidate of the same key. Reading the newest row alone therefore answers
+    "was this happening ever published?" with "no" for exactly the happenings
+    that were, and `ingest`'s skip test is built on that answer: it would
+    publish a SECOND listing at the corrected time, which is the harm the
+    drift seam exists to prevent. So the event id is taken from whichever
+    candidate of this key actually promoted (most recently created first), and
+    the id / status / statement stay the newest candidate's — the row we
+    compare the desk's word against.
     """
     cur.execute(
         """
-        select distinct on (extracted->'_desk'->>'key')
-               extracted->'_desk'->>'key', candidate_id::text, status,
-               promoted_event_id::text, extracted->'_desk'->'statement'
-        from event_candidate
-        where extracted ? '_desk'
-        order by extracted->'_desk'->>'key', created_at desc
+        select key, candidate_id, status, published_event_id, statement
+        from (
+            select extracted->'_desk'->>'key'      as key,
+                   candidate_id::text              as candidate_id,
+                   status,
+                   extracted->'_desk'->'statement' as statement,
+                   first_value(promoted_event_id::text) over (
+                       partition by extracted->'_desk'->>'key'
+                       order by (promoted_event_id is null), created_at desc
+                   )                               as published_event_id,
+                   row_number() over (
+                       partition by extracted->'_desk'->>'key'
+                       order by created_at desc
+                   )                               as recency
+            from event_candidate
+            where extracted ? '_desk'
+        ) keyed
+        where recency = 1
         """)
     return {r[0]: (r[1], r[2], r[3], r[4]) for r in cur.fetchall() if r[0]}
 
