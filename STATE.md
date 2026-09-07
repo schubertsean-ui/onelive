@@ -14,7 +14,18 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
-## Session Contract #73 (2026-09-07, founder — first public write: dated + placed only, branch claude/contracts-locale-publish-hold-nn3ahm) — OPEN
+## Session Contract #74 (2026-09-07, founder — --write follows event pages, same as dry-run, branch claude/event-page-follow-write-iswbl5) — OPEN
+
+Contract #73 CLOSED at merge 7febba9 (PR #241).
+WHAT: the EXISTING `event_page.follow()`/`apply()` glue runs on the `--write` path exactly as it runs on the dry-run path — same host, same 200-page cap, same 2.0s politeness. Files: `tools/desk_ingest.py` (the `if args.write:` skip at ~line 1010 and the three printed claims that depend on it), `tests/test_event_page_dryrun.py`.
+HOW: delete the skip so one code path follows for both runs; the §4 heading loses its DRY-RUN VIEW variant and `write_plan_caveat()` becomes `follow_effect_note()`, which reports what following contributed instead of warning that the write will not do it; §5's "that run will NOT follow event pages" goes. No new module, no second walker, no cap or politeness change.
+WHY: today a `--write` run plans the rows the LIST pages stated, so all 1584 would HOLD (no night, no place) and the keyless ones would be minted as `url:<listing_url>` keys — the fallback in `desk_publish.ingest_key`.
+WHY-IT-MATTERS: those `url:` keys are what the NEXT run compares against, and a later run that finally has a night and a place keys the same happening as `night~place~title`, so it cannot match — the first write would permanently double every row it touched, and the reason that matters is that the damage is not the empty feed today, it is a catalog that no correct run can reconcile afterwards.
+EXPECTED OUTCOMES: (a) `--write` calls follow, proven behaviourally through `main()`, not by grepping the source; (b) fixture dry-run and fixture write plan the SAME publish_n, with a `--follow-pages 0` leg proving that comparison discriminates; (c) mash_n still 0; (d) no-date / unplaced still HOLD on the write path (#241's filter); then ONE founder-authorised `write=true` dispatch of `desk-ingest.yml` on master.
+OUT OF SCOPE: dispatching write before this is on master, raising the cap, lowering politeness, a second writer, Tonight redesign, claim-form, privacy enum, H3, cache, pack rewrite, `ingest.yml`/armed cron/`ai_extract.py`, PRs #231/#232/#235/#242, Kaizen/ledger/hats, re-walking as a new importer.
+STATUS: OPEN.
+
+## Session Contract #73 (2026-09-07, founder — first public write: dated + placed only, branch claude/contracts-locale-publish-hold-nn3ahm) — CLOSED (merged 7febba9, PR #241)
 
 Contracts #71 (Ticket E) CLOSED at merge 4878eaa (PR #239) and #72 (Locale Launch Law) CLOSED at merge 4a9854c (PR #240).
 WHAT: a public promote requires title + when + place. A no-date row is HELD instead of published as "Date TBA"; an unplaced row is HELD. Files: `worker/locale/desk_publish.py` (the `write_for` hold rules + `plan_digest`), `tools/desk_ingest.py` (the plan counters the founder reads), `tests/test_desk_publish.py`.
@@ -23,7 +34,7 @@ WHY: this is the first public write from the desks, and today the last branch pu
 WHY-IT-MATTERS: a friend opening Tonight cannot act on a row with no night and no place, so publishing holes fills the first public catalog with rows that look like listings and are not — and the founder's rule is that holes stay off the default view, not that they are shown politely.
 EXPECTED OUTCOMES: (a) dated+placed -> planned public; (b) no date -> held, not TBA; (c) date, no place -> held; (d) mash still 0; then a live dry-run dispatch of `.github/workflows/desk-ingest.yml` on master with `tba_public_n` = 0 and `mash_n` = 0, and only then the one authorized `write=true` run.
 OUT OF SCOPE: raising the 200 follow cap, politeness, Tonight redesign, claim-form, privacy enum, H3, cache-keying, locale pack rewrite, `ingest.yml`/armed cron/`ai_extract.py`, PRs #231/#232/#235, Kaizen/ledger/hats, any second write.
-STATUS: OPEN.
+STATUS: CLOSED — merged 7febba9 (PR #241). The live dry-run that followed it (run 34073072428, master) came back publish_n 94, hold_n 1490, mash_n 0, tba_public_n 0, dated_n 162, placed_n 130.
 
 ## Session Contract #72 (2026-09-07, founder — docs only: Locale Launch Law, branch claude/locale-launch-law-docs-b912nx) — CLOSED (merged 4a9854c, PR #240)
 

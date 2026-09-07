@@ -474,39 +474,44 @@ def follow_table(walks: Sequence[DeskWalk], runs: Mapping[str, FollowRun],
 
 
 def changed_rows_n(runs: Mapping[str, FollowRun]) -> int:
-    """How many rows following actually CHANGED — the one predicate both the
-    §4 heading and `write_plan_caveat()` ask, so they can never contradict."""
+    """How many rows following actually CHANGED — the predicate
+    `follow_effect_note()` asks to decide whether following contributed
+    anything to the plan at all."""
     return sum(r.filled_when_n + r.filled_place_n + r.nulled_when_n
                for r in runs.values())
 
 
-def write_plan_caveat(runs: Mapping[str, FollowRun]) -> str:
-    """Why the plan printed above is NOT the plan `--write` would produce.
+def follow_effect_note(runs: Mapping[str, FollowRun]) -> str:
+    """How much of the plan above came from the event pages rather than the list.
 
-    Evaluator, PR #238 (openai/attacker-smuggle): a dry run follows event pages
-    and then plans from the FILLED rows, while a `--write` run skips following
-    entirely — so a section headed "The write plan" showed an operator dated and
-    placed candidate writes that the real write path will not produce. The PR
-    body said so; the printed report did not, and the report is what an operator
-    reads. Both the heading and this line now carry it, with the size of the
-    difference DERIVED from the visits rather than described in the abstract.
+    This line used to be a CAVEAT, and the caveat was true: a dry run followed
+    event pages and planned from the FILLED rows while `--write` skipped
+    following, so a section headed "The write plan" showed an operator writes
+    the write path would not produce (evaluator, PR #238). The founder's fix
+    was not a better warning but the same walk on both paths (2026-09-07), so
+    what is left to report is the SIZE of following's contribution — still
+    derived from the visits, never described in the abstract, because an
+    operator reading "the write plan" is entitled to know how much of it a list
+    page never said.
+
+    The one difference this line does NOT cover, because it is not about
+    following: a FIXTURE run plans fixture rows. That is said where it belongs,
+    under section 5, on the runs that are fixture runs.
     """
     filled_when = sum(r.filled_when_n for r in runs.values())
     filled_place = sum(r.filled_place_n for r in runs.values())
     nulled = sum(r.nulled_when_n for r in runs.values())
     if not changed_rows_n(runs):
         return ("Event pages were followed and changed no row, so this plan is "
-                "also what `--real --write` would plan.")
+                "what the list pages alone stated. `--write` follows the same "
+                "pages under the same cap, so it plans these same rows.")
     return (
-        f"**This is not what `--real --write` would plan.** Following ran on this "
-        f"DRY run and does not run under `--write` (wiring the reader into the "
-        f"write path is a catalog change, out of scope here), so the rows behind "
-        f"the plan above differ from the rows a write run would carry: "
-        f"{filled_when} night(s) and {filled_place} place(s) here came from an "
-        f"event page and would be NULL under `--write`, and {nulled} contested "
-        f"night(s) were removed here and would still be published there. Read "
-        f"this section as what the desks plus their event pages know — not as a "
-        f"rehearsal of the next write.")
+        f"**{filled_when} night(s) and {filled_place} place(s) in this plan came "
+        f"from an event page, not from a list page**, and {nulled} contested "
+        f"night(s) were taken back off rows whose page disagreed with the list. "
+        f"A `--real --write` run follows the same pages under the same cap and "
+        f"the same politeness delay, so this is the plan it works from — a row "
+        f"that reads dated and placed here is dated and placed there.")
 
 
 def count_events(cur) -> int:
@@ -998,21 +1003,32 @@ def main(argv=None) -> int:
     mode = "LIVE" if args.real else "FIXTURE"
 
     # --- Ticket D: fill the rows' holes from their own event pages --------
-    # DRY RUN ONLY, deliberately. Following changes what a row CARRIES, so
-    # letting it run under `--write` would change what this tool publishes —
-    # a catalog change, which this ticket excludes (founder Must-not). The
-    # write path therefore stays byte-for-byte the behaviour it had before
-    # this change, and the cost is stated rather than hidden: on a `--write`
-    # run the plan below is the plan WITHOUT the event pages.
+    # ONE WALK FOR BOTH RUNS (founder, 2026-09-07: "Dry-run and write must
+    # follow the same pages"). Following used to be dry-run only, on the
+    # reasoning that a write which followed would publish something the
+    # previous write did not. That reasoning was backwards, and the live
+    # dry-run of 2026-09-07 (run 34073072428) measured why: every one of its
+    # 162 nights and 130 places came from an event page, so a `--write` run
+    # that skipped following would have held all 1584 rows for want of a night
+    # and a place — and, worse, minted a key for each of them that no later run
+    # can match. `desk_publish.ingest_key` falls back to `url:<listing_url>`
+    # only for a row the union could not key, i.e. exactly a row with no night
+    # and no place; once following fills those two holes the same happening
+    # keys as `night~place~title`. Writing the holed rows first therefore does
+    # not merely publish nothing — it writes 1584 handles that the corrected
+    # run cannot recognise, and every one of them doubles.
+    #
+    # The three rules that make following affordable are the SAME on both
+    # paths because they live in one place, not in this branch: same host
+    # (`followable()`), at most `--follow-pages` pages per run spread
+    # round-robin across the desks (`round_robin()`), and the walk's own
+    # politeness delay between live fetches (`--min-interval`, passed to
+    # `follow_fetchers()`). A write does not get a shorter walk, and it does
+    # not get a faster one either.
     follow_notes: List[str] = []
     runs: Dict[str, FollowRun] = {}
     cap = max(0, args.follow_pages)
-    if args.write:
-        follow_notes.append(
-            "event pages were NOT followed: this run WRITES, and wiring the "
-            "reader into the write path is a catalog change this ticket "
-            "excludes. The plan below is the plan without them.")
-    elif cap:
+    if cap:
         fetchers, fetcher_notes = follow_fetchers(
             door_ids, real=args.real, timeout=args.timeout,
             min_interval=args.min_interval)
@@ -1058,20 +1074,19 @@ def main(argv=None) -> int:
         print(f"**Not followed**: {note}")
     print()
     followed_any = sum(r.followed_n for r in runs.values())
-    # The heading warns only when following actually CHANGED a row. Evaluator,
-    # PR #238 r2 (openai/attacker-smuggle): guarding it on "a page was followed"
-    # contradicted `write_plan_caveat()`, which is guarded on "a row changed" —
-    # a run that followed pages and changed nothing printed a heading saying
-    # this is not the write plan directly above a line saying it is. One
-    # predicate, asked once, so the two can never disagree.
-    changed_any = changed_rows_n(runs)
-    print("## 4. The write plan" + (
-        " — DRY-RUN VIEW, not what `--write` would plan" if changed_any else ""))
+    # ONE heading, on both paths. It carried a "DRY-RUN VIEW, not what
+    # `--write` would plan" variant for as long as the write path skipped
+    # following (evaluator, PR #238 r2, which made that variant ask the same
+    # predicate as the line beneath it so the two could not contradict). Both
+    # paths now follow the same pages, so there is no divergence left to warn
+    # about and a heading that still warned would be the contradiction — this
+    # IS the plan a write run works from.
+    print("## 4. The write plan")
     print()
     print(plan_table(writes))
     if followed_any:
         print()
-        print(write_plan_caveat(runs))
+        print(follow_effect_note(runs))
     print()
     print(plan_counters(digest, walks, runs))
     print()
@@ -1094,10 +1109,12 @@ def main(argv=None) -> int:
         print()
         print("This was a dry run" + ("" if args.real else " over COMMITTED FIXTURES")
               + ". Re-run with `--real --write` on a machine that can reach the "
-                "desks and holds `ONELIVE_DB_DSN`."
-              + (" That run will NOT follow event pages, so it plans the rows "
-                 "the LIST pages stated — see the caveat under section 4."
-                 if changed_any else ""))
+                "desks and holds `ONELIVE_DB_DSN`. That run follows the same "
+                "event pages under the same cap, so it plans the rows in "
+                "section 4"
+              + (" — from the same fixtures, which is why a fixture plan is a "
+                 "rehearsal of the shape and never of the catalog."
+                 if not args.real else "."))
         return 0
 
     # --- the write ---------------------------------------------------------
