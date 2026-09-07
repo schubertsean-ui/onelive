@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** Locale Launch Law in force — ONE-LIVE-LOCALE-LAUNCH.md at root (a locale is a query; demand starts gather; a pack is cache; Apple-level location privacy; anti-attention); CLAUDE.md points to it. Docs only.
 **2026-09-03:** Trust doctrine committed — ONE-LIVE-TRUST.md at root (existence vs field vs mutation); CLAUDE.md points to it. Docs only.
 **2026-09-02:** Operating Law in force. Ceremony does not outrank the ticket.
 
@@ -12,6 +13,16 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #72 (2026-09-07, founder — docs only: Locale Launch Law, branch claude/locale-launch-law-docs-b912nx) — OPEN
+
+WHAT: ONE-LIVE-LOCALE-LAUNCH.md at repo root, founder-verbatim; a Locale Launch Law header in CLAUDE.md under the Operating Law section; this contract + one dated STATE line; close Contract #70 at merge 7357116.
+HOW: new root file written from the founder's LAW block unaltered (its §6a addendum placed at its own numbered position between §6 and §7); a `## Locale Launch Law` section appended after `### Merge` so the Operating Law `###` subsections keep nesting where they are; no other CLAUDE.md text touched.
+WHY: the law that says a locale is a query — not a city we launch — exists only in the founder's paste, so no session can be bound by it.
+WHY-IT-MATTERS: an uncommitted law is a law the next session cannot read, and this one repeals rules the tree still encodes (founder-launched cities, IP-as-consent, snippet-as-listing) — until it is on disk, agents keep obeying the repealed version.
+EXPECTED OUTCOMES: the root file matches the founder's text; CLAUDE.md gains one header and loses nothing; STATE says the law is in force; #70 reads CLOSED at 7357116; draft PR, no merge.
+OUT OF SCOPE: worker, web, api, ingest, ai_extract, schedule, PRs #231/#232/#235, Kaizen/ledger/hats, Tonight, any importer, any product code.
+STATUS: OPEN — docs only.
+
 ## Session Contract #71 (2026-09-06, founder — Ticket E: follow budget 200, dry-run only, branch claude/event-page-follow-cap-200-glga8f) — OPEN
 
 WHAT: the founder follow cap rises 40 -> 200 in the existing glue (`tools/desk_ingest.py` `DEFAULT_FOLLOW_PAGES` / `--follow-pages` default). No new module, no scheduler, no `due_at`. Contract #70 is CLOSED — Ticket D merged as 7357116 (PR #238); no ceremony PR opened for that closure.
@@ -22,7 +33,7 @@ EXPECTED OUTCOMES: the live table comes back with `pages_followed` up to 200 and
 OUT OF SCOPE: Kaizen/ledger/hats, new importer, catalog upsert, `ai_extract`, Ticketmaster, raising the LIST-walk page cap, Playwright, arming a schedule, Tonight redesign, PRs #231/#232/#235.
 STATUS: OPEN — built and pushed, PR #239 (draft, NOT merged). `bash tools/validate` green on the committed tree; the two non-PASS rows are the recorded R-068 visual_regression env SKIP and a commit_sweep advisory naming only already-merged commits. LIVE table from run 34068328158 (GitHub runner, head 67ba489; the sandbox proxy still 403s both desks): Chronicle 1571 rows off 40 list pages, **200 event pages followed — the full cap** — 161 nights and 130 places FILLED, 1445 rows still holed, 1371 never asked, 0 walls, mash_n 0; Do512 answered 403 on page 1 and is queued, so the round-robin had one desk to spend on and no page was stranded. Against Ticket D's 40-page run (30 nights, 20 places, 1552 holed) the raise closed 107 more holes at a HIGHER per-page yield (161/200 = 81% dated vs 30/40 = 75%). The honest read the founder should have: 200 pages cannot fill 1571 rows either — 1371 rows were never asked, and closing them needs roughly 1571 knocks, not 200. db-integration went red on 67ba489 and is FIXED at 27a8fe4: `test_a_contested_clock_publishes_disputed_on_the_real_feed` based its two 90-minutes-apart clocks on raw `now()+4h`, so a run in the last 90 minutes of a local day split one show across two nights (2 writes, not 1). It fails 90 of 1440 UTC minutes a day; CI hit it at 23:59:51Z. The fix already existed in that file — `_clock_correction_base()`, added for three sibling tests, this one missed — ported in one line; the same sweep now fails 0 of 1440. Reproduced against local Postgres at 00:02Z INSIDE the window (CI's exact assertion and key split), then green at the same clock, whole integration suite 24 passed. No merge without the founder's word.
 
-## Session Contract #70 (2026-09-06, founder — Ticket D: wire event_page into the desk dry-run, branch claude/event-page-desk-dryrun-dipmtf) — OPEN
+## Session Contract #70 (2026-09-06, founder — Ticket D: wire event_page into the desk dry-run, branch claude/event-page-desk-dryrun-dipmtf) — CLOSED
 
 WHAT: the landed Ticket C reader (`worker/locale/event_page.py`, merge ad3a578) runs inside the EXISTING desk dry-run so the run prints a live table `desk | rows_n | dated_n | placed_n | still_null_n | 403_n | mash_n | pages_followed | not_asked`. No `--write`, no catalog change.
 HOW: glue only in `tools/desk_ingest.py` — a round-robin selector over the desks' same-host permalinks capped at 40 pages/run (RAISED to 200 by Contract #71) (founder cap, `--follow-pages`), then `event_page.follow()`/`apply()` per desk on the selected rows; the filled rows replace the walk's rows before `union()`. `event_page.py` untouched. Live numbers come from a dispatch of the existing `.github/workflows/desk-split-dryrun.yml` (this sandbox's proxy 403s both desks).
