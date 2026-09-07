@@ -474,14 +474,40 @@ def test_every_planned_row_lands_in_exactly_one_bucket():
 # --------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def fixture_union(doors):
+def fixture_walks(doors):
     from worker.locale.desk_walk import walk as run_walk
     walks = []
     for door_id in (CHRONICLE, DO512):
         fetch, start, _ = coverage_tool.fixture_fetcher(door_id)
         walks.append(run_walk(doors[door_id], fetch, start_url=start,
                               kind_map=map_for_door(door_id)))
-    return union(walks, timezone=TZ, timezone_id=TZ_ID, mode="FIXTURE")
+    return walks
+
+
+@pytest.fixture(scope="module")
+def fixture_union(fixture_walks):
+    return union(fixture_walks, timezone=TZ, timezone_id=TZ_ID, mode="FIXTURE")
+
+
+def test_the_counter_table_the_founder_reads_says_zero_where_it_must(
+        fixture_union, fixture_walks):
+    """(d) The eight numbers as the run actually PRINTS them — the artifact the
+    founder reads before authorising a write, not a private digest. `mash_n`
+    and `tba_public_n` are the two that must be 0, and `skip_n` must say `—`
+    rather than 0: this table is computed before any database is opened, and
+    "we did not look" is not "there were none".
+    """
+    table = ingest_tool.plan_counters(
+        plan_digest(plan(fixture_union, REGS)), fixture_walks, {})
+    header, _rule, values = table.splitlines()[:3]
+    cells = dict(zip([c.strip() for c in header.strip("| ").split("|")],
+                     [c.strip() for c in values.strip("| ").split("|")]))
+    assert list(cells) == ["publish_n", "hold_n", "skip_n", "mash_n", "403_n",
+                          "dated_n", "placed_n", "tba_public_n"]
+    assert cells["mash_n"] == "0", "a row keyed on a LIST url is §2 Forbidden"
+    assert cells["tba_public_n"] == "0", "no bare 'Date TBA' reaches the feed"
+    assert cells["skip_n"] == "—"
+    assert int(cells["publish_n"]) + int(cells["hold_n"]) == fixture_union.total
 
 
 def test_no_union_row_is_dropped_on_the_way_to_the_write_plan(fixture_union):
@@ -797,18 +823,147 @@ def test_a_date_only_row_is_held_rather_than_published_as_date_unknown():
         "the night the desk stated is kept on the record even while held")
 
 
-def test_a_row_with_no_date_at_all_still_publishes_because_tba_is_true():
-    """The neighbouring branch, and it must NOT be held: when no desk stated a
-    date, "Date TBA" is exactly what we know. Holding it would drop coverage
-    for a display that is already honest.
+# --------------------------------------------------------------------------
+# Title + when + place, or it does not go public
+# (founder, 2026-09-07 — the first public write from the desks)
+# --------------------------------------------------------------------------
+
+def test_a_dated_and_placed_row_is_planned_public():
+    """(a) The row a friend can act on: a night, a clock and a place. It
+    publishes, carrying the clock the desk stated and nothing invented.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Quartet Night", when="2026-09-13T20:00:00-05:00",
+                             place="Shape Hall")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.hold_reason is None, "nothing is missing, so nothing holds it"
+    assert w.start_time == "2026-09-13T20:00:00-05:00"
+    assert w.extracted["venue_name"] == "Shape Hall"
+    assert w.clock_hole is None
+    d = plan_digest([w])
+    assert d["publishable"] == 1 and d["held"] == 0
+    assert d["dated"] == 1 and d["placed"] == 1 and d["tba_public"] == 0
+
+
+def test_a_row_with_no_date_at_all_is_held_not_published_as_tba():
+    """(b) THIS BRANCH REVERSED, 2026-09-07. It used to publish with a NULL
+    clock on the grounds that "Date TBA" is exactly true — it is, and it is
+    still a hole on a discovery surface. The founder's rule for the first
+    public write is that friends see rows with a night AND a place, so this
+    takes R-111's answer: written as a candidate, not shown.
     """
     one = _union(_walk(DO512, "Do512",
                        [_row("Chapbook Swap", place="Back room", via="Do512",
                              door_id=DO512)]))
     w = write_for(one.rows[0], REGS, mode="LIVE")
-    assert w.hold_reason is None
     assert w.start_time is None
     assert w.clock_hole == "no desk stated a date for this row"
+    assert w.hold_reason and "no desk stated a date" in w.hold_reason
+    assert plan_digest([w])["tba_public"] == 0, (
+        "a no-date row must never be counted as a public row")
+    assert w.extracted["venue_name"] == "Back room", (
+        "the place the desk DID state is kept on the held candidate")
+
+
+def test_a_dated_row_with_no_place_is_held():
+    """(c) "Unplaced rows HOLD." A row a friend cannot get to is not a listing,
+    however precisely we know when it starts.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Placeless Set", when="2026-09-13T20:00:00-05:00",
+                             place="")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.hold_reason and "stated a place" in w.hold_reason
+    assert w.start_time == "2026-09-13T20:00:00-05:00", (
+        "the clock the desk stated is kept on the held candidate")
+    assert plan_digest([w])["publishable"] == 0
+
+
+def test_an_untitled_row_is_held():
+    """The third of the founder's three: "title + when + place"."""
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("   ", when="2026-09-13T20:00:00-05:00",
+                             place="Shape Hall")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.hold_reason and "stated a title" in w.hold_reason
+
+
+def test_a_whitespace_place_is_a_hole_and_the_counter_agrees():
+    """A venue cell of blanks is not a place. The hold reads it stripped, so
+    the `placed_n` counter must too — a counter that disagreed with the gate
+    would report a coverage number nothing on the feed backs up.
+    """
+    one = _union(_walk(CHRONICLE, "Austin Chronicle",
+                       [_row("Blank Room Set", when="2026-09-13T20:00:00-05:00",
+                             place="   ")]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert w.hold_reason and "stated a place" in w.hold_reason
+    d = plan_digest([w])
+    assert d["placed"] == 0 and d["publishable"] == 0
+
+
+def test_a_row_missing_two_things_names_both():
+    """An operator working the hold queue needs every hole, not the first one
+    the chain happened to find.
+    """
+    one = _union(_walk(DO512, "Do512",
+                       [_row("Chapbook Swap", place="", via="Do512",
+                             door_id=DO512)]))
+    w = write_for(one.rows[0], REGS, mode="LIVE")
+    assert "no desk stated a date" in w.hold_reason
+    assert "stated a place" in w.hold_reason
+
+
+def test_the_new_hold_can_never_reach_a_disputed_row():
+    """"Disputed events are always shown as disputed" is a trust invariant
+    (CLAUDE.md prime directive 1), so the founder's title/place rule must not
+    become a back door that hides one. It cannot, structurally, and this pins
+    WHY: `clock_disputed` needs two desks agreeing they are one row, and
+    `desk_union` merges two desks only on `night+place+title` — so a disputed
+    row has all three by construction, and no gap for the new rule to find.
+
+    The two unplaced halves below stay SEPARATE rows (each keyed on its own
+    desk), which is the same mechanism read from the other side: an unplaced
+    row cannot be merged, so it cannot be disputed, so holding it hides no
+    dispute. Both halves are still written as candidates — held, not dropped.
+    """
+    one = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00", place="",
+                    via="Do512", door_id=DO512)]))
+    assert len(one.rows) == 2, "unplaced rows cannot merge, so neither is lost"
+    writes = plan(one, REGS)
+    assert all(w.hold_reason and "stated a place" in w.hold_reason
+               for w in writes)
+    assert not any(w.clock_disputed for w in writes)
+
+    # The same two desks WITH a place: they merge, the clocks disagree, and the
+    # row publishes disputed — untouched by the new rule.
+    placed = _union(
+        _walk(CHRONICLE, "Austin Chronicle",
+              [_row("Double Bill", when="2026-09-12T20:00:00-05:00", place="Room")]),
+        _walk(DO512, "Do512",
+              [_row("Double Bill", when="2026-09-12T21:30:00-05:00", place="Room",
+                    via="Do512", door_id=DO512)]))
+    w = write_for(placed.rows[0], REGS, mode="LIVE")
+    assert w.clock_disputed is True and w.hold_reason is None
+    assert w.extracted["start_times"], "both claims stay on the record"
+
+
+def test_no_planned_row_reaches_the_public_feed_without_all_three(fixture_union):
+    """The invariant over the whole fixture plan, stated as the founder stated
+    it: a published row carries a title, a night and a place. Derived from the
+    plan rather than from the digest, so a wrong digest cannot make it pass.
+    """
+    for w in plan(fixture_union, REGS):
+        if w.hold_reason:
+            continue
+        assert w.title.strip(), f"{w.ingest_key} publishes with no title"
+        assert w.extracted["venue_name"], f"{w.ingest_key} publishes unplaced"
+        assert w.extracted[DESK_KEY]["night"], (
+            f"{w.ingest_key} publishes with no night")
 
 
 def test_desks_disagreeing_on_the_time_publish_disputed_not_merely_unknown():
@@ -827,15 +982,18 @@ def test_desks_disagreeing_on_the_time_publish_disputed_not_merely_unknown():
     assert w.start_time is None
 
 
-def test_the_three_holes_are_counted_apart(fixture_union):
-    """Cardinality over the branches: held + disputed + true-TBA + timed must
-    account for every planned row, or a summary line is describing something
-    other than the plan.
+def test_the_holes_are_counted_apart(fixture_union):
+    """Cardinality over the branches: every planned row is held, or published
+    with a clock, or published disputed, or published bare — exactly one — or
+    a summary line is describing something other than the plan.
     """
     d = plan_digest(plan(fixture_union, REGS))
-    true_tba = d["clock_holes"] - d["held"] - d["clock_disputed"]
-    assert d["timed"] + d["clock_disputed"] + true_tba + d["held"] == d["rows"]
+    assert (d["publish_timed"] + d["publish_disputed"] + d["tba_public"]
+            + d["held"]) == d["rows"]
     assert d["publishable"] + d["held"] == d["rows"]
+    assert d["tba_public"] == 0, (
+        "a bare 'Date TBA' row on the public feed is the thing this plan must "
+        "never produce (founder, 2026-09-07)")
 
 
 def test_a_held_row_is_written_but_never_promoted():
