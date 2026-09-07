@@ -226,6 +226,7 @@ async function fetchAllRows(
       },
       cache: "no-store",
       signal: AbortSignal.timeout(8_000),
+    });
     if (!res.ok) {
       throw new Error(`Supabase promoted read failed (${res.status}): ${await res.text()}`);
     }

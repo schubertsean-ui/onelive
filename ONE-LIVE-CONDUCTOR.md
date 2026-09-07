@@ -14,6 +14,21 @@ The agent is hired to change the catalog or the live site. The machine's job is 
 
 Adding another prohibition after a failed run is not engineering. Fix the **cause** (a blocking hook, a missing tool, a merge conflict, a red check) and rerun with that cause in context.
 
+## A lesson is a failing check
+A sentence in this file is not a control. A bot can ignore it. A lesson has landed when all three are true:
+
+1. A check exists that would have gone **red on the original defect**.
+2. That check sits on a **required** gate (`trust-gate` or the evaluator), not a skippable sidecar and not a path-filtered job that a docs PR skips.
+3. A test fails if the check is removed or path-filtered.
+
+| Defect | Required check that would have caught it |
+|---|---|
+| #260 unclosed `fetch()` — production could not compile | `npx tsc --noEmit` in `trust-gate.yml` (required). `next build` in `web-compile.yml` on every PR, no path filter. Adversarial-review compiles the tree even when `web/` is not in the diff. |
+| Vercel red treated as “docs-PR fail” | `web/vercel.json` `ignoreCommand: exit 1`. Conductor: do not merge around Vercel red. |
+| Evaluator never voted because STATE.md was stale | Validate no longer aborts before the independent evaluator. Both still bind. |
+
+Do not add a fourth paragraph instead of a check.
+
 ## Impediments are work
 A conflict, gap, error, red check, empty PR, skip-storm, or master-red is **action**. It is not a wait, a new law, or a freeze of the board.
 
@@ -24,6 +39,8 @@ A conflict, gap, error, red check, empty PR, skip-storm, or master-red is **acti
 | Trust-gate / pytest red | Read the assertion. Fix that file. Same PR. |
 | Evaluator REQUEST-CHANGES | Fix the named trust defect only. |
 | Visual red | If the product change is intended, recapture the baseline. If not, revert the accidental surface. |
+| Vercel red | Open the inspect log. Fix the build. A red Vercel check is a failed deploy, including on a docs PR. Do not merge around it. Do not call it ignorable. |
+| Web compile red | Master cannot ship. `.github/workflows/web-compile.yml` typechecks and `next build`s on every PR, no path filter. Fix the compile on the same PR. |
 | Empty stub PR (0 files) | Not a PR. Fill it with the ticket files. |
 | 80-turn death with files on the branch | Next job gets the red-check names and the error. Same PR. |
 | 80-turn death with nothing | The PM writes the files. Do not burn a third identical cap on a blank. |
