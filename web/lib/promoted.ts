@@ -19,6 +19,7 @@
 import {
   exactlyOneOrNull,
   supaEnv,
+  windowBound,
   windowFilter,
   type LicensedEvent,
 } from "./licensed";
@@ -81,7 +82,8 @@ export type PromotedQueryOpts = {
   fromISO?: string; // start_time >= this
   toISO?: string; // start_time <= this
   eventId?: string;   // detail surface: one row by id (raw uuid, no prefix)
-  anyStatus?: boolean; // detail surface: a cancelled event says so, never 404s
+  anyStatus?: boolean;
+  includeNullClock?: boolean;
 };
 
 // Pure PostgREST query-string builder (no env, no network) — unit-tested. Same
@@ -107,7 +109,14 @@ export function buildPromotedQuery(opts?: PromotedQueryOpts): string {
   // together. Bounds are re-serialized by windowBound first. Bucketing stays
   // the client's job, unchanged.
   const window = windowFilter(opts?.fromISO, opts?.toISO);
-  if (window) p.append("or", window);
+  if (opts?.includeNullClock === false) {
+    const from = opts.fromISO ? windowBound(opts.fromISO, "fromISO") : null;
+    const to = opts.toISO ? windowBound(opts.toISO, "toISO") : null;
+    if (from) p.append("start_time", `gte.${from}`);
+    if (to) p.append("start_time", `lte.${to}`);
+  } else if (window) {
+    p.append("or", window);
+  }
   // NULLs sort last under PostgREST's `asc` default, so date-TBA rows land at
   // the end rather than ahead of everything that has a time.
   p.set("order", "start_time.asc,event_id.asc");
@@ -216,7 +225,7 @@ async function fetchAllRows(
         Range: `${from}-${to}`,
       },
       cache: "no-store",
-    });
+      signal: AbortSignal.timeout(8_000),
     if (!res.ok) {
       throw new Error(`Supabase promoted read failed (${res.status}): ${await res.text()}`);
     }

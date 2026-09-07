@@ -138,6 +138,9 @@ export type LicensedQueryOpts = {
   // cancelled is the honest answer, and 404-ing it is the feed's filter
   // silently deciding an event they can see a link to does not exist.
   anyStatus?: boolean;
+  // Default feed: skip DATE-TBA (null start_time) so Tonight cannot hang
+  // paging every undated licensed row.
+  includeNullClock?: boolean;
 };
 
 // Pure PostgREST query-string builder (no env, no network) — unit-tested. Two
@@ -215,7 +218,14 @@ export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   // together. Bounds are re-serialized by windowBound first. Bucketing stays
   // the client's job, unchanged.
   const window = windowFilter(opts?.fromISO, opts?.toISO);
-  if (window) p.append("or", window);
+  if (opts?.includeNullClock === false) {
+    const from = opts.fromISO ? windowBound(opts.fromISO, "fromISO") : null;
+    const to = opts.toISO ? windowBound(opts.toISO, "toISO") : null;
+    if (from) p.append("start_time", `gte.${from}`);
+    if (to) p.append("start_time", `lte.${to}`);
+  } else if (window) {
+    p.append("or", window);
+  }
   // NULLs sort last under PostgREST's `asc` default, so date-TBA rows land at
   // the end rather than ahead of everything that has a time.
   p.set("order", "start_time.asc,licensed_event_id.asc");
@@ -224,6 +234,7 @@ export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
 
 const PAGE = 1000; // Range window per request.
 const SAFETY_MAX = 100_000; // loud stop, never a silent truncation.
+const FETCH_MS = 8_000; // Tonight must not hang on a slow PostgREST page.
 
 // Fetch ALL matching rows, paginating with Range headers until a page comes
 // back empty. PostgREST caps a single response server-side (Supabase default
@@ -253,7 +264,8 @@ export async function fetchLicensedEvents(
         "Range-Unit": "items",
         Range: `${from}-${to}`,
       },
-      cache: "no-store", // always fresh — reflects the latest import
+      cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_MS),
     });
     if (!res.ok) {
       throw new Error(`Supabase read failed (${res.status}): ${await res.text()}`);

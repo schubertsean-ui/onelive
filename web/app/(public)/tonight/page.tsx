@@ -63,18 +63,25 @@ export default async function TonightPage() {
     // 12h back so an event already under way is still shown ("on now"); the
     // client drops anything actually ended.
     const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
-    // The consumer read path is `event ∪ licensed_event` (migration 0010):
-    // licensed rows (Ticketmaster/SeatGeek/…) PLUS pipeline-promoted discovered
-    // events. The promoted union is ADDITIVE — if it fails we still render the
-    // licensed feed (never blank a working feed over the smaller source); a
-    // licensed-read failure remains the hard error, exactly as before.
+    const toISO = new Date(nowMs + 21 * 24 * 60 * 60 * 1000).toISOString();
+    const window = { fromISO, toISO, includeNullClock: false as const };
+    let licensedFailed = false;
+    let promotedFailed = false;
     const [licensed, promoted] = await Promise.all([
-      fetchLicensedEvents({ fromISO }),
-      fetchPromotedEvents({ fromISO }).catch((e) => {
+      fetchLicensedEvents(window).catch((e) => {
+        console.error("licensed-event read failed:", e);
+        licensedFailed = true;
+        return [] as LicensedEvent[];
+      }),
+      fetchPromotedEvents(window).catch((e) => {
         console.error("promoted-event read failed; showing licensed feed only:", e);
+        promotedFailed = true;
         return [] as LicensedEvent[];
       }),
     ]);
+    if (licensedFailed && promotedFailed) {
+      throw new Error("Could not load events");
+    }
     // MARKET BOUNDARY — a VIEW SCOPE from here on, not a server-side delete
     // (Coverage Law 2026-09-01: "CAPCOG is the TEST LOCALE and a view filter,
     // not the map … Views must not delete catalog rows").

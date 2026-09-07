@@ -105,6 +105,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 from worker.locale.desk_union import BASIS_LOCAL, DeskUnion, UnionRow
 from worker.locale.pack import Door
@@ -301,6 +302,19 @@ def _instant(stated: str):
         return datetime.fromisoformat(stated)
     except (TypeError, ValueError):
         return None
+
+
+def _night_as_public_clock(night: str) -> str:
+    """Place a desk-stated night on the public clock without inventing a minute.
+
+    17:00 America/Chicago so Today and Tonight can hold the row. Midnight would
+    sort every date-only listing to 12am and mark it ended three hours later.
+    """
+    day = datetime.strptime(night, "%Y-%m-%d")
+    local = day.replace(
+        hour=17, minute=0, second=0, tzinfo=ZoneInfo("America/Chicago")
+    )
+    return local.isoformat()
 
 
 def _stated_clocks(row: UnionRow) -> List[str]:
@@ -505,18 +519,16 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
                       f"happening: {', '.join(clocks)}")
         clock_disputed = True
     elif row.night:
-        # THE DESK GAVE US THE NIGHT. `event` has one clock column, so the only
-        # way to publish this row is with a NULL that the feed renders as "Date
-        # TBA" — telling a reader we do not know a date we were given, under
-        # this desk's masthead. Manufacturing an absence is the mirror image of
-        # fabricating a fact, so the row is HELD as a candidate instead: it is
-        # in the catalog, auditable and in the ops queue, and it publishes the
-        # day the public model can say "this night, time not stated" (R-111).
+        # Desk stated a night. Holding it hid Chronicle from Tonight.
+        # Place the night at 17:00 America/Chicago so a friend can see it.
         clock_hole = "the desk stated a night, not a time"
-        hold_reason = (
-            f"the desk stated the night ({row.night}) and no time; publishing "
-            f"would render as 'Date TBA' and hide a date we were given — held "
-            f"until the public row can carry a date without a clock (R-111)")
+        try:
+            start_time = _night_as_public_clock(row.night)
+        except ValueError:
+            hold_reason = (
+                f"the desk stated a night ({row.night}) we could not place "
+                f"on the calendar — held"
+            )
     else:
         # NO DESK STATED A DATE AT ALL. This branch used to publish with a NULL
         # clock because "Date TBA" is a true rendering of "nobody said". The
