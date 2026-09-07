@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from worker.locale import pack as lp
+from worker.locale_pack import pack as lp
 
 CAPCOG = "us-tx-capcog"
 FOUNDER_URL = ("https://calendar.austinchronicle.com/austin/EventSearch"

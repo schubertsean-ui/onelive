@@ -45,15 +45,15 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from worker.locale.desk_read import Happening  # noqa: E402
-from worker.locale.desk_walk import (  # noqa: E402
+from worker.locale_pack.desk_read import Happening  # noqa: E402
+from worker.locale_pack.desk_walk import (  # noqa: E402
     _WALL_CODE_RE, DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, PageFetch, walk,
     walk_table,
 )
-from worker.locale.kind_map import (  # noqa: E402
+from worker.locale_pack.kind_map import (  # noqa: E402
     KindMap, KindMapError, load_kind_map, map_for_door, normalize_label,
 )
-from worker.locale.pack import (  # noqa: E402
+from worker.locale_pack.pack import (  # noqa: E402
     LocalePackError, available_locales, hunt,
 )
 

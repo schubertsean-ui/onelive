@@ -20,9 +20,9 @@ import os
 
 import pytest
 
-from worker.locale import identity_patterns as ip
-from worker.locale.desk_read import read
-from worker.locale.pack import Door, ListingSelector
+from worker.locale_pack import identity_patterns as ip
+from worker.locale_pack.desk_read import read
+from worker.locale_pack.pack import Door, ListingSelector
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -582,7 +582,7 @@ def test_a_missing_table_raises_and_says_what_it_costs(tmp_path):
 # --- the walk's counters, which are what the founder's table prints ----------
 
 def _walk(pages, door_obj, *, start="https://desk.test/events/today"):
-    from worker.locale.desk_walk import PageFetch, walk
+    from worker.locale_pack.desk_walk import PageFetch, walk
 
     def fetch(url):
         page = pages.get(url)
@@ -605,7 +605,7 @@ def test_the_walk_counts_unsplit_pages_rather_than_calling_the_desk_empty():
 
 
 def test_a_walled_page_is_counted_as_a_wall_not_as_an_empty_calendar():
-    from worker.locale.desk_walk import PageFetch, walk
+    from worker.locale_pack.desk_walk import PageFetch, walk
 
     def fetch(url):
         return PageFetch(url=url, status=403, body="")
@@ -622,7 +622,7 @@ def test_a_proxy_403_with_no_http_status_still_counts_as_a_wall():
     """The sandbox's own denial arrives as a transport error whose text is
     truncated for display. A counter that depended on that truncation would
     print `403_n = 0` for a desk nobody could reach."""
-    from worker.locale.desk_walk import PageFetch, walk
+    from worker.locale_pack.desk_walk import PageFetch, walk
 
     long_url = "https://desk.test/events/today?" + "filter=x&" * 40
 

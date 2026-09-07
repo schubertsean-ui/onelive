@@ -83,7 +83,7 @@ def registrations(pg):
     spells them — because the public row's label is a REGISTRY lookup, and a
     test that skipped it would prove the label works while it silently didn't.
     """
-    from worker.locale.desk_publish import DeskRegistration
+    from worker.locale_pack.desk_publish import DeskRegistration
 
     rows = {
         "Austin Chronicle": ("Austin Chronicle Events",
@@ -130,7 +130,7 @@ def _clock_correction_base(min_hours_ahead: int) -> datetime:
 
 
 def _happening(title, *, when, place, via, door_id, listing_url=None):
-    from worker.locale.desk_read import Happening
+    from worker.locale_pack.desk_read import Happening
 
     return Happening(
         title=title, when=when.isoformat() if when else None,
@@ -142,7 +142,7 @@ def _happening(title, *, when, place, via, door_id, listing_url=None):
 
 
 def _walk(door_id, via, rows):
-    from worker.locale.desk_walk import DeskWalk, PageVisit
+    from worker.locale_pack.desk_walk import DeskWalk, PageVisit
 
     return DeskWalk(
         door_id=door_id, door_type="local_desk", via=via,
@@ -153,7 +153,7 @@ def _walk(door_id, via, rows):
 
 
 def _live_union(*walks):
-    from worker.locale.desk_union import union
+    from worker.locale_pack.desk_union import union
 
     return union(list(walks), timezone=TZ, timezone_id="America/Chicago",
                  mode="LIVE")
@@ -205,7 +205,7 @@ def test_a_single_desk_row_reaches_tonight_labelled(pg, registrations):
     """The whole ticket in one test: one desk, one row, no corroboration — and
     it must appear on `/tonight` carrying that desk's name.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
     from tools.desk_ingest import counts_table  # noqa: F401  (import-shape check)
 
     tag = uuid.uuid4().hex[:8]
@@ -234,7 +234,7 @@ def test_a_single_desk_row_reaches_tonight_labelled(pg, registrations):
 
 
 def test_one_show_on_two_desks_is_one_listing_with_two_evidence_rows(pg, registrations):
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     when = datetime.now(timezone.utc) + timedelta(hours=6)
@@ -268,7 +268,7 @@ def test_running_twice_does_not_publish_the_same_happening_twice(pg, registratio
     """The re-run guard, against the real store. A nightly job that doubled the
     catalog every night would be worse than no job.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     when = datetime.now(timezone.utc) + timedelta(hours=7)
@@ -304,7 +304,7 @@ def test_a_row_with_no_stated_time_is_held_and_never_reaches_the_event_table(
     candidate exists, it is `needs_review`, and it keeps the place the desk did
     state, so it publishes unchanged the day a desk states a date.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     one = _live_union(_walk(DO512_DOOR, "Do512", [
@@ -338,7 +338,7 @@ def test_an_unplaced_row_is_held_and_never_reaches_the_event_table(
     is not a listing, however exactly we know when it starts — and the clock
     the desk DID state stays on the candidate.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     when = datetime.now(timezone.utc) + timedelta(hours=8)
@@ -369,7 +369,7 @@ def test_the_before_after_counts_are_the_apis_own_predicates(pg, registrations):
     """
     import importlib.util
 
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     root = pathlib.Path(__file__).resolve().parents[2]
     spec = importlib.util.spec_from_file_location(
@@ -410,7 +410,7 @@ def test_a_desk_that_corrects_a_time_is_recorded_and_the_row_is_not_duplicated(p
     `distinct on … order by created_at desc` read of a jsonb path, which no
     fake cursor can prove.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     first = _clock_correction_base(4)
@@ -464,7 +464,7 @@ def test_a_superseded_row_reads_disputed_on_the_real_feed_query(pg, registration
     `confirmed`. It stays on the feed — `disputed` is shown, never hidden — but
     a reader is no longer told the older detail is settled.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     when = _clock_correction_base(5)
@@ -504,7 +504,7 @@ def test_a_claim_locked_row_is_not_disputed_by_a_desk(pg, registrations):
     evidence against the principal, so its confidence is left alone — and the
     run says so rather than silently doing nothing.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     when = _clock_correction_base(6)
@@ -533,7 +533,7 @@ def test_a_claim_locked_row_is_not_disputed_by_a_desk(pg, registrations):
 
 def test_a_date_only_row_reaches_the_public_table_on_that_night(pg, registrations):
     """A night is when. Date-only Chronicle rows publish at 17:00 Chicago."""
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     title = f"Night Only {tag}"
@@ -560,7 +560,7 @@ def test_a_contested_clock_publishes_disputed_on_the_real_feed(pg, registrations
     and reads `disputed` rather than `confirmed`, so a reader is not told the
     clock is merely unknown when it is contested.
     """
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     title, place = f"Contested {tag}", f"Contested Room {tag}"
@@ -867,7 +867,7 @@ def test_the_whole_write_runs_on_one_connection_and_still_publishes(
     import importlib
     import pathlib as _pathlib
 
-    from worker.locale.desk_publish import plan
+    from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     when = _clock_correction_base(5)

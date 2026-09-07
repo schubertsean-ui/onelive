@@ -2,7 +2,7 @@
 
 Hand-written pages in the SHAPES a public desk uses, not copies of any live
 site: this sandbox's egress answers `CONNECT tunnel failed, response 403` for
-every host, so nothing here was fetched. They exist so `worker/locale/desk_read.read`
+every host, so nothing here was fetched. They exist so `worker/locale_pack/desk_read.read`
 can be exercised offline and so `tools/locale_desks.py --fixtures` can print a
 real happening count per door shape.
 

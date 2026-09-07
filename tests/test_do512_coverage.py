@@ -21,9 +21,9 @@ import os
 
 import pytest
 
-from worker.locale import pack as lp
-from worker.locale.desk_walk import walk
-from worker.locale.kind_map import KindMapError, load_kind_map
+from worker.locale_pack import pack as lp
+from worker.locale_pack.desk_walk import walk
+from worker.locale_pack.kind_map import KindMapError, load_kind_map
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAPCOG = "us-tx-capcog"
@@ -154,7 +154,7 @@ def test_the_mapping_cannot_introduce_a_kind_of_its_own(tmp_path, kind_map):
 
 
 def test_the_committed_file_is_the_one_the_door_resolves_to(kind_map):
-    from worker.locale.kind_map import map_for_door
+    from worker.locale_pack.kind_map import map_for_door
     assert map_for_door(DOOR).map_id == MAP
 
 

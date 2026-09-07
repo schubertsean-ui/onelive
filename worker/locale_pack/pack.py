@@ -78,7 +78,7 @@ class LocalePackError(ValueError):
 
 
 #: Grades a committed listing selector may carry. Same two words as the
-#: identity table (`worker.locale.identity_patterns.GRADES`) and for the same
+#: identity table (`worker.locale_pack.identity_patterns.GRADES`) and for the same
 #: reason: a selector read off a shape fixture must never be presented as one
 #: seen on a live page. ONE-LIVE-ENTITY-SPLIT-LAW.md §6: "If live HTML != fixture:
 #: the live page wins; upgrade `grade` to `desk_observed`; do not silently keep
@@ -178,7 +178,7 @@ class LocalePack:
     #: IANA timezone this locale keeps its nights on, when the pack states one.
     #: Optional here and REQUIRED by the caller that needs it: a locale's clock
     #: is pack DATA like everything else, so nothing downstream may fall back to
-    #: a hardcoded home town (`worker.locale.desk_union` raises instead).
+    #: a hardcoded home town (`worker.locale_pack.desk_union` raises instead).
     timezone: Optional[str] = None
 
     @property
@@ -432,7 +432,7 @@ def hunt(locale_id: str, *, packs_dir: Optional[str] = None,
 
 
 def public_desks(locale_id: str, *, packs_dir: Optional[str] = None) -> Tuple[Door, ...]:
-    """The subset of `hunt` that `worker.locale.desk_read.read` may be given."""
+    """The subset of `hunt` that `worker.locale_pack.desk_read.read` may be given."""
     return tuple(d for d in hunt(locale_id, packs_dir=packs_dir) if d.readable)
 
 

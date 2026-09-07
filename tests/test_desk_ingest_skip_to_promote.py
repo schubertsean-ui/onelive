@@ -33,10 +33,10 @@ import os
 import pytest
 from zoneinfo import ZoneInfo
 
-from worker.locale.desk_publish import DESK_KEY, DeskRegistration, plan
-from worker.locale.desk_read import Happening
-from worker.locale.desk_union import union
-from worker.locale.desk_walk import DeskWalk, PageVisit
+from worker.locale_pack.desk_publish import DESK_KEY, DeskRegistration, plan
+from worker.locale_pack.desk_read import Happening
+from worker.locale_pack.desk_union import union
+from worker.locale_pack.desk_walk import DeskWalk, PageVisit
 
 CAPCOG = "us-tx-capcog"
 TZ_ID = "America/Chicago"
