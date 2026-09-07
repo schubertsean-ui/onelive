@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** First public write ticket — a public promote requires title + when + place; no-date and unplaced rows HOLD (R-111's answer, widened). Contracts #71/#72 closed.
 **2026-09-07:** Locale Launch Law in force — ONE-LIVE-LOCALE-LAUNCH.md at root (a locale is a query; demand starts gather; a pack is cache; Apple-level location privacy; anti-attention); CLAUDE.md points to it. Docs only.
 **2026-09-03:** Trust doctrine committed — ONE-LIVE-TRUST.md at root (existence vs field vs mutation); CLAUDE.md points to it. Docs only.
 **2026-09-02:** Operating Law in force. Ceremony does not outrank the ticket.
@@ -13,7 +14,18 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
-## Session Contract #72 (2026-09-07, founder — docs only: Locale Launch Law, branch claude/locale-launch-law-docs-b912nx) — OPEN
+## Session Contract #73 (2026-09-07, founder — first public write: dated + placed only, branch claude/contracts-locale-publish-hold-nn3ahm) — OPEN
+
+Contracts #71 (Ticket E) CLOSED at merge 4878eaa (PR #239) and #72 (Locale Launch Law) CLOSED at merge 4a9854c (PR #240).
+WHAT: a public promote requires title + when + place. A no-date row is HELD instead of published as "Date TBA"; an unplaced row is HELD. Files: `worker/locale/desk_publish.py` (the `write_for` hold rules + `plan_digest`), `tools/desk_ingest.py` (the plan counters the founder reads), `tests/test_desk_publish.py`.
+HOW: the existing clock chain's last `else` gains a `hold_reason`, and one place/title gap check follows it; `plan_digest` gains `dated`/`placed`/`tba_public` so the run prints publish_n · hold_n · skip_n · mash_n · 403_n · dated_n · placed_n · tba_public_n. No second writer, no new module.
+WHY: this is the first public write from the desks, and today the last branch publishes a row with no date at all as a bare "Date TBA".
+WHY-IT-MATTERS: a friend opening Tonight cannot act on a row with no night and no place, so publishing holes fills the first public catalog with rows that look like listings and are not — and the founder's rule is that holes stay off the default view, not that they are shown politely.
+EXPECTED OUTCOMES: (a) dated+placed -> planned public; (b) no date -> held, not TBA; (c) date, no place -> held; (d) mash still 0; then a live dry-run dispatch of `.github/workflows/desk-ingest.yml` on master with `tba_public_n` = 0 and `mash_n` = 0, and only then the one authorized `write=true` run.
+OUT OF SCOPE: raising the 200 follow cap, politeness, Tonight redesign, claim-form, privacy enum, H3, cache-keying, locale pack rewrite, `ingest.yml`/armed cron/`ai_extract.py`, PRs #231/#232/#235, Kaizen/ledger/hats, any second write.
+STATUS: OPEN.
+
+## Session Contract #72 (2026-09-07, founder — docs only: Locale Launch Law, branch claude/locale-launch-law-docs-b912nx) — CLOSED (merged 4a9854c, PR #240)
 
 WHAT: ONE-LIVE-LOCALE-LAUNCH.md at repo root, founder-verbatim; a Locale Launch Law header in CLAUDE.md under the Operating Law section; this contract + one dated STATE line; close Contract #70 at merge 7357116.
 HOW: new root file written from the founder's LAW block unaltered (its §6a addendum placed at its own numbered position between §6 and §7); a `## Locale Launch Law` section appended after `### Merge` so the Operating Law `###` subsections keep nesting where they are; no other CLAUDE.md text touched.
@@ -23,7 +35,7 @@ EXPECTED OUTCOMES: the root file matches the founder's text; CLAUDE.md gains one
 OUT OF SCOPE: worker, web, api, ingest, ai_extract, schedule, PRs #231/#232/#235, Kaizen/ledger/hats, Tonight, any importer, any product code.
 STATUS: OPEN — docs only.
 
-## Session Contract #71 (2026-09-06, founder — Ticket E: follow budget 200, dry-run only, branch claude/event-page-follow-cap-200-glga8f) — OPEN
+## Session Contract #71 (2026-09-06, founder — Ticket E: follow budget 200, dry-run only, branch claude/event-page-follow-cap-200-glga8f) — CLOSED (merged 4878eaa, PR #239)
 
 WHAT: the founder follow cap rises 40 -> 200 in the existing glue (`tools/desk_ingest.py` `DEFAULT_FOLLOW_PAGES` / `--follow-pages` default). No new module, no scheduler, no `due_at`. Contract #70 is CLOSED — Ticket D merged as 7357116 (PR #238); no ceremony PR opened for that closure.
 HOW: one constant plus its comment block; round-robin, same-host-only and the mash refusal are untouched. Tests pin the new cap: 200 never exceeded, the spread still alternates at 200, clock-only stays NULL, the dry run writes nothing, a 403 is a hole not a mash. Live numbers from a dispatch of the EXISTING `.github/workflows/desk-split-dryrun.yml` (its `--follow-pages` is the default, so raising the default IS the 200-page run); the sandbox proxy still 403s both desks.

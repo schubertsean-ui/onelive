@@ -290,10 +290,19 @@ def test_running_twice_does_not_publish_the_same_happening_twice(pg, registratio
         assert cur.fetchone()[0] == 1
 
 
-def test_a_row_with_no_stated_time_publishes_with_a_null_start(pg, registrations):
-    """Date-TBA reaches the catalog rather than being withheld — `web/lib/feed.ts`
-    renders a null start honestly and never hides it. The row must NOT appear
-    in a /tonight window, because it never claimed to be in one.
+def test_a_row_with_no_stated_time_is_held_and_never_reaches_the_event_table(
+        pg, registrations):
+    """REVERSED 2026-09-07 at founder direction, against a real database. This
+    test used to assert the opposite — that a Date-TBA row reaches the catalog
+    because `web/lib/feed.ts` renders a null start honestly. It does render it
+    honestly; the founder's rule for the first public write is that a friend's
+    default view carries rows with a night AND a place, and an honestly-drawn
+    hole is still a hole. So the row is HELD: written as a candidate, in the
+    ops queue, and absent from `event` entirely.
+
+    The half that never changed is asserted below too: nothing is deleted. The
+    candidate exists, it is `needs_review`, and it keeps the place the desk did
+    state, so it publishes unchanged the day a desk states a date.
     """
     from worker.locale.desk_publish import plan
 
@@ -304,18 +313,54 @@ def test_a_row_with_no_stated_time_publishes_with_a_null_start(pg, registrations
                    listing_url=f"https://do512.example/e/{tag}")]))
     writes = plan(one, registrations)
     assert writes[0].start_time is None
+    assert writes[0].hold_reason and "no desk stated a date" in writes[0].hold_reason
 
     _tool, result = _run(writes, pg=pg)
-    assert len(result["promoted"]) == 1, result
+    assert len(result["held"]) == 1, result
+    assert not result["promoted"]
 
     with pg.cursor() as cur:
-        cur.execute("select start_time, source_name, status from event where title=%s",
-                    (f"No Clock {tag}",))
-        start_time, source_name, status = cur.fetchone()
-    assert start_time is None
-    assert source_name == "Do512"
-    assert status == "scheduled"
+        cur.execute("select count(*) from event where title=%s", (f"No Clock {tag}",))
+        assert cur.fetchone()[0] == 0, (
+            "a row with no night must not reach the public table at all")
+        cur.execute(
+            "select status, extracted->>'venue_name' from event_candidate "
+            "where title=%s", (f"No Clock {tag}",))
+        status, venue = cur.fetchone()
+    assert status == "needs_review", "it is in the catalog, awaiting a date"
+    assert venue == f"Somewhere {tag}", "the place the desk stated is kept"
     assert not [r for r in _tonight_rows(pg) if r[0] == f"No Clock {tag}"]
+
+
+def test_an_unplaced_row_is_held_and_never_reaches_the_event_table(
+        pg, registrations):
+    """Founder, 2026-09-07: "Unplaced rows HOLD." A row a friend cannot get to
+    is not a listing, however exactly we know when it starts — and the clock
+    the desk DID state stays on the candidate.
+    """
+    from worker.locale.desk_publish import plan
+
+    tag = uuid.uuid4().hex[:8]
+    when = datetime.now(timezone.utc) + timedelta(hours=8)
+    one = _live_union(_walk(DO512_DOOR, "Do512", [
+        _happening(f"No Place {tag}", when=when, place="",
+                   via="Do512", door_id=DO512_DOOR,
+                   listing_url=f"https://do512.example/e/{tag}")]))
+    writes = plan(one, registrations)
+    assert writes[0].hold_reason and "stated a place" in writes[0].hold_reason
+    assert writes[0].start_time is not None
+
+    _tool, result = _run(writes, pg=pg)
+    assert len(result["held"]) == 1, result
+    assert not result["promoted"]
+
+    with pg.cursor() as cur:
+        cur.execute("select count(*) from event where title=%s", (f"No Place {tag}",))
+        assert cur.fetchone()[0] == 0, "an unplaced row must not go public"
+        cur.execute("select status from event_candidate where title=%s",
+                    (f"No Place {tag}",))
+        assert cur.fetchone()[0] == "needs_review"
+    assert not [r for r in _tonight_rows(pg) if r[0] == f"No Place {tag}"]
 
 
 def test_the_before_after_counts_are_the_apis_own_predicates(pg, registrations):

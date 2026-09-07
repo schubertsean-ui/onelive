@@ -65,7 +65,7 @@ import os
 import sys
 from dataclasses import replace as dc_replace
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -890,6 +890,51 @@ def plan_table(writes: Sequence[CandidateWrite]) -> str:
     return "\n".join(out)
 
 
+def plan_counters(digest: Mapping[str, Any], walks: Sequence[DeskWalk],
+                  runs: Mapping[str, FollowRun]) -> str:
+    """The eight numbers the founder reads before authorising a write.
+
+      publish_n     rows this plan would PUBLISH (title + night + place)
+      hold_n        rows written as candidates and kept off the feed
+      skip_n        rows the store already holds unchanged. This table is
+                    printed BEFORE any database is opened — on a dry run there
+                    is no store to read, and on a write run the keys have not
+                    been compared yet — so it is always `—` here and the real
+                    number lands in the outcome table below. `—` rather than
+                    0 because "we did not look" and "there were none" are
+                    different facts, and a founder authorising a write off
+                    this table must not have them collapsed.
+      mash_n        rows addressed by a LIST url (§2 Forbidden). Must be 0.
+      403_n         pages walled — an UNREAD desk, never an empty one.
+      dated_n       planned rows carrying a night (published or held)
+      placed_n      planned rows carrying a place (published or held)
+      tba_public_n  rows that would go PUBLIC with no clock and no dispute
+                    label — a bare "Date TBA" on the feed. Must be 0.
+    """
+    rows = [
+        ("publish_n", str(digest["publishable"])),
+        ("hold_n", str(digest["held"])),
+        ("skip_n", "—"),
+        ("mash_n", str(sum(w.mash_n for w in walks))),
+        ("403_n", str(sum(w.walled_n for w in walks)
+                      + sum(r.walled_n for r in runs.values()))),
+        ("dated_n", str(digest["dated"])),
+        ("placed_n", str(digest["placed"])),
+        ("tba_public_n", str(digest["tba_public"])),
+    ]
+    out = ["| " + " | ".join(name for name, _ in rows) + " |",
+           "|" + "---:|" * len(rows),
+           "| " + " | ".join(value for _, value in rows) + " |"]
+    out.append("")
+    out.append(
+        "`skip_n` is `—`: this plan is computed before any database is opened, "
+        "so nothing here knows which rows the store already holds — the real "
+        "number appears in the outcome table on a `--write` run. `403_n` counts "
+        "list pages AND event pages we were walled on; every one is an unread "
+        "page, never an empty desk.")
+    return "\n".join(out)
+
+
 def outcome_table(result: Mapping[str, list]) -> str:
     out = ["| outcome | rows | what it means |", "|---|---:|---|"]
     meaning = {
@@ -1028,16 +1073,17 @@ def main(argv=None) -> int:
         print()
         print(write_plan_caveat(runs))
     print()
-    tba = digest['clock_holes'] - digest['held'] - digest['clock_disputed']
+    print(plan_counters(digest, walks, runs))
+    print()
     print(f"{bounded(digest['rows'], one)} happening(s) planned, of which "
           f"{digest['publishable']} publish and {digest['held']} "
-          f"{'is' if digest['held'] == 1 else 'are'} HELD "
-          f"(a desk stated the night and no time — publishing would render as "
-          f"'Date TBA' and hide a date we were given; R-111). "
-          f"{digest['timed']} carry a clock a desk stated; "
-          f"{digest['clock_disputed']} publish DISPUTED because their desks "
-          f"state different times; {tba} publish with a true 'Date TBA' "
-          f"because no desk stated a date at all. "
+          f"{'is' if digest['held'] == 1 else 'are'} HELD. A row goes public "
+          f"only with a title, a night AND a place (founder, 2026-09-07); a "
+          f"row missing any of the three is written as a candidate and kept "
+          f"off the feed, never deleted and never faked. "
+          f"{digest['publish_timed']} publish carrying a clock a desk stated; "
+          f"{digest['publish_disputed']} publish DISPUTED because their desks "
+          f"state different times (shown, never hidden). "
           f"{digest['single_desk']} come from ONE desk and are written anyway "
           f"(founder: do not require a second desk to publish); "
           f"{digest['multi_desk']} carr{'ies' if digest['multi_desk'] == 1 else 'y'} two.")

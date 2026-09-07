@@ -49,7 +49,13 @@ it to what the desks actually printed:
     NULL, and the feed renders every NULL as "Date TBA" — one display for three
     very different truths. So the three are separated HERE, before they
     collapse (evaluator PR #229 r3):
-      - no desk stated a date -> publish with NULL. "Date TBA" is exactly true.
+      - no desk stated a date -> HOLD. Until 2026-09-07 this published with a
+        NULL clock on the grounds that "Date TBA" is exactly true, and it is —
+        but a true statement of a hole is still a hole on a discovery surface,
+        and the founder's rule for the first public write is that a friend sees
+        rows with a night AND a place ("Holes stay off the default view. TBA
+        dump is forbidden."). So it takes R-111's answer: written as a
+        candidate, auditable, off the feed until a desk states a date.
       - desks state DIFFERENT times -> publish `disputed`. The desks agree it
         is on; they disagree about when, and a reader shown a bare TBA beside
         `confirmed` has been told the clock is merely unknown when it is
@@ -67,6 +73,16 @@ it to what the desks actually printed:
         fabricating a fact. The row is in the catalog and in the ops queue, and
         it publishes when the public row can carry a date without a clock
         (R-111).
+
+  * TITLE + WHEN + PLACE, OR IT DOES NOT GO PUBLIC (founder, 2026-09-07, the
+    first public write from the desks). The clock rules above decide WHICH hole
+    a row has; this rule decides whether a row with a hole may be seen. A row
+    missing a title or a place is HELD for the same reason a date-only row is:
+    the public row would carry an empty column that a reader cannot act on, and
+    a discovery surface full of unaddressable rows is worse than a smaller one
+    that is entirely real. The hold is on PUBLICATION only — the candidate is
+    written, keeps every field the desk did state, and publishes unchanged the
+    day the hole is filled.
 
   * NO FIELD IS INVENTED TO FILL A COLUMN. `artist_names` stays empty — the
     performer this module can derive is a de-dup heuristic over a title, and
@@ -246,12 +262,15 @@ class CandidateWrite:
     #: been told the clock is merely unknown when it is actually contested
     #: (evaluator PR #229 r3, openai/attacker-smuggle).
     clock_disputed: bool = False
-    #: Set when the desk stated a NIGHT and no time. Such a row is written as a
-    #: candidate and NOT published, because `event` has one clock column and a
-    #: NULL in it renders publicly as "Date TBA" — which would say "we do not
-    #: know the date" about a date the desk gave us, on the surface a reader
-    #: uses to decide whether to go. Manufacturing that absence is the mirror
-    #: of fabricating a fact, and it wears the desk's masthead. R-111.
+    #: Why this row is written as a candidate and NOT published. Every reason
+    #: it has, joined — an operator filling holes needs all of them, not the
+    #: first. Three kinds reach it: the desk stated a NIGHT and no time (R-111
+    #: — a NULL clock renders as "Date TBA", saying "we do not know the date"
+    #: about a date the desk gave us, on the surface a reader uses to decide
+    #: whether to go); NO desk stated a date at all; or the row has no title or
+    #: no place (founder, 2026-09-07 — "Public promote requires title + when +
+    #: place... Unplaced rows HOLD"). None of the three deletes anything: the
+    #: candidate carries every field the desk did state.
     hold_reason: Optional[str] = None
 
     @property
@@ -499,7 +518,37 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
             f"would render as 'Date TBA' and hide a date we were given — held "
             f"until the public row can carry a date without a clock (R-111)")
     else:
+        # NO DESK STATED A DATE AT ALL. This branch used to publish with a NULL
+        # clock because "Date TBA" is a true rendering of "nobody said". The
+        # founder reversed it for the first public write (2026-09-07): a row a
+        # friend cannot place in time is not a listing, however honestly its
+        # emptiness is displayed, and Tonight's window cannot hold it anyway.
+        # Same answer as R-111 — held as a candidate, not deleted, not faked.
         clock_hole = "no desk stated a date for this row"
+        hold_reason = (
+            "no desk stated a date for this row; publishing would put a bare "
+            "'Date TBA' on a discovery surface, and a row with no night is one "
+            "a friend cannot act on — held until a desk states one (R-111's "
+            "answer, widened by the founder on 2026-09-07)")
+
+    # WHAT A PUBLIC ROW MUST CARRY. Founder, 2026-09-07: "Public promote
+    # requires title + when + place... Unplaced rows HOLD." The clock is
+    # decided above; these are the other two. Every reason a row is held is
+    # kept, not just the first — an operator reading the queue needs to know
+    # everything that is missing before they can fill any of it.
+    #
+    # A DISPUTED CLOCK IS NOT OVERRIDDEN HERE. `clock_disputed` stays set on a
+    # held row, so the label travels with the candidate and the row publishes
+    # DISPUTED — never quietly `confirmed` — on the day its place arrives.
+    gaps = [reason for missing, reason in (
+        (not (row.title or "").strip(),
+         "no desk stated a title for this row"),
+        (not (row.place_text or "").strip(),
+         "no desk stated a place for this row — an unplaced row is one a "
+         "friend cannot get to"),
+    ) if missing]
+    if gaps:
+        hold_reason = "; ".join(([hold_reason] if hold_reason else []) + gaps)
 
     listing_url = _listing_url(row)
     desk_note = {
@@ -627,8 +676,16 @@ def plan(one: DeskUnion, registrations: Mapping[str, DeskRegistration]) -> List[
 
 
 def plan_digest(writes: Sequence[CandidateWrite]) -> Dict[str, Any]:
-    """Counts a report can print without recomputing them from the table."""
+    """Counts a report can print without recomputing them from the table.
+
+    `tba_public` is the one the founder reads first: rows that would go PUBLIC
+    with no clock and no dispute label — a bare "Date TBA" on the feed. It is
+    counted from the plan itself rather than derived by subtraction, so it
+    stays a measurement of what would be published and not an arithmetic
+    identity that happens to come out zero.
+    """
     held = sum(1 for w in writes if w.hold_reason)
+    public = [w for w in writes if not w.hold_reason]
     return {
         "rows": len(writes),
         "timed": sum(1 for w in writes if w.start_time),
@@ -640,6 +697,21 @@ def plan_digest(writes: Sequence[CandidateWrite]) -> Dict[str, Any]:
         "held": held,
         "clock_disputed": sum(1 for w in writes if w.clock_disputed),
         "publishable": len(writes) - held,
+        # What the PUBLISHED rows carry — the founder's "dated AND placed"
+        # read, over the rows that would actually be seen.
+        "publish_timed": sum(1 for w in public if w.start_time),
+        "publish_disputed": sum(1 for w in public if w.clock_disputed),
+        "tba_public": sum(1 for w in public
+                          if not w.start_time and not w.clock_disputed),
+        # Over every planned row, published or held: what the desks stated.
+        # STRIPPED, so these read the same field the same way the hold rule
+        # above reads it — a whitespace-only venue holds the row, and a
+        # counter that called it "placed" would report a coverage number the
+        # gate disagrees with.
+        "dated": sum(1 for w in writes
+                     if str(w.extracted.get(DESK_KEY, {}).get("night") or "").strip()),
+        "placed": sum(1 for w in writes
+                      if str(w.extracted.get("venue_name") or "").strip()),
         "single_desk": sum(1 for w in writes if w.single_desk),
         "multi_desk": sum(1 for w in writes if not w.single_desk),
         "by_source": _by_source(writes),
