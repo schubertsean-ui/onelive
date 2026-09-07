@@ -180,27 +180,46 @@ def _same_publisher(door_url: str, base_url: str) -> bool:
 
 
 def registration_for(door: Door, catalog: Sequence[Mapping[str, Any]]) -> DeskRegistration:
-    """The catalog row this door belongs to, or raise.
+    """The catalog row this door belongs to, or a pack-only registration.
 
-    Ambiguity fails too: two catalog rows claiming one door means the label is
-    a coin flip, and this module does not flip coins about whose masthead goes
-    on a listing.
+    Catalog wins when the URL matches exactly one row. Two catalog rows claiming
+    one door is a coin flip — refuse. A name that matches several catalog rows
+    (a "library" hitting six) is reported, never coin-flipped.
+
+    Pack-only public doors (#255): a readable pack door (intake != none, unique
+    URL, not wall/junk) may register FROM THE PACK without editing
+    `master_sources_catalog_120.json`. Class comes from intake. The armed
+    catalog file stays byte-identical.
     """
     hits = [row for row in catalog
             if _same_publisher(door.url, str(row.get("base_url") or ""))]
-    if not hits:
-        raise DeskPublishError(
-            f"door {door.door_id!r} ({door.url}) matches no row in the committed "
-            f"source catalog, so its listings could not be LABELLED with a "
-            f"source. Add the publisher to sources/master_sources_catalog_120.json "
-            f"(name + base_url + category) before walking it into the catalog.")
     if len(hits) > 1:
         names = sorted(str(r.get("name")) for r in hits)
         raise DeskPublishError(
             f"door {door.door_id!r} ({door.url}) matches {len(hits)} catalog "
             f"rows ({names}) — the source label would be a guess. Narrow the "
             f"base_url of the rows that do not own this door.")
-    row = hits[0]
+    if len(hits) == 1:
+        return _from_catalog_row(door, hits[0])
+
+    name_hits = _name_hits(door, catalog)
+    if len(name_hits) > 1:
+        names = sorted(str(r.get("name")) for r in name_hits)
+        raise DeskPublishError(
+            f"door {door.door_id!r} name {door.brand!r} matches {len(name_hits)} "
+            f"catalog rows ({names}) — reported, never coin-flipped.")
+
+    if door.readable:
+        return _from_pack_door(door)
+
+    raise DeskPublishError(
+        f"door {door.door_id!r} ({door.url}) matches no row in the committed "
+        f"source catalog, so its listings could not be LABELLED with a "
+        f"source. Add the publisher to sources/master_sources_catalog_120.json "
+        f"(name + base_url + category) before walking it into the catalog.")
+
+
+def _from_catalog_row(door: Door, row: Mapping[str, Any]) -> DeskRegistration:
     source_class = str(row.get("category") or row.get("source_type") or "").strip()
     name = str(row.get("name") or "").strip()
     if not source_class or not name:
@@ -215,6 +234,43 @@ def registration_for(door: Door, catalog: Sequence[Mapping[str, Any]]) -> DeskRe
         source_class=source_class,
         base_url=str(row.get("base_url") or ""),
         catalog_id=str(row.get("id") or ""),
+    )
+
+
+def _name_hits(door: Door, catalog: Sequence[Mapping[str, Any]]) -> list:
+    needle = (door.brand or door.via or "").strip().lower()
+    if not needle:
+        return []
+    out = []
+    for row in catalog:
+        name = str(row.get("name") or "").strip().lower()
+        if name and (needle == name or needle in name or name in needle):
+            out.append(row)
+    return out
+
+
+def _class_from_intake(intake: str) -> str:
+    """Gate class for a pack-only door. Structured intakes are calendar_feed
+    (anchor); public HTML is venue_calendar (anchor). Walls never reach here.
+    """
+    if intake in ("ics", "json_ld", "rss", "api"):
+        return "calendar_feed"
+    return "venue_calendar"
+
+
+def _from_pack_door(door: Door) -> DeskRegistration:
+    name = (door.via or door.brand or door.door_id).strip()
+    if not name:
+        raise DeskPublishError(
+            f"pack door {door.door_id!r} has no brand/via, so a pack-only "
+            f"source row would be unlabelled.")
+    return DeskRegistration(
+        door_id=door.door_id,
+        via=door.via or name,
+        source_name=name,
+        source_class=_class_from_intake(door.intake),
+        base_url=door.url,
+        catalog_id=f"pack:{door.door_id}",
     )
 
 
