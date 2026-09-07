@@ -104,8 +104,10 @@ def registrations(pg):
 def _clock_correction_base(min_hours_ahead: int) -> datetime:
     """A future instant at a fixed LOCAL hour, at least `min_hours_ahead` away.
 
-    The three tests below correct a clock by 45-90 minutes and assert the re-run
-    finds the SAME happening. The ingest key carries the local NIGHT
+    Four tests below state two clocks 45-90 minutes apart for one show -- three
+    as a CORRECTION whose re-run must find the SAME happening, and one as two
+    desks CONTESTING the clock in a single plan. The ingest key carries the
+    local NIGHT
     (`desk_union.local_night`), so a base instant landing in the last 90 minutes
     of a local day sends the correction across midnight: the key changes, the
     row publishes as a second listing, and the assertion fails on the clock the
@@ -527,7 +529,13 @@ def test_a_contested_clock_publishes_disputed_on_the_real_feed(pg, registrations
 
     tag = uuid.uuid4().hex[:8]
     title, place = f"Contested {tag}", f"Contested Room {tag}"
-    when = datetime.now(timezone.utc) + timedelta(hours=4)
+    # `_clock_correction_base`, not `now() + 4h`: the two desks state clocks 90
+    # minutes apart, so a base in the last 90 minutes of a local day puts them
+    # on DIFFERENT nights -- two ingest keys, two writes, and the assertion
+    # below fails on the clock CI happened to run at. The helper was added for
+    # the three correction tests and this one was missed; it fails 90 of 1440
+    # UTC minutes a day, and CI hit it at 23:59:51Z on 2026-09-06 (PR #239).
+    when = _clock_correction_base(4)
     one = _live_union(
         _walk(CHRONICLE_DOOR, "Austin Chronicle",
               [_happening(title, when=when, place=place, via="Austin Chronicle",
