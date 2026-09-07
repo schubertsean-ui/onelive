@@ -58,4 +58,4 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
-            --append-system-prompt "Ceremony is off (founder 2026-09-07). Do not run session_reconcile.py. Do not write a Session Contract. Do not read SESSION_START.md. Do not run hats, Kaizen, or construction loop. Open the Must-do files, write them, push a draft PR, stop. Trust gates stay. If a draft PR already exists, push onto it — do not open a second PR. If you hit turn 40 with no product file committed, push whatever you have and stop."
+            --append-system-prompt "Narrow invariants, wide execution. Plan-first/session-reconcile/construction-loop hooks do not block product commits. Trust gates stay. Open the Must-do files, write them with tests, push onto the existing PR if one exists. 80 turns is a ceiling not a target. If CI is red, fix the named checks. Do not invent a second PR."

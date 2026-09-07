@@ -5,7 +5,7 @@ Coverage Law still outranks this file on *scope*. This file outranks everything 
 
 **Ceremony is off (founder 2026-09-07).** Do not run session_reconcile. Do not write a Session Contract. Ticket first. Trust gates stay.
 
-Conductor: ONE-LIVE-CONDUCTOR.md. One job per ticket. Empty stub = no PR. Two 80-turn deaths → PM lands it. A rule that lives only in a chat is not a rule.
+Conductor: ONE-LIVE-CONDUCTOR.md. Narrow invariants, wide execution. One job per ticket is concurrency, not a leash. Retry with the failure.
 
 
 ## Outcome

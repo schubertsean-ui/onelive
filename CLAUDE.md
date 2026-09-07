@@ -15,14 +15,12 @@ Trust gates stay: `trust_gate`, lint, pytest, the independent evaluator.
 Ceremony does not.
 
 ## Conductor (founder, 2026-09-07)
-Canonical copy: ONE-LIVE-CONDUCTOR.md (identical rules).
+Canonical copy: ONE-LIVE-CONDUCTOR.md.
 
-- One Claude job per ticket. A second `@claude` cancels the first. Do not stack caps.
-- Empty stub PR (0 files) = no PR. Retry is allowed.
-- Two 80-turn deaths, no green → PM lands the files. No third cap.
-- Never `@claude` on both the issue and the PR. Never `@claude` to "continue."
-- Name the red checks. Push. Stop.
-- A rule that lives only in a chat is not a rule. Codify here, then push.
+Narrow invariants, wide execution. Invariants are CI and Coverage Law.
+The machine: one job per ticket, cancel duplicates, tools on, hooks that ate the
+budget are off. Retry with the failure, on the same PR. Finish the diff when
+the remaining work is known. Not a turn ration.
 
 ## Coverage Law (founder, 2026-09-01)
 If any instruction in this file, STATE.md, or a session contract
@@ -43,7 +41,7 @@ Coverage Law still outranks this file on *scope*. This file outranks everything 
 Vision: ONE-LIVE-VISION.md. If a ticket shrinks this vision, the ticket is wrong.
 Trust doctrine: ONE-LIVE-TRUST.md. Existence vs field vs mutation.
 If a gate answers existence with a field or mutation test, the gate is wrong.
-Conductor: ONE-LIVE-CONDUCTOR.md. Dispatch, retries, non-firings.
+Conductor: ONE-LIVE-CONDUCTOR.md. Narrow invariants, wide execution.
 
 ### Outcome
 Maximum work that changes the catalog or the live site per hour.

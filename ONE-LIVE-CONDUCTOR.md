@@ -1,53 +1,43 @@
-# One Live — Conductor (dispatch, retries, non-firings)
+# One Live — Conductor
 
 Ratified: 2026-09-07. Status: in force.
-This file is how Atlas/Hermes (the PM) and `@claude` jobs are allowed to run.
-It does not change Coverage Law, Operating Law, Trust, or Vision.
-If this file fights Operating Law on *how a session works*, Operating Law wins.
-If this file fights Coverage Law on *scope*, Coverage Law wins.
+How jobs run. Not a ninth vision. Coverage, Operating, Trust, and Vision still govern product.
 
-## Outcome
-Minimum wait. Minimum wasted turns. Maximum product files on GitHub.
-A rule that lives only in a chat is not a rule. Codify here, then push.
+## World-class here
+Narrow invariants. Wide execution.
 
-## One job per ticket
-`.github/workflows/claude.yml` is the trigger. `@claude` from OWNER / MEMBER / COLLABORATOR only.
+Invariants live in **code and CI**, not in a growing "do not" list:
+trust_gate, pytest, the independent evaluator, Coverage Law (do not invent, do not drop, do not bypass walls, no pay-to-rank).
 
-- One in-flight Claude job per issue or PR. A new `@claude` on the same ticket **cancels** the in-flight run. It does not stack a second 80-turn cap.
-- Never comment `@claude` on both the issue and the PR for the same ticket.
-- Never `@claude` to "continue" or "keep going." Named red checks, named files, then stop.
-- Comments without `@claude` may skip. Skips are cheap. Stacked runs are not.
+The agent is hired to change the catalog or the live site. The machine's job is to make that path cheap: tools, a branch, tests that name the Must-do, one job, honest CI.
 
-## What counts as "already has a PR"
-- Draft or open PR **with product files** = has a PR. Do not open a second one. Push onto it.
-- **Empty stub** (0 files, "open a draft first") = **no PR**. Retry is allowed. Fill it or close it.
-- A PR whose only commit is ceremony (STATE, Hats, Kaizen, session-arc) = no product PR.
+Adding another prohibition after a failed run is not engineering. Fix the **cause** (a blocking hook, a missing tool, a merge conflict, a red check) and rerun with that cause in context.
 
-## Retry
-- Do not retry a ticket whose Claude job is **running**.
-- Job dead, no product PR → `@claude` **once** on the ticket. Push a draft. Stop.
-- Job dead, product PR, checks red → `@claude` **once** on **that PR**: name the red checks. No new ticket. No second PR.
-- **Two** 80-turn deaths on the same ticket with no green → the PM lands the files. **No third cap.**
-- Do not retry #251 (census) until #253 / #254 / #255 have draft PRs with product files, or are running.
+## The machine
+`.github/workflows/claude.yml`
 
-## Merge
-- Vision PRs (#253 place, #254 gather, #255 pack doors): squash-merge only when required checks are green **and** the independent evaluator verdict is APPROVE.
-- Conductor PRs (claude.yml, ceremony off, this file): squash-merge when green + evaluator APPROVE.
-- #252 stays unmerged while the evaluator is red.
-- August drafts stay parked.
-- Claude never merges unless the founder pastes "merge".
+- `@claude` from OWNER / MEMBER / COLLABORATOR starts a job with git, gh, pytest, python, and 80 turns as a **ceiling**, not a target.
+- One job per issue/PR. A new `@claude` on the same ticket cancels the in-flight run. That is CI concurrency, not a leash.
+- Plan-first / session-reconcile / construction-loop hooks do not block a product commit. They were burning the budget before any file landed. Trust gates still run on the PR.
+- Success: product files + tests on a PR that CI and the evaluator can judge.
 
-## Blocks
-A block is only real if nothing is moving on that ticket and nobody is allowed to push it.
-- In-flight Claude or in-flight CI is **running**, not blocked.
-- Dead job + red PR is **action**, not a wait.
-- Founder holds (#252 evaluator red, August drafts) are holds. Do not work around them.
-- Do not freeze the board for one red check.
+## Happy path
+1. Ticket names files or behaviors.
+2. Job writes them, with tests that lock the Must-do.
+3. Push onto the existing PR if there is one; otherwise open one.
+4. CI and the evaluator run. Green + APPROVE → squash-merge (vision and conductor PRs). Claude does not merge unless the founder pastes "merge".
 
-## Ceremony
-Off. Do not run `session_reconcile.py`. Do not write a Session Contract.
-Do not read `docs/SESSION_START.md`. Do not run hats, Kaizen, construction loop, or `[S3:]` citations.
-Open the Must-do files. Write them. Push. Stop.
-If you hit turn 40 with no product file committed, push whatever you have and stop.
+## When it fails
+Retry **with the failure**, not a blank "continue":
+- Paste the red check names, the error, the file. Same PR.
+- Do not stack a second job while one is running.
+- An empty stub (0 product files) is not a PR. Fill it.
+- If the failure is the **system** (hooks, missing tools, merge conflict with master), fix the system first, then rerun.
+- If the remaining work is known and small and the agent has already shown the shape, the PM lands it. That is finish-the-diff, not a cap on thinking.
 
-Trust gates stay: trust_gate, lint, pytest, independent evaluator.
+Ticket-order notes (current board, not law): #252 stays unmerged while the evaluator is red. August drafts stay parked. Census (#251) follows place / gather / pack doors.
+
+## What this file is not
+Not a turn ration. Not "push whatever at turn 40." Not a ban on continuing a half-done PR. Not a freeze of the board for one red check.
+
+A rule that lives only in a chat is not a rule. Change this file, then push.
