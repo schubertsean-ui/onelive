@@ -23,8 +23,9 @@ A sentence in this file is not a control. A bot can ignore it. A lesson has land
 
 | Defect | Required check that would have caught it |
 |---|---|
-| #260 unclosed `fetch()` — production could not compile | `npx tsc --noEmit` in `trust-gate.yml` (required). `next build` in `web-compile.yml` on every PR, no path filter. |
+| #260 unclosed `fetch()` — production could not compile | `npx tsc --noEmit` in `trust-gate.yml` (required). `next build` in `web-compile.yml` on every PR, no path filter. Adversarial-review compiles the tree even when `web/` is not in the diff. |
 | Vercel red treated as “docs-PR fail” | `web/vercel.json` `ignoreCommand: exit 1`. Conductor: do not merge around Vercel red. |
+| Evaluator never voted because STATE.md was stale | Validate no longer aborts before the independent evaluator. Both still bind. |
 
 Do not add a fourth paragraph instead of a check.
 

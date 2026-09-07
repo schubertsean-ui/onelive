@@ -121,6 +121,14 @@ jobs:
         # finding (M3 escape / unaddressed repeat-class alarm), and any
         # workflow_env_lint finding are hard FAILs the flag cannot waive
         # (evaluator r5) — this step can actually go red on all of them.
+        #
+        # World-class 2026-09-07: this step MUST NOT abort the job before
+        # the independent evaluator votes. Ceremony (staleness_check /
+        # STATE.md) going red was skipping review entirely — the opposite
+        # of independent evaluation. Validate still binds: a later step
+        # fails the job if this exit is non-zero. Both verdict AND
+        # validate must pass. Neither is a skip of the other.
+        id: validate
         env:
           # READ-ONLY remote access for the ONE gate that provably needs
           # it (#71 r8). construction_gate proves its base ref is current
@@ -141,9 +149,16 @@ jobs:
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0=http.extraheader
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          set +e
           bash tools/validate --allow-skips 2>&1 | tee validate.log
+          vc=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$vc" >> "$GITHUB_OUTPUT"
+          if [ "$vc" -ne 0 ]; then
+            echo "::warning::validate red (exit $vc) — independent evaluator still runs; this job fails after the verdict. Ceremony must not skip review."
+          fi
 
-      - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
+      - name: Web checks + SCA (compile ALWAYS; extra checks when web/ is touched)
         env:
           DIFF_RANGE: ${{ steps.range.outputs.range }}
         run: |
@@ -152,38 +167,27 @@ jobs:
           # A git failure must FAIL this step (r17) — under a plain if, a bad
           # range read as "no web files touched" and skipped the SCA gate.
           CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE")"
-          if grep -q '^web/' <<< "$CHANGED_FILES"; then
-            (
-              cd web
-              npm ci
-              # Supply-chain gate: production deps clean at high/critical, or
-              # the job fails here. Exceptions are NOT ad hoc — they go through
-              # the managed, self-maintaining allowlist (security/sca_allowlist.json,
-              # enforced by tools/sca_gate.py): each is scoped, expiring, and
-              # auto-re-blocks the instant a fix ships. Policy + guarantees:
-              # docs/EXTERNAL_FINDINGS_POLICY.md. Full audit (incl. dev/moderate)
-              # is still shown to the evaluator below.
-              python3 "$GITHUB_WORKSPACE/tools/sca_gate.py" --web-dir .
-              npm audit || true
-              npx tsc --noEmit
+          # Production compiles the FULL tree on every deploy, including
+          # docs-only commits. Skipping tsc/next build here when web/ is
+          # absent is how #260's unclosed fetch() reached production and
+          # how a later docs merge's Vercel red was misread as noise.
+          # Compile always. SCA + npm test + Clerk-keyed build stay on
+          # the web/ diff (those only change when web/ changes).
+          (
+            cd web
+            npm ci
+            python3 "$GITHUB_WORKSPACE/tools/sca_gate.py" --web-dir .
+            npm audit || true
+            npx tsc --noEmit
+            npm run build
+            if grep -q '^web/' <<< "$CHANGED_FILES"; then
               npm test
-              # DEPLOY PARITY (categorical, not per-instance): the app must build
-              # under the SAME env conditions every deploy target runs — otherwise
-              # "CI green" does not imply "it deploys" (this is exactly how a
-              # keyless production build silently broke). So we build BOTH shapes:
-              #   1. KEYLESS — the condition the default branch / production runs
-              #      under (auth is optional + fails closed at RUNTIME, never at
-              #      build). If this fails, a deploy would too.
-              npm run build
-              #   2. WITH a dummy Clerk key (non-secret client id; base64 of
-              #      clerk.example.com) — exercises the Clerk-provider code path.
               rm -rf .next
               NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
-            ) 2>&1 | tee web.log
-          else
-            echo "no web/ files in this diff — web checks not applicable" | tee web.log
-          fi
-
+            else
+              echo "web/ not in this diff — SCA+tsc+keyless build still ran (production compiles this tree); Clerk-keyed rebuild skipped"
+            fi
+          ) 2>&1 | tee web.log
       - name: Extract the diff under review (lockfiles + fetched corpus excluded by policy)
         env:
           DIFF_RANGE: ${{ steps.range.outputs.range }}
@@ -550,3 +554,11 @@ jobs:
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"
+
+      - name: Machine gates still bind
+        # Independent review always votes (the validate step no longer aborts
+        # first). Validate still blocks merge. Neither is a skip of the other.
+        if: always() && steps.validate.outputs.exit != '0'
+        run: |
+          echo "::error::validate failed (exit ${{ steps.validate.outputs.exit }}). Independent evaluator still ran. Merge stays blocked — review is not a skip of validate, and validate is not a skip of review."
+          exit 1
