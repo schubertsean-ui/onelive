@@ -37,14 +37,19 @@ import {
   bucketByDate,
   buildPlan,
   dayTabs,
+  emptyWindowNote,
   facet,
   genreFacet,
   groupByDomain,
   liveEvents,
+  resolveTab,
   splitByDayPart,
+  splitByTiming,
   viewCounts,
   type DayPartSplit,
+  type DayTabKind,
   type PlanScope,
+  type TimingSplit,
 } from "../../../lib/feed";
 
 // ── presentational helpers ───────────────────────────────────────────────────
@@ -508,7 +513,9 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
   // (deterministic SSR).
   const live = useMemo(() => (mounted ? liveEvents(events, nowMs) : events), [events, nowMs, mounted]);
   const tabs = useMemo(() => dayTabs(nowMs, 7), [nowMs]);
-  const tab = tabs.find((t) => t.key === tabKey) ?? tabs[0];
+  // Fail closed: a `?when=` token we do not serve (stale bookmark, typo,
+  // injected value) resolves to the DEFAULT window rather than to nothing.
+  const tab = resolveTab(tabs, tabKey);
   // VIEW side: the region scope. Everything downstream (facets, filters, the
   // ask/plan lenses) works on this, so the scope is applied in exactly one
   // place and no surface can quietly disagree with the count line.
@@ -539,8 +546,34 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
   // line must not promise "evening first, then earlier in the day").
   const dayParts = useMemo(() => splitByDayPart(filtered), [filtered]);
   const splitApplies =
-    tab.key !== "all" && eveningFirst &&
+    tab.kind === "day" && eveningFirst &&
     dayParts.evening.length > 0 && dayParts.earlier.length > 0;
+
+  // Inside a NAMED window (Tonight, This weekend, This week/month, …) the only
+  // split is on-now vs coming-up (founder 2026-09-07). Same discipline as the
+  // day-part split: computed once here, handed to the renderer, described by
+  // the disclosure below — never recomputed anywhere else.
+  const timingSplit = useMemo(() => splitByTiming(filtered, nowMs), [filtered, nowMs]);
+  const windowSplit: TimingSplit | null =
+    tab.kind === "night" || tab.kind === "span" ? timingSplit : null;
+
+  // The ordering disclosure must describe what ACTUALLY renders (evaluator r4).
+  const orderNote = windowSplit
+    ? windowSplit.onNow.length && windowSplit.upcoming.length
+      ? tab.kind === "night" ? "on now first, then the rest of the night by category" : "on now first, then coming up by date"
+      : windowSplit.onNow.length
+        ? "on now"
+        : tab.kind === "night" ? "by category, soonest first" : "soonest first within each section"
+    : tab.kind === "all"
+      ? "soonest first within each section"
+      : splitApplies ? "evening first, then earlier in the day" : "by category, soonest first";
+
+  // An empty window is a STATE, never a verdict (Locale Launch Law §2). Non-null
+  // exactly when this view renders no rows, and it says WHICH zero this is.
+  const emptyNote = emptyWindowNote(tab, counts);
+  const clearFilters = () => {
+    setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false);
+  };
 
   const isOnNow = (e: LicensedEvent) => mounted && eventOnNow(e, nowMs);
   const activeFilters = domains.size + areas.size + genres.size + (freeOnly ? 1 : 0);
@@ -605,7 +638,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
               {/* An ORDERING control, deliberately not inside the filter
                   panel: a filter removes rows and this one never does. Both
                   states render every row in the window. */}
-              {tab.key !== "all" ? (
+              {tab.kind === "day" ? (
                 <button type="button" className={`chip${eveningFirst ? " on" : ""}`}
                   aria-pressed={eveningFirst}
                   onClick={() => setEveningFirst(!eveningFirst)}>Evening first</button>
@@ -661,10 +694,9 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
             <div className="count">
               Showing {counts.shown.toLocaleString()} of {counts.windowTotal.toLocaleString()} known
               {" "}listing{counts.windowTotal === 1 ? "" : "s"} for {tab.key === "all" ? "everything upcoming" : tab.label}
+              {tab.note ? ` (${tab.note})` : ""}
               {" · "}
-              {tab.key === "all"
-                ? "soonest first within each section"
-                : splitApplies ? "evening first, then earlier in the day" : "by category, soonest first"}
+              {orderNote}
             </div>
             <p className="rnote">
               {region === "capcog" ? (
@@ -692,7 +724,31 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
               )}
             </p>
 
-            <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} singleDay={tab.key !== "all"} dayParts={splitApplies ? dayParts : null} />
+            {emptyNote ? (
+              <div className="gnote" role="status">
+                <p className="gh">{emptyNote.headline}</p>
+                <p className="gd">{emptyNote.detail}</p>
+                {emptyNote.kind === "gathering" ? (
+                  <div className="frow">
+                    {/* An empty window is not an empty site: the windows that
+                        still hold the rest of the catalog are one tap away. */}
+                    {tabs.filter((t) => t.key !== tab.key && ["today", "d1", "all"].includes(t.key)).map((t) => (
+                      <button key={t.key} type="button" className="chip" onClick={() => setTabKey(t.key)}>{t.label}</button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="frow">
+                    <button type="button" className="chip clear" onClick={clearFilters}>Clear filters</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <EventList
+                events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens}
+                singleDay={tab.kind === "day"} dayParts={splitApplies ? dayParts : null}
+                windowSplit={windowSplit} windowKind={tab.kind}
+              />
+            )}
           </>
         )}
 
@@ -751,18 +807,86 @@ function RichBucket({ items, isOnNow, onOpen }: {
   );
 }
 
-// The feed renders in THREE date buckets of descending density — This week
-// (rich two-door cards, domain-grouped) · Later this month (compact rows) ·
-// Beyond (terse lines) — so longer-dated events are scannable instead of a wall
-// of tall cards. bucketByDate is sum-preserving, so nothing is dropped.
-function EventList({ events, nowMs, isOnNow, onOpen, singleDay, dayParts }: {
+// Date buckets of descending density — This week (rich two-door cards,
+// domain-grouped) · In the coming weeks (compact rows) · Further out (terse
+// lines) — so longer-dated events are scannable instead of a wall of tall
+// cards. bucketByDate is sum-preserving, so nothing is dropped.
+function DateBuckets({ items, nowMs, isOnNow, onOpen }: {
+  items: LicensedEvent[]; nowMs: number; isOnNow: (e: LicensedEvent) => boolean; onOpen: (e: LicensedEvent, side: LensSide) => void;
+}) {
+  const buckets = useMemo(() => bucketByDate(items, nowMs), [items, nowMs]);
+  return (
+    <>
+      {buckets.map((b) => (
+        <section key={b.key} className={`bucket b-${b.key}`}>
+          <div className="bhead">
+            <h2>{b.label}</h2>
+            <span className="bblurb">{b.blurb}</span>
+            <span className="n">{b.items.length}</span>
+          </div>
+          {b.key === "rich" ? (
+            <RichBucket items={b.items} isOnNow={isOnNow} onOpen={onOpen} />
+          ) : b.key === "compact" ? (
+            <div className="clist">{b.items.map((e) => <CondensedRow key={e.licensed_event_id} e={e} onNow={isOnNow(e)} onOpen={onOpen} />)}</div>
+          ) : (
+            <div className="llist">{b.items.map((e) => <LineRow key={e.licensed_event_id} e={e} onOpen={onOpen} />)}</div>
+          )}
+        </section>
+      ))}
+    </>
+  );
+}
+
+// The river. Three shapes, one per kind of window the reader picked:
+//   named window  on now leads, then the rest (founder 2026-09-07)
+//   market day    the evening leads, the daytime keeps its own block below
+//   All upcoming  date buckets of descending density
+// The parent decides which — EventList never re-derives it, so the ordering
+// disclosure next to the count can never describe a different river.
+function EventList({ events, nowMs, isOnNow, onOpen, singleDay, dayParts, windowSplit, windowKind }: {
   events: LicensedEvent[]; nowMs: number; isOnNow: (e: LicensedEvent) => boolean; onOpen: (e: LicensedEvent, side: LensSide) => void; singleDay?: boolean;
   // Non-null ONLY when the parent decided the split applies — the same value
   // its ordering disclosure describes. Never recomputed here.
   dayParts?: DayPartSplit | null;
+  // Non-null for a NAMED window (Tonight / This weekend / a calendar span).
+  windowSplit?: TimingSplit | null;
+  windowKind?: DayTabKind;
 }) {
-  const buckets = useMemo(() => bucketByDate(events, nowMs), [events, nowMs]);
-  if (events.length === 0) return <div className="err">No events match — clear a filter or pick another day.</div>;
+  // A named window: what is ON now, then what is coming up inside the window.
+  // Both blocks render — the split is an ordering, never a filter, so the two
+  // lengths always sum to `events` (proven in lib/feed.test.ts).
+  if (windowSplit) {
+    return (
+      <>
+        {windowSplit.onNow.length ? (
+          <section className="bucket b-rich">
+            <div className="bhead">
+              <h2>On now</h2>
+              <span className="bblurb">already running</span>
+              <span className="n">{windowSplit.onNow.length}</span>
+            </div>
+            <RichBucket items={windowSplit.onNow} isOnNow={isOnNow} onOpen={onOpen} />
+          </section>
+        ) : null}
+        {windowSplit.upcoming.length ? (
+          windowKind === "night" ? (
+            <section className="bucket b-rich">
+              <div className="bhead">
+                <h2>Coming up</h2>
+                <span className="bblurb">later tonight</span>
+                <span className="n">{windowSplit.upcoming.length}</span>
+              </div>
+              <RichBucket items={windowSplit.upcoming} isOnNow={isOnNow} onOpen={onOpen} />
+            </section>
+          ) : (
+            // A span covers many days, so the coming-up half keeps the date
+            // buckets rather than becoming a wall of tall cards.
+            <DateBuckets items={windowSplit.upcoming} nowMs={nowMs} isOnNow={isOnNow} onOpen={onOpen} />
+          )
+        ) : null}
+      </>
+    );
+  }
   // A single-day tab is ONE night: rich cards, domain-grouped, no date-bucket
   // chrome ("This week/Later/Beyond" headers only make sense across time —
   // founder 2026-08-04: the undifferentiated stack read as clutter).
@@ -796,26 +920,7 @@ function EventList({ events, nowMs, isOnNow, onOpen, singleDay, dayParts }: {
     }
     return <RichBucket items={events} isOnNow={isOnNow} onOpen={onOpen} />;
   }
-  return (
-    <>
-      {buckets.map((b) => (
-        <section key={b.key} className={`bucket b-${b.key}`}>
-          <div className="bhead">
-            <h2>{b.label}</h2>
-            <span className="bblurb">{b.blurb}</span>
-            <span className="n">{b.items.length}</span>
-          </div>
-          {b.key === "rich" ? (
-            <RichBucket items={b.items} isOnNow={isOnNow} onOpen={onOpen} />
-          ) : b.key === "compact" ? (
-            <div className="clist">{b.items.map((e) => <CondensedRow key={e.licensed_event_id} e={e} onNow={isOnNow(e)} onOpen={onOpen} />)}</div>
-          ) : (
-            <div className="llist">{b.items.map((e) => <LineRow key={e.licensed_event_id} e={e} onOpen={onOpen} />)}</div>
-          )}
-        </section>
-      ))}
-    </>
-  );
+  return <DateBuckets items={events} nowMs={nowMs} isOnNow={isOnNow} onOpen={onOpen} />;
 }
 
 function AskPanel({ base, nowMs, desire, setDesire, isOnNow, onOpen }: {

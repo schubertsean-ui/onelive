@@ -64,6 +64,16 @@
   border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer;
 }
 .flow .datetabs button.on { background: var(--glow); border-color: var(--glow); color: var(--on-glow); font-weight: 700; }
+/* Six named windows (founder 2026-09-07) joined the row, and on a phone the
+   wrapped result pushed the first listing most of a screen down — "beautiful,
+   not dense" (Vision) / "answer on the first screen" (Locale Launch Law §8).
+   The fix is tighter metrics, NOT a scrolling rail: the 2026-08-04 directive
+   above ("Thursday is flowing out of the screen") means every window stays
+   visible without sliding, so nothing here may hide a chip off-screen. */
+@media (max-width: 560px) {
+  .flow .datetabs { gap: 6px; padding: 4px 0; margin: 4px 0; }
+  .flow .datetabs button { padding: 6px 9px; font-size: 11.5px; border-radius: 9px; }
+}
 
 /* Filters — canon §6.5/§9: ONE quiet entry on the surface; the chip rows live
    inside the slide-down panel. Slide honors reduced motion. */
@@ -297,6 +307,17 @@
   border: 1px solid var(--err-line); background: var(--err-bg); border-radius: 12px;
   padding: 16px; color: var(--glow); margin: 20px 0;
 }
+
+/* The honest empty-window state (Locale Launch Law §2). Deliberately NOT the
+   .err register: nothing has failed — we either have not read a door yet, or
+   the reader's own filters are narrow. Quiet, calm, and it always carries the
+   way out (the other windows, or Clear filters). */
+.flow .gnote {
+  border: 1px solid var(--line); background: var(--wash-2); border-radius: 12px;
+  padding: 18px; margin: 20px 0; max-width: 68ch;
+}
+.flow .gnote .gh { font-family: Georgia, serif; font-size: 18px; color: var(--ink); margin: 0 0 6px; }
+.flow .gnote .gd { color: var(--dim); font-size: 13px; line-height: 1.6; margin: 0 0 12px; }
 .flow footer { color: var(--dim); font-size: 11.5px; border-top: 1px solid var(--line); margin-top: 28px; padding: 18px 0; line-height: 1.6; }
 
 .tilink { color: inherit; text-decoration: none; }
