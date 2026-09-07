@@ -64,16 +64,16 @@ export default async function TonightPage() {
     // client drops anything actually ended.
     const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
     const toISO = new Date(nowMs + 21 * 24 * 60 * 60 * 1000).toISOString();
-    const window = { fromISO, toISO, includeNullClock: false as const };
+    const feedWindow = { fromISO, toISO, includeNullClock: false as const };
     let licensedFailed = false;
     let promotedFailed = false;
     const [licensed, promoted] = await Promise.all([
-      fetchLicensedEvents(window).catch((e) => {
+      fetchLicensedEvents(feedWindow).catch((e) => {
         console.error("licensed-event read failed:", e);
         licensedFailed = true;
         return [] as LicensedEvent[];
       }),
-      fetchPromotedEvents(window).catch((e) => {
+      fetchPromotedEvents(feedWindow).catch((e) => {
         console.error("promoted-event read failed; showing licensed feed only:", e);
         promotedFailed = true;
         return [] as LicensedEvent[];

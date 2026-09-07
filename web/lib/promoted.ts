@@ -225,7 +225,11 @@ async function fetchAllRows(
         Range: `${from}-${to}`,
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
+      signal: (() => {
+        const ac = new AbortController();
+        setTimeout(() => ac.abort(), 8_000);
+        return ac.signal;
+      })(),
     if (!res.ok) {
       throw new Error(`Supabase promoted read failed (${res.status}): ${await res.text()}`);
     }

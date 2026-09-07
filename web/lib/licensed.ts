@@ -236,6 +236,12 @@ const PAGE = 1000; // Range window per request.
 const SAFETY_MAX = 100_000; // loud stop, never a silent truncation.
 const FETCH_MS = 8_000; // Tonight must not hang on a slow PostgREST page.
 
+function timedSignal(ms: number): AbortSignal {
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), ms);
+  return ac.signal;
+}
+
 // Fetch ALL matching rows, paginating with Range headers until a page comes
 // back empty. PostgREST caps a single response server-side (Supabase default
 // 1000 rows), so a single request WOULD silently drop everything past that cap —
@@ -265,7 +271,7 @@ export async function fetchLicensedEvents(
         Range: `${from}-${to}`,
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(FETCH_MS),
+      signal: timedSignal(FETCH_MS),
     });
     if (!res.ok) {
       throw new Error(`Supabase read failed (${res.status}): ${await res.text()}`);
