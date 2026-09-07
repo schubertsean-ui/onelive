@@ -24,7 +24,8 @@ A conflict, gap, error, red check, empty PR, skip-storm, or master-red is **acti
 | Trust-gate / pytest red | Read the assertion. Fix that file. Same PR. |
 | Evaluator REQUEST-CHANGES | Fix the named trust defect only. |
 | Visual red | If the product change is intended, recapture the baseline. If not, revert the accidental surface. |
-| Vercel red | Open the inspect log. Fix the build or the skip. A red Vercel check is a failed deploy, including on a docs PR. Do not merge around it. Do not call it ignorable. |
+| Vercel red | Open the inspect log. Fix the build. A red Vercel check is a failed deploy, including on a docs PR. Do not merge around it. Do not call it ignorable. |
+| Web compile red | Master cannot ship. `.github/workflows/web-compile.yml` typechecks and `next build`s on every PR, no path filter. Fix the compile on the same PR. |
 | Empty stub PR (0 files) | Not a PR. Fill it with the ticket files. |
 | 80-turn death with files on the branch | Next job gets the red-check names and the error. Same PR. |
 | 80-turn death with nothing | The PM writes the files. Do not burn a third identical cap on a blank. |

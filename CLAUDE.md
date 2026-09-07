@@ -11,7 +11,9 @@ or `[S3:]` citations.**
 
 Open the Must-do files. Write them. Push a draft PR. Stop.
 
-Trust gates stay: `trust_gate`, lint, pytest, the independent evaluator.
+Trust gates stay: `trust_gate`, lint, pytest, the independent evaluator,
+`web-compile` (tsc + next build on every PR, no path filter), Vercel.
+A red Vercel or web-compile check is a failed product. Do not merge it.
 Ceremony does not.
 
 ## Conductor (founder, 2026-09-07)

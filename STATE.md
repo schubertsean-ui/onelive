@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** Production did not compile: `web/lib/promoted.ts` dropped the `fetch()` close (#260). Vercel red on later docs merges was that error, not a skippable docs-PR fail. Closed in PR #264. `web-compile.yml` now typechecks and `next build`s on every PR with no path filter so this cannot land again.
 **2026-09-07:** Date is the organizer. The feed lives at `/`. Tonight is one view a person picks, not the product. PR #261.
 **2026-09-07:** Chronicle nights publish. Date-only desk rows go live at 17:00 America/Chicago; Tonight fetch is bounded and cannot hang on DATE-TBA. PR #260.
 **2026-09-07:** The desk write pays ONE database handshake, not one per seam call — measured 3262 connections -> 1 on a 94-publish/1490-hold plan against real PostgreSQL, same rows out (`tools/desk_ingest.py` `one_connection()`). Rows are written corrections -> publics -> holds, so a cancelled run has already disputed every live listing its own desk contradicts and still leaves /tonight with listings (`publish_first()`). No workflow, gate, politeness or cap change. PR #245.
