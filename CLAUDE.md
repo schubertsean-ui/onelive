@@ -1,6 +1,25 @@
 # CLAUDE.md — 1LIVE Autonomous Build Charter (place at repo root)
 This file is read by Claude Code at the start of every session. It is the standing contract.
 
+## Ceremony is off (founder, 2026-09-07)
+Jobs died because plan-first hooks, `session_reconcile.py`, and Session Contracts
+burned the turn budget before any product file landed (`error_max_turns`, no branch).
+
+**Do not run `session_reconcile.py`. Do not write a Session Contract. Do not read
+`docs/SESSION_START.md`. Do not run hats, Kaizen, construction loop, friction logs,
+or `[S3:]` citations.**
+
+Open the Must-do files. Write them. Push a draft PR. Stop.
+
+Trust gates stay: `trust_gate`, lint, pytest, the independent evaluator.
+Ceremony does not.
+
+## Conductor (founder, 2026-09-07)
+Canonical copy: ONE-LIVE-CONDUCTOR.md.
+
+Narrow invariants, wide execution. Impediments are work — conflict, red check,
+empty PR, master-red: name it and fix it. Not a wait and not a new "do not".
+
 ## Coverage Law (founder, 2026-09-01)
 If any instruction in this file, STATE.md, or a session contract
 conflicts with ONE-LIVE-COVERAGE-LAW.md on *scope*, Coverage Law wins.
@@ -14,9 +33,13 @@ Canonical copy: ONE-LIVE-OPERATING-LAW.md (identical text).
 This outranks curiosity, construction-loop ceremony, hats, po battery, friction logs, and "while I'm here."
 Coverage Law still outranks this file on *scope*. This file outranks everything on *how you work*.
 
+**Ceremony is off (founder 2026-09-07).** Do not run session_reconcile. Do not write a Session Contract. Ticket first. Trust gates stay.
+
+
 Vision: ONE-LIVE-VISION.md. If a ticket shrinks this vision, the ticket is wrong.
 Trust doctrine: ONE-LIVE-TRUST.md. Existence vs field vs mutation.
 If a gate answers existence with a field or mutation test, the gate is wrong.
+Conductor: ONE-LIVE-CONDUCTOR.md. Narrow invariants, wide execution.
 
 ### Outcome
 Maximum work that changes the catalog or the live site per hour.
@@ -33,7 +56,7 @@ Done: PR + artifact (table, screenshot, or "ask founder" stop).
 Then stop.
 
 ### Speed rules
-1. Code before essays. STATE note ≤ 8 lines (goal, files, done test, out of scope).
+1. Code before essays. Do not write STATE.md unless the ticket names it.
 2. No new importer / taxonomy / service / design doc unless Must-do names that file.
 3. No mid-session product expansion. If blocked: one paragraph — class letter, file, function, error.
 4. Sandbox 403 is not a product failure. Use fixtures + CI. Do not invent a stack to dodge the proxy.
@@ -74,9 +97,9 @@ Entity Split Law still wins on *identity*.
 
 ## Prime directives
 1. **Trust invariants are physics, not policy.** Gate-custodied publication (reworded at founder direction 2026-08-03 from the older shorthand "AI never publishes" — decision record docs/memory/decisions/2026-08-03_invariant-wording-gate-custody.md; MECHANICS UNCHANGED): AI output reaches users ONLY through the validation gates — extraction → candidate → gate → promote for events, the Foundry faithfulness gate for descriptors — with promotion either human-custodied or earned-confidence AUTO-published behind founder-flipped, fail-closed flags (per-item human approval is a REJECTED design, 2026-07-25/2026-08-03); AI is structurally everywhere in the product, and the invariant is CUSTODY, never absence; orchestrator cannot import the promote path; no pay-to-rank surface, ever; disputed shown-never-hidden; RLS stays fail-closed. Any change touching these = STOP and escalate to founder. Scope note (founder-ratified 2026-07-18, verbatim directive "You do the merge and notify me" — docs/memory/decisions/2026-07-18_agent-merges-on-green.md): the publication invariant governs the PRODUCT data path (extraction → candidate → gate → promote → users) and every outward-facing product surface — it is NOT narrowed by repo operations. Distinctly and explicitly: the agent MAY merge its own PR only when the independent non-Claude evaluator has APPROVED and every required check on the final head is green (red or pending = hard stop, no exceptions); "notify me" in the 2026-07-18 directive is a sequence/semantic reading (founder-ruled 2026-08-03, docs/memory/decisions/2026-08-03_merge-notify-semantic-reading.md): the recorded merge evidence on disk IS the notification in the sequence — no merge message is sent, per the 2026-07-25 directive "I don't want to know about merge." Product publishing remains gate-custodied and founder-controlled exactly as before. Exception, enumerated, closed, and MECHANICALLY compensated per class (founder-ratified 2026-07-18 "Ratified"; mechanics added at the evaluator's demand on PR #36, the per-class scope split at its r3 — the classified surface is broader than the certification hash, so one blanket "red moves" claim was fail-open): the golden-exam verifier is red BY DESIGN on any PR that modifies the exam harness surface — the CLASSIFIER is the verifier's own harness-refusal output ("changes extraction HARNESS code that the attended exam does not execute"), never agent judgment, and the classifier itself partitions the refused files into the two classes below (tools/classify_extraction_surface.py, reading HARNESS_MANIFEST as data from the single source the exam runner stamps — mechanical identity, never hand-mirrored). That red does not count against "every required check green" ONLY for refusals PROVEN to contain no manifest-bound file — eligibility is read off the classifier's own printed partition (or, for refusals emitted by the pre-partition classifier, checked directly: no listed file appears in HARNESS_MANIFEST), and an unreadable manifest makes a refusal INELIGIBLE (the classifier prints exactly that — fail closed, never fail-open). Both classes are covered, each by a LIVE compensating control (the bootstrap completed 2026-07-18 — gate #36, evidence plumbing #37/#38, verifier hygiene #39, authenticated record #40, re-lock in the same commit as this sentence; no unmerged code ever judged anything): (a) MANIFEST-BOUND files (the exact set compute_harness_sha() covers): trust_gate's extraction-certification re-lock fails the whole tree whenever EXTRACTION_THRESHOLD_RATIFIED is True while the current harness hash differs from the committed attended-exam certification record (ai/golden/CERTIFIED_HARNESS.json, outside the manifest so recording cannot alter what it certifies, and enterable or changeable ONLY through the base-owned online authenticator in extraction-eval.yml). Because that re-lock fires on the PR itself, a manifest-bound refusal is eligible ONLY when the SAME PR sets EXTRACTION_THRESHOLD_RATIFIED to literal False (the classifier verifies this from the subject's routing data and prints it; anything else carries the EXCEPTION-INELIGIBLE marker — there is no double-red merge path, ever): the closure moves, not the red — extraction is OFF, fail-closed, from merge until the standing three-step re-opens it (founder's attended exam on the new harness → authenticated record PR → head-bound flag-flip PR), and trust_gate stays green throughout because a closed extraction needs no certification while the re-lock still hard-stops any certified-but-drifted state (e.g. a direct push). The re-lock computes the harness hash with trust_gate's OWN manifest copy and hasher, never the manifest-bound runner's (r3: circular trust — the compensated PR class must not be able to alter the computation that judges it); single-sided copy drift fails the test suite in the same PR, and a coordinated change of both copies necessarily touches trust-path files, whose compensation is the mandatory review. The re-lock compensates the UNCHANGED, previously-authenticated record only — a refusal accompanied by ANY change to ai/golden/CERTIFIED_HARNESS.json is INELIGIBLE (the refusal precludes the authenticator from running, so the changed record would enter unverified; the classifier prints a canonical EXCEPTION-INELIGIBLE marker and the review's evidence step fails closed on it mechanically — land records separately, after their harness merges and an attended exam certifies them). An unclassifiable refusal (unreadable manifest) is likewise INELIGIBLE, same marker, same mechanical fail. (b) NON-manifest surface files (verifier/trust-path code and exam data outside the manifest) ARE covered now: their compensation is structural and already live — they affect no trust decision except through base-owned copies (pull_request_target: a PR's copy never judges itself) and per-run data bindings re-derived from base at every evidence verification (golden/prompt/model/dependency-lock hashes), and the change itself merges only at the mandatory non-Claude adversarial review's APPROVE on that very PR (adversarial-review.yml, every PR, no path filter). Adding any further named exception is a gate-threshold relaxation: founder-crucial.
-2. **Loops discipline (docs/LOOPS + Part 5 of MASTER):** every session begins with `python tools/session_reconcile.py` and ends by updating STATE.md + TODOS.md + docs/ONE_LIVE_CHANGE_LOG.md. Disk is truth; never trust chat memory over files.
-3. **Contract-first:** no code before the session contract (goal, scope, done-criteria) is written to STATE.md. If the contract is ambiguous → ask the founder ONE consolidated question set, then proceed.
-4. **Validation:** `python tools/validate` must pass before any PR is opened. `--allow-skips` is temporary debt; log every skip.
+2. **Ticket first.** Do not run `session_reconcile.py`. Do not write a Session Contract. Do not update STATE.md / TODOS.md / the changelog unless the ticket names that file. Disk is truth for product files; ceremony files are not the ticket.
+3. **No contract-first.** A pasted Must-do list IS the plan. Write the files it names.
+4. **Validation:** `python tools/validate` must pass before any PR is opened. `--allow-skips` is temporary debt; log every skip. This is a trust gate, not ceremony.
 
 ## Agent org (who does what)
 - **Generator = this Claude Code session.** Writes code, tests-in-same-PR, small self-contained changes.
@@ -194,9 +217,6 @@ Quick map of the harness (all discoverable, none orphaned):
 - `tools/README.md` — index of every helper script (lint, trust_gate, test_audit,
   commit_sweep, profile_target, visual_regression, session_reconcile, agent_review).
 
-**Run `docs/SESSION_START.md` before starting any session.** It reconciles STATE.md
-against live ground truth (git/PRs/DB via `tools/session_reconcile.py`) so you can
-trust it, then routes you to STATE.md (what's done/next), the latest session arc
-(how we got here), and `docs/OPERATING_RULES.md` (how we work). Do not trust
-STATE.md until the reconcile step is clean. Update STATE.md and re-run the
-reconciler at the end of every meaningful session.
+**Do not run `docs/SESSION_START.md`.** Ticket first (founder 2026-09-07).
+Look at the Must-do files, not the session bookends.
+

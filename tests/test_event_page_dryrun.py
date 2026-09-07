@@ -22,6 +22,7 @@ file or a committed fixture; every fetcher is injected.
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -436,6 +437,31 @@ def counters(out: str) -> dict:
     raise AssertionError(f"no counter table in this run's output:\n{out}")
 
 
+def plan_keys(out: str) -> list:
+    """The keys of the run's own printed write plan, in printed order.
+
+    The counter row says HOW MANY rows a run plans; this says WHICH. A run can
+    take a night off one row and give a night to another and leave every
+    counter exactly where it was, so a count is not by itself a witness that
+    two runs planned the same happenings.
+    """
+    keys, inside = [], False
+    for line in out.splitlines():
+        if line.startswith("## 4. The write plan"):
+            inside = True
+            continue
+        if not inside:
+            continue
+        if line.startswith("## "):
+            break
+        found = re.match(r"\|\s*\d+\s*\|\s*`([^`]+)`\s*\|", line)
+        if found:
+            keys.append(found.group(1))
+    if not keys:
+        raise AssertionError(f"no write plan in this run's output:\n{out}")
+    return keys
+
+
 def test_a_write_run_follows_event_pages(monkeypatch, capsys):
     """Must-do 1 and 2: the write path calls `follow()`, it is not skipped.
 
@@ -507,27 +533,37 @@ def test_a_write_run_gets_the_same_cap_and_politeness_as_a_dry_run(monkeypatch, 
 
 
 def test_the_fixture_write_plans_what_the_fixture_dry_run_plans(monkeypatch, capsys):
-    """Must-do 3(b): same publish_n, dry-run and write, on the same fixtures.
+    """Must-do 3(b): the same plan, dry-run and write, on the same fixtures.
+
+    The same counters AND the same rows key by key, because counters alone
+    would pass two runs that swapped one publishable row for another.
 
     With a third leg that keeps the comparison from being vacuous: the same
-    fixtures with `--follow-pages 0` plan a DIFFERENT publish_n, so equality
-    above is a statement about following and not about two runs that could
-    never have differed. (On these fixtures following LOWERS publish_n by one:
-    a page contests a night the list stated, `event_page.apply()` takes the
-    night back, and the row holds instead of publishing — following is not a
-    machine for publishing more, it is a machine for publishing the truth.)"""
+    fixtures with `--follow-pages 0` plan a DIFFERENT SET of rows, so the
+    equality above is a statement about following and not about two runs that
+    could never have differed.
+
+    What following changes on these fixtures is WHICH rows publish, not how
+    many. One row's own page gives it the night its list card never stated, so
+    it goes from held to publishable; another's page contests the night its
+    list card DID state, `event_page.apply()` takes that night back, and that
+    row goes the other way. The two cancel in `publish_n` — which is exactly
+    why this leg compares the plan itself and not a count. Following is not a
+    machine for publishing more, it is a machine for publishing the truth."""
     _fixture_seams(monkeypatch)
     _fake_store(monkeypatch)
     monkeypatch.setenv("ONELIVE_DB_DSN", "postgresql://invalid.test/does-not-exist")
 
     assert main(["--dry-run"]) == 0
-    dry = counters(capsys.readouterr().out)
+    dry_out = capsys.readouterr().out
+    dry, dry_plan = counters(dry_out), plan_keys(dry_out)
 
     assert main(["--write", "--real"]) == 0
-    write = counters(capsys.readouterr().out)
+    write_out = capsys.readouterr().out
+    write, write_plan = counters(write_out), plan_keys(write_out)
 
     assert main(["--dry-run", "--follow-pages", "0"]) == 0
-    unfollowed = counters(capsys.readouterr().out)
+    unfollowed_plan = plan_keys(capsys.readouterr().out)
 
     assert write["publish_n"] == dry["publish_n"], (
         f"the write plans {write['publish_n']} publishable row(s) and the dry "
@@ -535,12 +571,17 @@ def test_the_fixture_write_plans_what_the_fixture_dry_run_plans(monkeypatch, cap
     assert write["hold_n"] == dry["hold_n"]
     assert write["dated_n"] == dry["dated_n"]
     assert write["placed_n"] == dry["placed_n"]
+    assert write_plan == dry_plan, (
+        f"the write and the dry run plan the same COUNT of rows but not the "
+        f"same rows — only the write plans "
+        f"{sorted(set(write_plan) - set(dry_plan))} and only the dry run plans "
+        f"{sorted(set(dry_plan) - set(write_plan))}")
     assert int(dry["publish_n"]) > 0, "a plan of 0 would make the equality empty"
-    assert unfollowed["publish_n"] != dry["publish_n"], (
-        f"following changes nothing on these fixtures (publish_n "
-        f"{unfollowed['publish_n']} either way), so the equality above cannot "
-        f"tell a followed write from a skipped one — this test needs fixtures "
-        f"where an event page changes the plan")
+    assert unfollowed_plan != dry_plan, (
+        f"following changes nothing on these fixtures ({len(dry_plan)} rows, "
+        f"the same keys either way), so the equality above cannot tell a "
+        f"followed write from a skipped one — this test needs fixtures where "
+        f"an event page changes the plan")
 
 
 def test_the_write_run_mashes_nothing(monkeypatch, capsys):

@@ -1,30 +1,12 @@
 #!/usr/bin/env python3
-"""plan_first_banner — SessionStart hook: put the working rules in-context.
-
-Prints the §4a plan-first checklist at the start of every Claude Code
-session in this repo, so the rules do not
-depend on the agent choosing to read them (KAIZEN 2026-08-03
-build-before-plan). Always exits 0 — the banner informs; the PreToolUse gate
-(tools/plan_first_gate.py) enforces.
-"""
+"""plan_first_banner — OFF. Ticket first. Ceremony does not run the session."""
 BANNER = """\
-[plan-first] 1Live session rules (mechanical reminder — OPERATING_RULES §4a + CLAUDE.md):
-1. Run `python tools/session_reconcile.py` FIRST; do not trust STATE.md before it.
-2. Contract-first: write the Session Contract to STATE.md before any work.
-3. PLAN-FIRST (§4a): no substantive build until a plan with WHAT / HOW / WHY /
-   WHY-THAT-WHY-MATTERS (or WHY-IT-MATTERS) / EXPECTED OUTCOMES is presented to and APPROVED by the founder.
-   The PreToolUse gate blocks product-file edits until an OPEN contract carries
-   those five fields. STATUS: OPEN while building; close it at session end.
-4. Kaizen MEASURES; it does not run the session (CLAUDE.md, frozen 2026-09-06).
-   Construction Loop / hats / po battery / friction log / session arcs are
-   OPTIONAL — never a ticket, never required to commit. construction_gate
-   fires ONLY on gate-custody diffs (tools/validate, trust_gate,
-   adversarial_review, RED_CLASSES.md); a product diff owes no [S3:] tags.
-5. Founder-crucial interrupts only: money / new services / legal / trust-invariant
-   changes / gate relaxations / go-live / credentials. Everything else: decide,
-   log the decision record, proceed — with the plan on the record.
-6. When two rules collide (e.g. autonomous posture vs §4a): SURFACE the tension
-   to the founder; never resolve it silently toward execution."""
+[ticket-first] Ceremony is off (founder 2026-09-07).
+Do not run session_reconcile. Do not write a Session Contract.
+Do not read SESSION_START. Do not run hats, Kaizen, or construction loop.
+Open the Must-do files. Write them. Push a draft PR. Stop.
+Trust gates stay: trust_gate, lint, pytest, evaluator.
+"""
 
 if __name__ == "__main__":
     print(BANNER)

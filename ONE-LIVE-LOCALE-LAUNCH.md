@@ -35,6 +35,8 @@ Show (instant): rows we already have for that place. If none, the surface says w
 Gather (a job, not a page view): a typed place or an opted-in here is a trigger to run the pipe.
 1. Resolve the place to a timezone + a bounded query grammar (city / region / "near {place}").
 2. Propose official doors (civic calendar, local desk, venue ICS, library, campus). A search hit is a LEAD. It is not a listing.
+   - Government records (Census/FIPS/CDP, IRS EO BMF, liquor/health permits, school districts, special-event permits) are the universe of *who and where exists*. They are not listings.
+   - Each entity may have a site (www, claimed social, civic page). That site is a **candidate door** — appendix to the aggregator, and the fallback if the aggregator disappears or walls us. Classify A–F. Do not log into walls. Do not treat a license filing as a happening.
 3. Classify A–F. Fetch only what Coverage Law allows.
 4. Split identities (Entity Split Law). Fill when+place from the event's own page when the list did not state them.
 5. Write only rows with title + when + place. Label `via`. Holes stay off the default view.

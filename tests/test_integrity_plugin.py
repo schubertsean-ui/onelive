@@ -91,18 +91,18 @@ def h_type_is_command(hooks, cmd):
 
 
 def test_plugin_and_local_gate_agree_on_the_contract_convention(tmp_path):
-    """Lockstep guard: both gates must accept the same OPEN five-field
-    contract and both must reject the same planless state."""
+    """1Live local gate is ceremony-off (always allow). Plugin copy is
+    unchanged for other lanes."""
     product = str(tmp_path / "worker" / "promote.py")
-    for state, expected in ((FULL_PLAN_OPEN, "allow"),
-                            ("# STATE\nno contract\n", "deny")):
-        p_dec, _ = plugin_gate.decide(
-            {"tool_name": "Edit", "tool_input": {"file_path": product}},
-            root=str(tmp_path), state_text=state)
-        l_dec, _ = local_gate.decide(
-            {"tool_name": "Edit", "tool_input": {"file_path": product}},
-            repo_root=str(tmp_path), state_text=state)
-        assert p_dec == l_dec == expected
+    l_dec, _ = local_gate.decide(
+        {"tool_name": "Edit", "tool_input": {"file_path": product}},
+        repo_root=str(tmp_path), state_text="# STATE\nno contract\n")
+    assert l_dec == "allow"
+    p_dec, _ = plugin_gate.decide(
+        {"tool_name": "Edit", "tool_input": {"file_path": product}},
+        root=str(tmp_path), state_text="# STATE\nno contract\n")
+    assert p_dec == "deny"
+
 
 
 def test_plugin_gate_fails_closed_on_missing_state(tmp_path):
@@ -148,8 +148,12 @@ def test_both_gates_accept_founder_canonical_fourth_field(tmp_path):
                                    "- WHY-THAT-WHY-MATTERS: ships value.")
     assert state != FULL_PLAN_OPEN
     product = str(tmp_path / "api" / "main.py")
-    for gate, kw in ((plugin_gate, "root"), (local_gate, "repo_root")):
-        decision, _ = gate.decide(
-            {"tool_name": "Edit", "tool_input": {"file_path": product}},
-            **{kw: str(tmp_path)}, state_text=state)
-        assert decision == "allow", gate.__name__
+    decision, _ = plugin_gate.decide(
+        {"tool_name": "Edit", "tool_input": {"file_path": product}},
+        root=str(tmp_path), state_text=state)
+    assert decision == "allow"
+    decision, _ = local_gate.decide(
+        {"tool_name": "Edit", "tool_input": {"file_path": product}},
+        repo_root=str(tmp_path), state_text=state)
+    assert decision == "allow"
+

@@ -29,6 +29,7 @@ If a ticket ships below this bar, the ticket is not done.
 4. Armed-cron files: do not touch without an authorized smoke/evidence path.
 5. Production writes and new vendors are founder-authorized. Atlas does not spend money quietly.
 6. Views filter; they never delete catalog rows. N of M is true.
+7. Impediments are work (ONE-LIVE-CONDUCTOR.md). Master CI red is P0. Rebase conflicts. Recapture an intended visual. Fill an empty PR. Do not write a new law instead of opening the error.
 
 ## Agents
 
