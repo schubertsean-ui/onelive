@@ -1,13 +1,13 @@
 import "./public.css";
 
 export const metadata = {
-  title: "1Live — Tonight in Austin",
+  title: "1Live — What's on in Austin",
   description:
-    "Tonight's live music, art, food, and culture across Austin and the surrounding counties. Every event shows how well it's verified.",
+    "What's happening in Austin and the surrounding counties, by date. Pick Today, Tonight, a weekend, or a kind.",
   openGraph: {
-    title: "1Live — Tonight in Austin",
+    title: "1Live — What's on in Austin",
     description:
-      "Tonight's live music, art, food, and culture across Austin. Every event shows how well it's verified.",
+      "What's happening in Austin, by date. Pick Today, Tonight, a weekend, or a kind.",
     type: "website",
   },
 };

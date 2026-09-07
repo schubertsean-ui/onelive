@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** Date is the organizer. The feed lives at `/`. Tonight is one view a person picks, not the product. PR #261.
 **2026-09-07:** Chronicle nights publish. Date-only desk rows go live at 17:00 America/Chicago; Tonight fetch is bounded and cannot hang on DATE-TBA. PR #260.
 **2026-09-07:** The desk write pays ONE database handshake, not one per seam call — measured 3262 connections -> 1 on a 94-publish/1490-hold plan against real PostgreSQL, same rows out (`tools/desk_ingest.py` `one_connection()`). Rows are written corrections -> publics -> holds, so a cancelled run has already disputed every live listing its own desk contradicts and still leaves /tonight with listings (`publish_first()`). No workflow, gate, politeness or cap change. PR #245.
 **2026-09-07:** Bar locked — ONE-LIVE-BAR.md (world-class / best-in-class as a filter, not a process). Docs only.

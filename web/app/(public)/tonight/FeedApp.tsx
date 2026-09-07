@@ -568,8 +568,8 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     <main className="flow">
       <div className="wrap">
         <div className="mast">
-          <h1>1LIVE · Tonight in Austin</h1>
-          <p className="lede">Everything on in Central Texas, in one place.</p>
+          <h1>1LIVE · Austin</h1>
+          <p className="lede">What&rsquo;s on, by date. Pick a day, Tonight, a weekend, or a kind.</p>
         </div>
 
         {/* mode switch */}

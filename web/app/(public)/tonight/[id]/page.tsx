@@ -104,8 +104,8 @@ function Shell({ children }: { children: React.ReactNode }) {
         ) : null}
         <div className="mast">
           <h1>
-            <Link className="back" href="/tonight">
-              ← Tonight in Austin
+            <Link className="back" href="/">
+              ← What&rsquo;s on in Austin
             </Link>
           </h1>
         </div>
@@ -228,8 +228,8 @@ export default async function EventDetailPage(
             never deleted, only scoped out of the default view. */}
         {view.outsideRegion ? (
           <p className="dstatus">
-            This listing is outside the CAPCOG test region the default Tonight
-            view scopes to. It is in the catalog; it just isn&rsquo;t in that view.
+            This listing is outside the CAPCOG test region the default view
+            scopes to. It is in the catalog; it just isn&rsquo;t in that view.
           </p>
         ) : null}
         {/* An <img> element, NOT a CSS background (PR #87 r3, gemini
