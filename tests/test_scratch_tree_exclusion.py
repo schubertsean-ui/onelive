@@ -190,7 +190,8 @@ def test_settings_json_hooks_only_invoke_scanned_tools():
                 assert hook.get("type") == "command", (event, hook)
                 commands.append(hook["command"])
 
-    assert commands, "settings.json tracked but wires no hooks — remove it instead"
+    # Empty hooks is valid: ceremony is off (founder 2026-09-07). If any
+    # hook is present it must still be a scanned tools/*.py command.
     for cmd in commands:
         assert _HOOK_COMMAND_SHAPE.match(cmd), (
             f"hook command {cmd!r} violates the scanned-tools-only shape "

@@ -3,6 +3,9 @@
 This outranks curiosity, construction-loop ceremony, hats, po battery, friction logs, and "while I'm here."
 Coverage Law still outranks this file on *scope*. This file outranks everything on *how you work*.
 
+**Ceremony is off (founder 2026-09-07).** Do not run session_reconcile. Do not write a Session Contract. Ticket first. Trust gates stay.
+
+
 ## Outcome
 Maximum work that changes the catalog or the live site per hour.
 Minimum tokens spent on STATE novels, ledger archaeology, and extra frameworks.
@@ -18,7 +21,7 @@ Done: PR + artifact (table, screenshot, or "ask founder" stop).
 Then stop.
 
 ## Speed rules
-1. Code before essays. STATE note ≤ 8 lines (goal, files, done test, out of scope).
+1. Code before essays. Do not write STATE.md unless the ticket names it.
 2. No new importer / taxonomy / service / design doc unless Must-do names that file.
 3. No mid-session product expansion. If blocked: one paragraph — class letter, file, function, error.
 4. Sandbox 403 is not a product failure. Use fixtures + CI. Do not invent a stack to dodge the proxy.

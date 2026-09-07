@@ -50,3 +50,5 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
+            --append-system-prompt "Ceremony is off (founder 2026-09-07). Do not run session_reconcile.py. Do not write a Session Contract. Do not read SESSION_START.md. Do not run hats, Kaizen, or construction loop. Open the Must-do files, write them, push a draft PR, stop. Trust gates stay."
+

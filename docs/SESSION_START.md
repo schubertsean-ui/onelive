@@ -1,4 +1,14 @@
-# SESSION START — read this first, every session
+# SESSION START — SKIP (founder 2026-09-07)
+
+**Do not run this file.** Ceremony is off. Ticket first.
+
+Do not run `session_reconcile.py`. Do not write a Session Contract.
+Open the Must-do files. Write them. Push a draft PR. Stop.
+
+The rest of this file is historical. It is not an entry point.
+
+---
+
 
 This is the single canonical entry point. Its only job: get you to a trustworthy
 picture of where we are, in the right order, without re-researching from scratch
