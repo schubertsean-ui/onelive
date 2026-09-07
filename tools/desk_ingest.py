@@ -69,6 +69,7 @@ import argparse
 import json
 import os
 import sys
+from contextlib import contextmanager
 from dataclasses import replace as dc_replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -784,6 +785,124 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
 # The write
 # --------------------------------------------------------------------------
 
+@contextmanager
+def one_connection(connect=None):
+    """Hold ONE database connection open for the write, and hand it to every
+    seam that asks for one.
+
+    THE BOTTLENECK THIS EXISTS FOR (founder, 2026-09-07). Dispatch
+    34079785167 printed its plan at about ten minutes and was then killed at
+    the job's 30-minute ceiling, still writing. The walk was not the cost --
+    200 pages at 2.0s is bounded and had already been spent. The cost is that
+    `worker.candidate_store.db()` and `worker.promote.db()` each open a NEW
+    `psycopg2.connect(resolve_dsn())`, and the write calls them two or more
+    times PER ROW (create, one per evidence row, promote, plus a dispute on a
+    drifted row). COUNTED, not estimated: a plan the shape of that run's --
+    94 publishing rows and 1490 held ones -- opened **3262** connections
+    against a real PostgreSQL, and one leased connection carries the identical
+    write (94 promoted, 1490 held, 0 failed). Each of those 3262 is a TCP +
+    TLS + SCRAM handshake to a remote server, taken one after another, before
+    a single statement is counted.
+
+    SO THE HANDSHAKE IS AMORTISED AND NOTHING ELSE CHANGES. This is not a
+    faster path around the gate: the seams called, the SQL they run, their
+    order, and their TRANSACTION BOUNDARIES are exactly what they were. `db()`
+    returns a connection whose `__exit__` commits and does not close, so a
+    leased connection gives every seam the same per-call commit it had before.
+    That per-row commit is also what makes a killed run KEEP the rows it
+    already wrote -- one transaction across the whole write would lose all of
+    them, which is the opposite of what the founder asked for.
+
+    WHY A LEASE AND NOT AN ARGUMENT. The obvious change is for `db()` itself to
+    reuse a connection. It is refused here: `worker/candidate_store.py` and
+    `worker/db_config.py` are both inside the ARMED CRON's runtime closure
+    (`tools/arming_runtime.py`) while `EXTRACTION_THRESHOLD_RATIFIED` is True,
+    so one byte in either re-fires `tests/test_arming_smoke_binding.py` and
+    demands a fresh paid smoke run -- founder money for a change the cron
+    cannot benefit from. This tool is outside that closure and the cron never
+    runs it, so the reuse is installed from out here, for the duration of the
+    write, and handed back in `finally`. No file the armed cron runs changes.
+
+    RE-DIAL, NEVER A DEAD RUN. One held connection is one thing a server can
+    hang up on (idle timeout, restart, pooler eviction), and where the old code
+    silently got a fresh connection on the next call, a lease handing back a
+    corpse would fail every remaining row. So the lease reads `closed` before
+    handing the connection out and dials again when the server is gone. The
+    residual is a connection already broken but not yet KNOWN to be broken
+    (psycopg2 sets `closed` when it finds out): that one row lands in `failed`
+    and is printed, which is exactly how a lost connection is reported today.
+
+    THE DIALLER IS THE SEAM'S OWN. `connect` defaults to
+    `candidate_store.db` as it stands before the lease replaces it, so the DSN
+    is still resolved by `worker/db_config.resolve_dsn` and a missing one
+    still fails loudly, in the same place, with the same message. The lease
+    invents no second way to reach the database; it calls the existing one
+    once instead of once per row. `connect` stays injectable so a test can
+    count the dials without a database.
+
+    The seam MODULES are read out of `sys.modules` rather than bound with
+    `from worker import candidate_store`, because the latter resolves through
+    the `worker` package's attribute and would quietly reach past a module a
+    caller had substituted — which is exactly how the write path's own tests
+    stand in for the store.
+    """
+    import worker.candidate_store  # noqa: PLC0415,F401 — ensure both are in sys.modules
+    import worker.promote  # noqa: PLC0415,F401
+    store = sys.modules["worker.candidate_store"]
+    publisher = sys.modules["worker.promote"]
+
+    # NEVER NESTED, and loudly so. A lease inside a lease would take the outer
+    # lease as its dialler, then CLOSE the outer's live connection on its own
+    # way out — every remaining row of the outer write would then run on a
+    # connection somebody else had shut. There is one write phase per run, so
+    # a second lease means a caller lost track of the first: say so rather
+    # than repair it, because the repair would be a guess about which write is
+    # the real one.
+    for module in (store, publisher):
+        if getattr(module.db, "_desk_ingest_lease", False):
+            raise RuntimeError(
+                f"{module.__name__}.db is already leased — one write phase "
+                f"holds one connection, and a nested lease would close the "
+                f"outer one's connection underneath it")
+
+    if connect is None:
+        connect = store.db
+
+    held = [connect()]
+
+    def lease():
+        if getattr(held[0], "closed", 0):
+            held[0] = connect()
+        return held[0]
+
+    lease._desk_ingest_lease = True
+
+    # BOTH seam modules, because each holds its own module-level `db` name and
+    # a write that leased one and dialled the other would still open a
+    # connection per promote.
+    originals = ((store, store.db), (publisher, publisher.db))
+    for module, _ in originals:
+        module.db = lease
+    try:
+        yield lease
+    finally:
+        # Handed back whatever happened, including a KeyboardInterrupt from the
+        # runner's own timeout: leaving a patched `db` behind would outlive this
+        # write and hand a closed connection to whatever ran next.
+        for module, original in originals:
+            module.db = original
+        try:
+            held[0].close()
+        except Exception as exc:  # noqa: BLE001
+            # SAID, never swallowed. Every row was committed as it was
+            # written, so a close that fails costs no data — but an operator
+            # reading this run should still see that the connection did not
+            # come down cleanly, because the next thing it points at is the
+            # database's own health.
+            print(f"note: the leased connection did not close cleanly "
+                  f"({type(exc).__name__}: {exc})", file=sys.stderr)
+
+
 def existing_keys(cur) -> Dict[str, Tuple[str, str, Optional[str], Optional[dict]]]:
     """Every desk key already in the store -> (id, status, event id, statement).
 
@@ -890,6 +1009,75 @@ def dispute_superseded(event_id: Optional[str]) -> str:
             f"never hidden")
 
 
+def corrects_a_live_listing(w: CandidateWrite, seen: Mapping[str, tuple]) -> bool:
+    """True when this row's turn carries a CORRECTION to a row already public.
+
+    Same two questions `ingest` asks, asked with the same two functions so
+    there is one definition of "the desk now disagrees with what we
+    published": the key finds the happening, `drift` says the desk has changed
+    its word, and `contradicts` says the change is one that puts the published
+    row's `confirmed` label in question (a second desk joining moves `vias`
+    and contradicts nothing). A row whose earlier candidate never promoted has
+    no live listing to correct, so `event_id` must be there too.
+    """
+    entry = seen.get(w.ingest_key)
+    if not entry:
+        return False
+    _cid, _status, event_id, stored = entry
+    if not event_id:
+        return False
+    fresh = w.extracted.get(DESK_KEY, {}).get("statement")
+    if not fresh:
+        return False
+    return bool(contradicts(stored, fresh))
+
+
+def publish_first(writes: Sequence[CandidateWrite], *,
+                  seen: Optional[Mapping[str, tuple]] = None) -> List[CandidateWrite]:
+    """Corrections to live listings, then the rows that will PUBLISH, then the
+    rows that will HOLD.
+
+    Founder, 2026-09-07: "Write PUBLIC rows first (title+when+place, the ~94),
+    THEN holds. If the job dies, /tonight still has listings. Holds still get
+    written when time remains -- do not drop them."
+
+    A held row is a candidate the feed never shows, so writing 1490 of them
+    before the 94 a friend can act on buys a reader nothing, and a run killed
+    partway through that leaves /tonight exactly as empty as it was. Ordering
+    is the entire mechanism: every planned row is still written, each in its
+    own committed transaction, so the publishing rows are DURABLE by the time
+    the first held row is attempted. Nothing is dropped and no budget is
+    guessed at -- this decides only what goes first.
+
+    CORRECTIONS OUTRANK BOTH, and that is the evaluator's finding on PR #245
+    (openai/attacker-smuggle), which the first version of this function got
+    wrong. Splitting on `hold_reason` alone sent EVERY held row behind the
+    publics -- including a row whose desk has since contradicted a listing
+    that is on the feed right now. Those two states coincide readily: an event
+    page that used to state 8pm and now states only the night both HOLDS
+    (R-111) and contradicts the published clock. A run killed before reaching
+    it leaves a listing reading `confirmed` while its own desk no longer
+    supports it, which is a falsehood a reader can SEE. An unpublished row is
+    only an absence. Correcting what is wrong on the feed therefore goes ahead
+    of adding what is missing from it -- `ingest` disputes before it records
+    (PR #229 r9), so a corrective row's turn is what fires the dispute. There
+    are few of these, so the publics lose almost nothing.
+
+    The publish/hold split reads `hold_reason`, the same field that decides
+    whether a row publishes at all (`desk_publish.write_for`), so "public"
+    cannot drift into a second definition that disagrees with the gate; the
+    correction test reuses `contradicts`, the same function `ingest` gates the
+    dispute on. Order inside each group is the plan's own, so the printed plan
+    and the write still read alike.
+    """
+    seen = seen or {}
+    correcting = [w for w in writes if corrects_a_live_listing(w, seen)]
+    rest = [w for w in writes if not corrects_a_live_listing(w, seen)]
+    publishing = [w for w in rest if not w.hold_reason]
+    holding = [w for w in rest if w.hold_reason]
+    return correcting + publishing + holding
+
+
 def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
            create, add_evidence, promote, dispute=dispute_superseded) -> Dict[str, list]:
     """Publish every planned row that is not already PUBLIC.
@@ -924,6 +1112,13 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
     "Date TBA". The gate is likewise untouched — every promote here is
     `promote_candidate`, the full trust gate, which may hold the row again.
 
+    THE ORDER IS `publish_first`, and it is the only thing this loop knows
+    about the runner's clock: corrections to rows already on the feed, then
+    the rows that will publish, then the held ones. A write that does not
+    finish has still corrected every listing its own desk now contradicts,
+    and still leaves /tonight with the rows a friend can act on. Held rows
+    follow and are all still written.
+
     The three DB seams are INJECTED so this function — the one that decides
     what happens to each row — is testable without a database. Nothing is
     swallowed: every row lands in exactly one bucket, and the buckets are
@@ -934,7 +1129,7 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
     # to correct. Kept apart so the cardinality invariant over ROW_BUCKETS still
     # holds, and read by main() to fail the run (evaluator PR #229 r4).
     out["dispute_failures"] = []
-    for w in writes:
+    for w in publish_first(writes, seen=seen):
         supersedes = None
         #: A candidate ALREADY in the store that this row should be published
         #: from, rather than writing a second one for the same statement.
@@ -1404,20 +1599,25 @@ def main(argv=None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    from worker.candidate_store import add_evidence, create_candidate, db  # noqa: PLC0415
+    from worker.candidate_store import add_evidence, create_candidate  # noqa: PLC0415
     from worker.promote import promote_candidate  # noqa: PLC0415
 
-    with db() as conn:
-        with conn.cursor() as cur:
-            before = snapshot(cur, city=args.city, hours=args.hours)
-            seen = existing_keys(cur)
+    # ONE connection for the whole write — the counts, the key scan, every
+    # seam call, and the counts again. See `one_connection`: the seams, their
+    # SQL and their per-row commits are unchanged; only the handshake is paid
+    # once instead of once per call.
+    with one_connection() as db:
+        with db() as conn:
+            with conn.cursor() as cur:
+                before = snapshot(cur, city=args.city, hours=args.hours)
+                seen = existing_keys(cur)
 
-    result = ingest(writes, seen=seen, create=create_candidate,
-                    add_evidence=add_evidence, promote=promote_candidate)
+        result = ingest(writes, seen=seen, create=create_candidate,
+                        add_evidence=add_evidence, promote=promote_candidate)
 
-    with db() as conn:
-        with conn.cursor() as cur:
-            after = snapshot(cur, city=args.city, hours=args.hours)
+        with db() as conn:
+            with conn.cursor() as cur:
+                after = snapshot(cur, city=args.city, hours=args.hours)
 
     print("## 5. What happened to each row")
     print()
