@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 
 from tools.desk_ingest import (
-    DEFAULT_DOORS, DEFAULT_FOLLOW_PAGES, _normalize, follow_pages,
+    DEFAULT_FOLLOW_PAGES, _normalize, default_doors, follow_pages,
     follow_table, followable, main, round_robin, walk_doors,
 )
 from worker.locale.desk_read import Happening
@@ -389,8 +389,8 @@ def _fake_store(monkeypatch):
 def _fixture_list_urls() -> set:
     """Every LIST address the committed fixture desks walk — the addresses an
     event-page follow may never knock on."""
-    walks, _reg, _tz, _tz_id = walk_doors(
-        "us-tx-capcog", list(DEFAULT_DOORS), real=False, max_pages=40,
+    walks, _reg, _tz, _tz_id, _skipped = walk_doors(
+        "us-tx-capcog", default_doors("us-tx-capcog"), real=False, max_pages=40,
         timeout=20, min_interval=0.0)
     urls = set()
     for one in walks:
@@ -556,11 +556,11 @@ def test_a_write_run_never_knocks_on_a_list_page(monkeypatch, capsys):
     walk_fixtures = tool.walk_doors
 
     def with_a_mash(locale, door_ids, **kw):
-        walks, reg, tz, tz_id = walk_fixtures(locale, door_ids, **kw)
+        walks, reg, tz, tz_id, skipped = walk_fixtures(locale, door_ids, **kw)
         first = walks[0]
         mash = dc_replace(first.rows[0], listing_url=first.start_url)
         return ([dc_replace(first, rows=list(first.rows) + [mash])] + list(walks[1:]),
-                reg, tz, tz_id)
+                reg, tz, tz_id, skipped)
 
     monkeypatch.setattr(tool, "walk_doors", with_a_mash)
 
@@ -623,7 +623,7 @@ def test_a_dated_but_unplaced_row_is_held_by_the_write_path(monkeypatch, capsys)
     walk_fixtures = tool.walk_doors
 
     def with_two_holes(locale, door_ids, **kw):
-        walks, reg, tz, tz_id = walk_fixtures(locale, door_ids, **kw)
+        walks, reg, tz, tz_id, skipped = walk_fixtures(locale, door_ids, **kw)
         first = walks[0]
         whole = next((r for r in first.rows
                       if r.when and (r.place_text or "").strip()), None)
@@ -636,7 +636,8 @@ def test_a_dated_but_unplaced_row_is_held_by_the_write_path(monkeypatch, capsys)
                              when_text=None, when_precision=None,
                              listing_url=None)
         rows = list(first.rows) + [unplaced, undated]
-        return ([dc_replace(first, rows=rows)] + list(walks[1:]), reg, tz, tz_id)
+        return ([dc_replace(first, rows=rows)] + list(walks[1:]), reg, tz,
+                tz_id, skipped)
 
     monkeypatch.setattr(tool, "walk_doors", with_two_holes)
 
