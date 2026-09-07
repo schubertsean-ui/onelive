@@ -4,6 +4,10 @@ name: Claude Code
 # Uses the existing ANTHROPIC_API_KEY Actions secret (same key as ingest.yml).
 # Does not run on schedule. Does not write the catalog. Does not touch ingest.yml.
 # Trigger is fail-closed: only OWNER / MEMBER / COLLABORATOR may invoke it.
+#
+# PM 2026-09-07: jobs were dying because default permission mode requires a human
+# click to run python3/gh. acceptEdits + named allowedTools is the fix.
+# Still no ingest.yml, no catalog write, no schedule.
 
 on:
   issue_comment:
@@ -44,3 +48,5 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --max-turns 40
+            --permission-mode acceptEdits
+            --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
