@@ -14,6 +14,20 @@ The agent is hired to change the catalog or the live site. The machine's job is 
 
 Adding another prohibition after a failed run is not engineering. Fix the **cause** (a blocking hook, a missing tool, a merge conflict, a red check) and rerun with that cause in context.
 
+## A lesson is a failing check
+A sentence in this file is not a control. A bot can ignore it. A lesson has landed when all three are true:
+
+1. A check exists that would have gone **red on the original defect**.
+2. That check sits on a **required** gate (`trust-gate` or the evaluator), not a skippable sidecar and not a path-filtered job that a docs PR skips.
+3. A test fails if the check is removed or path-filtered.
+
+| Defect | Required check that would have caught it |
+|---|---|
+| #260 unclosed `fetch()` — production could not compile | `npx tsc --noEmit` in `trust-gate.yml` (required). `next build` in `web-compile.yml` on every PR, no path filter. |
+| Vercel red treated as “docs-PR fail” | `web/vercel.json` `ignoreCommand: exit 1`. Conductor: do not merge around Vercel red. |
+
+Do not add a fourth paragraph instead of a check.
+
 ## Impediments are work
 A conflict, gap, error, red check, empty PR, skip-storm, or master-red is **action**. It is not a wait, a new law, or a freeze of the board.
 

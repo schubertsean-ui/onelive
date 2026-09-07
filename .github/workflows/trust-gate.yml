@@ -4,6 +4,11 @@ name: Trust Gate
 # action (which required the Claude GitHub App and gave non-deterministic
 # results). A trust INVARIANT must be enforced by a check that returns the same
 # answer every time — so it is code in-repo (tools/trust_gate.py), not an AI.
+#
+# Web typecheck lives HERE, not only in a sidecar workflow. #260 merged an
+# unclosed fetch() because tsc ran only when web/ was in the diff and was not
+# on this required gate. A docs PR still compiled the broken file. tsc on this
+# job would have failed that PR. Do not path-filter it.
 
 on:
   pull_request:
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   trust-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
       # actions:read powers the arming-evidence API authentication in
@@ -33,6 +38,18 @@ jobs:
           # binding hashes the set AT THE CERTIFIED SUBJECT COMMIT from git
           # history — a shallow clone would fail that check closed.
           fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Web typecheck (required, no path filter)
+        working-directory: web
+        run: |
+          npm ci
+          npx tsc --noEmit
 
       - uses: actions/setup-python@v5
         with:
