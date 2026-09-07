@@ -21,13 +21,16 @@ import FeedApp from "./FeedApp";
 // client hides only what has genuinely ended (a time filter, never a trust one).
 export const dynamic = "force-dynamic";
 
-export default async function TonightPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
+// Next 15 hands searchParams as a PROMISE. The props type must not itself be
+// optional (`= {}` would widen it to `… | undefined`, which fails the generated
+// PageProps constraint at build time); the runtime nullish guards below are
+// what let page.render.test.tsx call this with no arguments at all.
+export default async function TonightPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const placeParam = typeof searchParams?.place === "string" ? searchParams.place : "";
-  const regionParam = typeof searchParams?.region === "string" ? searchParams.region : "";
+  const sp = (await (props ?? {}).searchParams) ?? {};
+  const placeParam = typeof sp.place === "string" ? sp.place : "";
+  const regionParam = typeof sp.region === "string" ? sp.region : "";
   const initialSearch = [
     placeParam && `place=${encodeURIComponent(placeParam)}`,
     regionParam && `region=${encodeURIComponent(regionParam)}`,
