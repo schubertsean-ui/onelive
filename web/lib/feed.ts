@@ -33,8 +33,25 @@ export function liveEvents(events: LicensedEvent[], nowMs: number): LicensedEven
   return events.filter((e) => eventTiming(e, nowMs) !== "ended");
 }
 
-// ── Date tabs (Today → next N days, in the viewer's own local time) ───────────
-export type DayTab = { key: string; label: string; startMs: number; endMs: number };
+// ── Date tabs (Today → next N days, plus the NAMED windows) ──────────────────
+// `kind` says what SHAPE of window a tab is, so the renderer never has to
+// re-derive it from the key:
+//   day    one market day (Today, Tomorrow, a dated day)
+//   night  one market evening/night (Tonight: 5pm → 3am)
+//   span   a calendar span of several days (this/next week, weekend, month)
+//   all    the catch-all — every upcoming row, date-TBA included
+export type DayTabKind = "day" | "night" | "span" | "all";
+export type DayTab = {
+  key: string;
+  label: string;
+  startMs: number;
+  endMs: number;
+  kind: DayTabKind;
+  /** Plain-language statement of the exact span, shown next to the count so a
+   *  named window never has to be guessed at ("This weekend" is Friday 5pm
+   *  through Sunday night, not Saturday 00:00). */
+  note?: string;
+};
 
 // Day boundaries are the MARKET's days (America/Chicago), not the runtime's.
 // The old setHours(0,0,0,0) used the process/browser timezone — on a UTC
@@ -44,18 +61,88 @@ export type DayTab = { key: string; label: string; startMs: number; endMs: numbe
 // viewer's real clock still decides NOW (what has ended); Austin's calendar
 // decides what "Today" means — deterministic on server and client alike.
 const MARKET_TZ = "America/Chicago";
-function startOfLocalDay(ms: number): number {
-  const [mo, day, y] = new Intl.DateTimeFormat("en-US", {
-    timeZone: MARKET_TZ, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date(ms)).split("/").map(Number);
+
+/** The market-clock hour (0-23) of an instant. en-US with hour12:false renders
+ *  midnight as "24", so fold it back to 0. */
+function hourOfMs(ms: number): number {
+  const h = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: MARKET_TZ, hour: "2-digit", hour12: false })
+      .format(new Date(ms)),
+  );
+  return h === 24 ? 0 : h;
+}
+
+const DOW_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+/** The market CALENDAR date of an instant: year, 1-based month, day, and
+ *  day-of-week (0=Sunday). Every window bound below is derived from these —
+ *  never from the runtime's own calendar, which on a UTC server is a different
+ *  date for six hours of every Austin day. */
+function marketParts(ms: number): { y: number; m: number; d: number; dow: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: MARKET_TZ, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short",
+  }).formatToParts(new Date(ms));
+  const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    dow: DOW_INDEX[get("weekday")] ?? 0,
+  };
+}
+
+/** Market midnight for a calendar date. Day/month overflow normalises through
+ *  Date.UTC (day 0 = last of the previous month, month 13 = January), so the
+ *  week/month walkers below need no calendar arithmetic of their own. */
+function startOfMarketDate(y: number, m: number, d: number): number {
   // Midnight in the market TZ is 05:00 or 06:00 UTC depending on DST — probe.
   for (const off of [5, 6]) {
-    const cand = Date.UTC(y, mo - 1, day, off);
-    const h = new Intl.DateTimeFormat("en-US", { timeZone: MARKET_TZ, hour: "2-digit", hour12: false })
-      .format(new Date(cand));
-    if (h === "00" || h === "24") return cand;
+    const cand = Date.UTC(y, m - 1, d, off);
+    if (hourOfMs(cand) === 0) return cand;
   }
-  return Date.UTC(y, mo - 1, day, 6);
+  return Date.UTC(y, m - 1, d, 6);
+}
+
+function startOfLocalDay(ms: number): number {
+  const { y, m, d } = marketParts(ms);
+  return startOfMarketDate(y, m, d);
+}
+
+/** N market days from a market midnight (N may be negative). Calendar days,
+ *  never +N*24h: Chicago days are 23 or 25 hours across a DST transition. */
+function addMarketDays(dayStartMs: number, n: number): number {
+  const { y, m, d } = marketParts(dayStartMs);
+  return startOfMarketDate(y, m, d + n);
+}
+
+/** The instant at which the market clock reads `hour` on the market day that
+ *  starts at `dayStartMs`. midnight + hour*3.6e6 is wrong on the two DST days
+ *  a year (the spring-forward day skips 2am, the fall-back day repeats 1am),
+ *  which is exactly the boundary an evening window sits next to — so the guess
+ *  is verified against the market clock and nudged by an hour when it is off.
+ *  Callers ask only for 17:00 and 03:00; neither is an ambiguous hour in the
+ *  US transition (the repeated hour is 1am, the skipped one 2am). */
+function atMarketHour(dayStartMs: number, hour: number): number {
+  const guess = dayStartMs + hour * 3_600_000;
+  for (const adj of [0, 1, -1, 2, -2]) {
+    const cand = guess + adj * 3_600_000;
+    if (hourOfMs(cand) === hour) return cand;
+  }
+  return guess;
+}
+
+/** Market midnight starting the calendar week (Sunday-start, the en-US market
+ *  convention) that contains `ms`, shifted by `weeks`. */
+function startOfMarketWeek(ms: number, weeks = 0): number {
+  const { y, m, d, dow } = marketParts(ms);
+  return startOfMarketDate(y, m, d - dow + weeks * 7);
+}
+
+/** Market midnight on the 1st of the calendar month containing `ms`, shifted
+ *  by `months`. */
+function startOfMarketMonth(ms: number, months = 0): number {
+  const { y, m } = marketParts(ms);
+  return startOfMarketDate(y, m + months, 1);
 }
 
 // Today + the next `days` market days, then "All upcoming". Each tab is a
@@ -65,11 +152,7 @@ function startOfLocalDay(ms: number): number {
 // with Today as the default (founder-directed), a [nowMs,…) start boundary
 // hid on-now events from the opening feed, and a disputed on-now show being
 // hidden is a trust-invariant break (adversarial-review catch, 2026-08-04).
-export function dayTabs(nowMs: number, days = 7): DayTab[] {
-  // Founder-directed order (2026-08-04): "Start with today … move All
-  // upcoming to be last." Today leads and is the DEFAULT (the brief's own
-  // choice architecture: "default view is tonight"); the catch-all closes
-  // the row instead of opening it.
+export function marketDayTabs(nowMs: number, days = 7): DayTab[] {
   const tabs: DayTab[] = [];
   let s = startOfLocalDay(nowMs);
   for (let i = 0; i <= days; i++) {
@@ -82,11 +165,112 @@ export function dayTabs(nowMs: number, days = 7): DayTab[] {
     const e = startOfLocalDay(s + 30 * 3_600_000);
     const label =
       i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Date(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" });
-    tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: s, endMs: e });
+    tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: s, endMs: e, kind: "day" });
     s = e;
   }
-  tabs.push({ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity });
   return tabs;
+}
+
+// ── Tonight, and the weekend ─────────────────────────────────────────────────
+// A night does not end at midnight, so neither of these windows may be built
+// out of market days alone.
+export const NIGHT_END_HOUR = 3; // 3am market time — the hour a night is over
+
+/** The market day whose NIGHT is the one now running (or, in daylight, the one
+ *  about to). Before 3am the night that began at 5pm YESTERDAY is still going,
+ *  so it belongs to yesterday's date — which is what makes "on-now included"
+ *  mean anything at 1am. */
+function nightDayStart(nowMs: number): number {
+  const day = startOfLocalDay(nowMs);
+  return hourOfMs(nowMs) < NIGHT_END_HOUR ? addMarketDays(day, -1) : day;
+}
+
+/** Tonight: this market evening/night, 5pm through 3am.
+ *  It is a WINDOW, not a mood: once the night's listings have all finished the
+ *  window is honestly empty, and Today / Tomorrow still carry the day. An
+ *  empty Tonight is never allowed to render as an empty site — see
+ *  `emptyWindowNote`. */
+export function tonightWindow(nowMs: number): { startMs: number; endMs: number } {
+  const day = nightDayStart(nowMs);
+  return {
+    startMs: atMarketHour(day, EVENING_HOUR),
+    endMs: atMarketHour(addMarketDays(day, 1), NIGHT_END_HOUR),
+  };
+}
+
+/** This weekend: Friday 5pm through Monday 3am — the weekend in progress when
+ *  we are inside one, otherwise the coming one. Friday EVENING, because that
+ *  is when a weekend starts for someone deciding where to go; the span is
+ *  stated on the tab so it is never inferred. */
+export function weekendWindow(nowMs: number): { startMs: number; endMs: number } {
+  // Night-day anchoring, so Sunday's night still reads as "this weekend" at
+  // 1am on Monday rather than jumping five days forward.
+  const { y, m, d, dow } = marketParts(nightDayStart(nowMs));
+  // Days back to this weekend's Friday: Sun→2, Sat→1, Fri→0, Mon–Thu→forward.
+  const back = dow === 0 ? 2 : dow === 6 ? 1 : dow === 5 ? 0 : dow - 5;
+  const friday = startOfMarketDate(y, m, d - back);
+  return {
+    startMs: atMarketHour(friday, EVENING_HOUR),
+    endMs: atMarketHour(addMarketDays(friday, 3), NIGHT_END_HOUR),
+  };
+}
+
+/** The named windows a person actually asks for, all in the market's calendar.
+ *  Every bound is [start, end) over start_time, exactly like a day tab, so
+ *  every count, filter and split downstream works on them unchanged. */
+export function namedWindows(nowMs: number): DayTab[] {
+  const tonight = tonightWindow(nowMs);
+  const weekend = weekendWindow(nowMs);
+  const week0 = startOfMarketWeek(nowMs, 0);
+  const week1 = startOfMarketWeek(nowMs, 1);
+  const week2 = startOfMarketWeek(nowMs, 2);
+  const month0 = startOfMarketMonth(nowMs, 0);
+  const month1 = startOfMarketMonth(nowMs, 1);
+  const month2 = startOfMarketMonth(nowMs, 2);
+  return [
+    { key: "tonight", label: "Tonight", kind: "night", note: "5pm through the night", ...tonight },
+    { key: "this-weekend", label: "This weekend", kind: "span", note: "Friday 5pm through Sunday night", ...weekend },
+    { key: "this-week", label: "This week", kind: "span", note: "this calendar week, Sunday to Saturday", startMs: week0, endMs: week1 },
+    { key: "next-week", label: "Next week", kind: "span", note: "next Sunday to Saturday", startMs: week1, endMs: week2 },
+    { key: "this-month", label: "This month", kind: "span", note: "this calendar month", startMs: month0, endMs: month1 },
+    { key: "next-month", label: "Next month", kind: "span", note: "next calendar month", startMs: month1, endMs: month2 },
+  ];
+}
+
+export function dayTabs(nowMs: number, days = 7): DayTab[] {
+  // Founder-directed order (2026-08-04): "Start with today … move All
+  // upcoming to be last." Today leads and is the DEFAULT (the brief's own
+  // choice architecture: "default view is tonight"); the catch-all closes
+  // the row instead of opening it. The named windows (founder 2026-09-07)
+  // sit between the two, nearest first — Tonight beside Today because it is
+  // the same evening, then the weekend, then the wider spans. Today,
+  // Tomorrow and All upcoming keep their keys, their physics and their place.
+  const days_ = marketDayTabs(nowMs, days);
+  const named = new Map(namedWindows(nowMs).map((t) => [t.key, t]));
+  const pick = (key: string): DayTab[] => {
+    const t = named.get(key);
+    return t ? [t] : [];
+  };
+  return [
+    ...days_.slice(0, 1), // Today — the default, first
+    ...pick("tonight"),
+    ...days_.slice(1, 2), // Tomorrow
+    ...pick("this-weekend"),
+    ...pick("this-week"),
+    ...pick("next-week"),
+    ...pick("this-month"),
+    ...pick("next-month"),
+    ...days_.slice(2), // the dated market days
+    { key: "all", label: "All upcoming", startMs: 0, endMs: Infinity, kind: "all" },
+  ];
+}
+
+/** Fail-closed tab resolution. A `?when=` token we do not serve — a stale
+ *  bookmark, a typo, an injected value — renders the DEFAULT window (Today),
+ *  never an empty view and never a window the reader did not choose. The
+ *  default is `tabs[0]` by construction: dayTabs puts Today first. */
+export function resolveTab(tabs: DayTab[], key: string | null | undefined): DayTab {
+  return tabs.find((t) => t.key === key) ?? tabs[0];
 }
 
 // ── Day part: let the evening LEAD without deleting the morning ──────────────
@@ -130,6 +314,29 @@ export function splitByDayPart(events: LicensedEvent[]): DayPartSplit {
     (h === null || h >= EVENING_HOUR ? evening : earlier).push(e);
   }
   return { evening, earlier };
+}
+
+// ── Inside a window: on now first, then coming up ────────────────────────────
+// Founder directive (2026-09-07, named windows): "Inside a window: on-now
+// first, then upcoming. Sum-preserving. No row deleted because it is morning."
+//
+// This is the ONE split a named window uses. Like splitByDayPart it is an
+// ORDERING, never a filter: the two halves always sum to the input (proven in
+// tests), so a person looking at Tonight or This weekend can never lose a row
+// to the clock. A date-TBA row (eventTiming → "upcoming") sits in the coming-up
+// half rather than being demoted out of the window.
+export type TimingSplit = { onNow: LicensedEvent[]; upcoming: LicensedEvent[] };
+
+export function splitByTiming(events: LicensedEvent[], nowMs: number): TimingSplit {
+  const onNow: LicensedEvent[] = [];
+  const upcoming: LicensedEvent[] = [];
+  for (const e of events) {
+    // Anything that is not running right now is "coming up" — including the
+    // (unreachable here, because the feed's base is liveEvents) "ended" case,
+    // so the split stays total no matter what it is handed.
+    (eventTiming(e, nowMs) === "on-now" ? onNow : upcoming).push(e);
+  }
+  return { onNow: onNow.sort(byStart), upcoming: upcoming.sort(byStart) };
 }
 
 /** How many of `events` fall in the selected day tab — the M of "Showing N of
@@ -179,21 +386,68 @@ export function viewCounts(
   };
 }
 
+// ── An empty window is a STATE, never a verdict ──────────────────────────────
+// Locale Launch Law §2: "If none, the surface says we are gathering — never
+// '0 events in this city' as if we finished reading it. Same law as an unread
+// desk: 403 is unknown, not empty." A named window makes that failure easy to
+// hit honestly — Tonight legitimately runs dry once the night's listings have
+// finished — so the copy for it is derived here, in one place, next to the
+// counts it has to agree with.
+//
+// Two different zeros, two different sentences:
+//   filtered   the window HAS rows; the reader's own lenses removed them. The
+//              way out is theirs — clear a filter.
+//   gathering  the window itself is empty. That is a statement about what we
+//              have READ, not about what is on: doors behind a login wall or a
+//              block are unknown, not empty, and this sentence must never
+//              round them down to zero.
+export type WindowNote = {
+  kind: "filtered" | "gathering";
+  headline: string;
+  detail: string;
+};
+
+export function emptyWindowNote(tab: DayTab, counts: ViewCounts): WindowNote | null {
+  if (counts.shown > 0) return null;
+  const label = tab.key === "all" ? "anything coming up" : tab.label;
+  if (counts.windowTotal > 0) {
+    return {
+      kind: "filtered",
+      headline: `Nothing matches your filters for ${label}.`,
+      detail:
+        `We hold ${counts.windowTotal.toLocaleString()} listing` +
+        `${counts.windowTotal === 1 ? "" : "s"} in this window — clear a filter to see ${counts.windowTotal === 1 ? "it" : "them"}.`,
+    };
+  }
+  return {
+    kind: "gathering",
+    headline: `Nothing listed for ${label} yet — we are still gathering.`,
+    detail:
+      "That is what we have read so far, not a finished count of what is on. " +
+      "Doors we could not read — login walls, blocked pages — are unknown, not empty.",
+  };
+}
+
 export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
   if (tab.key === "all") return true;
   if (!e.start_time) return false; // date-TBA only shows under "All"
   const t = Date.parse(e.start_time);
   if (Number.isNaN(t)) return false;
   if (t >= tab.startMs && t < tab.endMs) return true;
-  // Today only: a show that STARTED before the market midnight but whose
-  // running window reaches into today still belongs to the default view.
-  // After midnight, liveEvents still carries it (it hasn't ended), but pure
-  // start-time bucketing pushed it to no day tab at all — leaving "All
-  // upcoming" the only place an on-now, possibly DISPUTED, show appeared:
-  // a trust-invariant break (adversarial-review r3, 2026-08-04). Future
-  // tabs keep pure start-time semantics — a Friday-night show lists under
-  // Friday, not Friday and Saturday.
-  if (tab.key === "today" && t < tab.startMs) {
+  // The two CURRENT windows — Today and Tonight — also carry a show that
+  // STARTED before the window opened and is still running.
+  //
+  // Today: after market midnight, liveEvents still carries last night's
+  // running show (it hasn't ended), but pure start-time bucketing pushed it
+  // to no day tab at all — leaving "All upcoming" the only place an on-now,
+  // possibly DISPUTED, show appeared: a trust-invariant break
+  // (adversarial-review r3, 2026-08-04).
+  // Tonight: the founder's definition says "on-now included" — a 4pm show
+  // still running at 6pm is part of the evening a reader is looking at, and
+  // dropping it would be the same hidden-disputed-row failure one window
+  // over. Future tabs keep pure start-time semantics — a Friday-night show
+  // lists under Friday, not Friday and Saturday.
+  if ((tab.key === "today" || tab.key === "tonight") && t < tab.startMs) {
     const end = e.end_time ? Date.parse(e.end_time) : NaN;
     const endMs = Number.isNaN(end) ? t + ASSUMED_MS : end;
     return endMs > tab.startMs;

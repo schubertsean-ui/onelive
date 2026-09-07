@@ -14,7 +14,15 @@ import {
   viewCounts,
   marketHour,
   splitByDayPart,
+  splitByTiming,
+  namedWindows,
+  tonightWindow,
+  weekendWindow,
+  resolveTab,
+  emptyWindowNote,
+  inDayTab,
   EVENING_HOUR,
+  NIGHT_END_HOUR,
 } from "./feed";
 import type { LicensedEvent } from "./licensed";
 
@@ -126,11 +134,28 @@ describe("eventTiming / liveEvents — only still-relevant events show", () => {
 describe("dayTabs + applyFilters — lenses that narrow the view, not the trust", () => {
   it("builds Today + next 7 days, with All upcoming LAST (founder-directed order 2026-08-04)", () => {
     const tabs = dayTabs(NOW, 7);
-    expect(tabs[0].key).toBe("today");
+    const days = tabs.filter((t) => t.kind === "day");
+    expect(tabs[0].key).toBe("today"); // Today still leads and is the default
     expect(tabs[0].label).toBe("Today");
-    expect(tabs[1].label).toBe("Tomorrow");
+    expect(days[1].label).toBe("Tomorrow");
     expect(tabs[tabs.length - 1].key).toBe("all");
-    expect(tabs).toHaveLength(9); // all + today + 7 more
+    expect(days).toHaveLength(8); // today + 7 more market days
+    // The named windows sit BETWEEN Today and the catch-all; the three tabs
+    // the founder named as keepers are all still here, in their own places
+    // (2026-09-07: "Keep Today, Tomorrow, All upcoming").
+    expect(tabs.map((t) => t.key).slice(0, 3)).toEqual(["today", "tonight", "d1"]);
+    expect(tabs.filter((t) => t.kind === "all")).toHaveLength(1);
+  });
+
+  it("adds the six named windows and keeps Today / Tomorrow / All upcoming", () => {
+    const keys = dayTabs(NOW, 7).map((t) => t.key);
+    for (const k of ["tonight", "this-week", "this-weekend", "this-month", "next-week", "next-month"]) {
+      expect(keys).toContain(k);
+    }
+    for (const k of ["today", "d1", "all"]) expect(keys).toContain(k);
+    // Every key is unique — a duplicate would make resolveTab ambiguous and
+    // let two chips claim the same window.
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   // ── Market-day boundary physics (adversarial-review r3, 2026-08-04) ────────
@@ -140,8 +165,8 @@ describe("dayTabs + applyFilters — lenses that narrow the view, not the trust"
   // every boundary after the transition by an hour and mis-buckets late shows.
   it("day windows stay on market midnights across the fall-back DST transition", () => {
     // Fri 2026-10-30 18:00 CDT = 23:00Z. Sunday Nov 1 is the 25-hour day.
-    const tabs = dayTabs(Date.UTC(2026, 9, 30, 23), 7);
-    for (let i = 0; i + 1 < tabs.length - 1; i++) {
+    const tabs = dayTabs(Date.UTC(2026, 9, 30, 23), 7).filter((t) => t.kind === "day");
+    for (let i = 0; i + 1 < tabs.length; i++) {
       // Contiguous: each day ends exactly where the next begins (nothing can
       // fall between two tabs), and every boundary is a true market midnight.
       expect(tabs[i].endMs).toBe(tabs[i + 1].startMs);
@@ -149,17 +174,17 @@ describe("dayTabs + applyFilters — lenses that narrow the view, not the trust"
       expect(["00", "24"]).toContain(h);
     }
     // The transition day itself is 25 hours; its neighbors are 24.
-    const widths = tabs.slice(0, -1).map((t) => t.endMs - t.startMs);
+    const widths = tabs.map((t) => t.endMs - t.startMs);
     expect(widths).toContain(25 * 3_600_000);
     expect(widths.filter((w) => w === 24 * 3_600_000).length).toBeGreaterThan(0);
   });
 
   it("day windows stay on market midnights across the spring-forward transition (23h day)", () => {
     // Fri 2027-03-12 18:00 CST = 2027-03-13T00:00Z; Sun Mar 14 is 23 hours.
-    const tabs = dayTabs(Date.UTC(2027, 2, 13, 0), 7);
-    const widths = tabs.slice(0, -1).map((t) => t.endMs - t.startMs);
+    const tabs = dayTabs(Date.UTC(2027, 2, 13, 0), 7).filter((t) => t.kind === "day");
+    const widths = tabs.map((t) => t.endMs - t.startMs);
     expect(widths).toContain(23 * 3_600_000);
-    for (let i = 0; i + 1 < tabs.length - 1; i++) expect(tabs[i].endMs).toBe(tabs[i + 1].startMs);
+    for (let i = 0; i + 1 < tabs.length; i++) expect(tabs[i].endMs).toBe(tabs[i + 1].startMs);
   });
 
   // After local midnight a show that started before midnight and is still
@@ -490,5 +515,279 @@ describe("viewCounts — 'Showing N of M', and what the region is holding back",
       expect(c.heldBackByRegion).toBeGreaterThanOrEqual(0);
       expect(c.windowTotal).toBeLessThanOrEqual(countInWindow(live, t));
     }
+  });
+});
+
+
+// ── Named windows (founder 2026-09-07) ───────────────────────────────────────
+// Tonight · This week · This weekend · This month · Next week · Next month.
+// Every bound below is asserted as a MARKET WALL-CLOCK reading, not as an
+// epoch number: the number is the thing under test, so an expectation written
+// as another number proves only that two computations agree. `wall` reads the
+// instant back through America/Chicago the way a person in Austin would.
+function wall(ms: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", weekday: "short", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(new Date(ms));
+}
+function win(nowMs: number, key: string) {
+  const t = dayTabs(nowMs, 7).find((x) => x.key === key);
+  if (!t) throw new Error(`no tab ${key}`);
+  return t;
+}
+// Thu 2026-09-10, 10:00 in Austin — a plain weekday morning, well clear of
+// every boundary the windows are built from.
+const THU_10AM = Date.UTC(2026, 8, 10, 15);
+
+describe("named windows — bounds are the MARKET's calendar (America/Chicago)", () => {
+  it("Tonight runs 5pm → 3am on the market clock", () => {
+    const t = win(THU_10AM, "tonight");
+    expect(t.kind).toBe("night");
+    expect(wall(t.startMs)).toBe("Thu, 09/10/2026, 17:00");
+    expect(wall(t.endMs)).toBe("Fri, 09/11/2026, 03:00");
+    expect(EVENING_HOUR).toBe(17);
+    expect(NIGHT_END_HOUR).toBe(3);
+  });
+
+  it("in the small hours Tonight is still the night IN PROGRESS, not the next one", () => {
+    // Fri 2026-09-11, 01:00 Austin. The night that began Thursday 5pm has not
+    // ended, so Tonight must still be pointing at it — otherwise a show that
+    // is ON NOW at 1am belongs to no named window at all.
+    const friday1am = Date.UTC(2026, 8, 11, 6);
+    const t = win(friday1am, "tonight");
+    expect(wall(t.startMs)).toBe("Thu, 09/10/2026, 17:00");
+    expect(wall(t.endMs)).toBe("Fri, 09/11/2026, 03:00");
+    // …and Today/Tomorrow still carry the day, exactly as the founder said.
+    expect(win(friday1am, "today").startMs).toBe(
+      dayTabs(friday1am, 7).filter((x) => x.kind === "day")[0].startMs,
+    );
+    expect(wall(win(friday1am, "today").startMs)).toBe("Fri, 09/11/2026, 00:00");
+  });
+
+  it("after 3am Tonight rolls to the coming night (a window, never a mood)", () => {
+    const friday4am = Date.UTC(2026, 8, 11, 9);
+    const t = win(friday4am, "tonight");
+    expect(wall(t.startMs)).toBe("Fri, 09/11/2026, 17:00");
+    expect(wall(t.endMs)).toBe("Sat, 09/12/2026, 03:00");
+  });
+
+  it("Tonight survives both DST transitions — an 11-hour night and a 9-hour one", () => {
+    // Fall back: Sun 2026-11-01 02:00 CDT → 01:00 CST, so Sat night is 11h.
+    const fall = win(Date.UTC(2026, 9, 31, 23), "tonight"); // Sat 6pm CDT
+    expect(wall(fall.startMs)).toBe("Sat, 10/31/2026, 17:00");
+    expect(wall(fall.endMs)).toBe("Sun, 11/01/2026, 03:00");
+    expect(fall.endMs - fall.startMs).toBe(11 * 3_600_000);
+    // Spring forward: Sun 2027-03-14 02:00 CST → 03:00 CDT, so Sat night is 9h.
+    const spring = win(Date.UTC(2027, 2, 14, 0), "tonight"); // Sat 6pm CST
+    expect(wall(spring.startMs)).toBe("Sat, 03/13/2027, 17:00");
+    expect(wall(spring.endMs)).toBe("Sun, 03/14/2027, 03:00");
+    expect(spring.endMs - spring.startMs).toBe(9 * 3_600_000);
+  });
+
+  it("This week is the calendar week (Sunday → Sunday), Next week the one after", () => {
+    const thisWeek = win(THU_10AM, "this-week");
+    const nextWeek = win(THU_10AM, "next-week");
+    expect(wall(thisWeek.startMs)).toBe("Sun, 09/06/2026, 00:00");
+    expect(wall(thisWeek.endMs)).toBe("Sun, 09/13/2026, 00:00");
+    expect(wall(nextWeek.startMs)).toBe("Sun, 09/13/2026, 00:00");
+    expect(wall(nextWeek.endMs)).toBe("Sun, 09/20/2026, 00:00");
+    // Contiguous: nothing can fall between this week and next.
+    expect(thisWeek.endMs).toBe(nextWeek.startMs);
+  });
+
+  it("This month / Next month are calendar months, and roll the year", () => {
+    const m = win(THU_10AM, "this-month");
+    const n = win(THU_10AM, "next-month");
+    expect(wall(m.startMs)).toBe("Tue, 09/01/2026, 00:00");
+    expect(wall(m.endMs)).toBe("Thu, 10/01/2026, 00:00");
+    expect(wall(n.startMs)).toBe("Thu, 10/01/2026, 00:00");
+    expect(wall(n.endMs)).toBe("Sun, 11/01/2026, 00:00");
+    expect(m.endMs).toBe(n.startMs);
+    // December: next month is January of the NEXT year, not month 13.
+    const dec = Date.UTC(2026, 11, 15, 18); // Tue 2026-12-15 12:00 CST
+    expect(wall(win(dec, "next-month").startMs)).toBe("Fri, 01/01/2027, 00:00");
+    expect(wall(win(dec, "next-month").endMs)).toBe("Mon, 02/01/2027, 00:00");
+  });
+
+  it("This weekend is Friday 5pm → Monday 3am, forward on a weekday", () => {
+    const w = win(THU_10AM, "this-weekend"); // Thursday morning
+    expect(w.kind).toBe("span");
+    expect(wall(w.startMs)).toBe("Fri, 09/11/2026, 17:00");
+    expect(wall(w.endMs)).toBe("Mon, 09/14/2026, 03:00");
+  });
+
+  it("This weekend stays on the weekend IN PROGRESS from Friday night to Monday 3am", () => {
+    for (const [nowMs, when] of [
+      [Date.UTC(2026, 8, 11, 23), "Fri 6pm"],
+      [Date.UTC(2026, 8, 12, 6), "Sat 1am"],
+      [Date.UTC(2026, 8, 13, 20), "Sun 3pm"],
+      [Date.UTC(2026, 8, 14, 6), "Mon 1am"], // Sunday night, still running
+    ] as Array<[number, string]>) {
+      const w = win(nowMs, "this-weekend");
+      expect(`${when}: ${wall(w.startMs)}`).toBe(`${when}: Fri, 09/11/2026, 17:00`);
+      expect(`${when}: ${wall(w.endMs)}`).toBe(`${when}: Mon, 09/14/2026, 03:00`);
+    }
+    // …and once Monday is properly under way it points at the NEXT weekend.
+    const w = win(Date.UTC(2026, 8, 14, 15), "this-weekend"); // Mon 10am
+    expect(wall(w.startMs)).toBe("Fri, 09/18/2026, 17:00");
+  });
+
+  it("namedWindows and the exported window builders agree with the chips", () => {
+    const named = namedWindows(THU_10AM);
+    expect(named.map((t) => t.key)).toEqual([
+      "tonight", "this-weekend", "this-week", "next-week", "this-month", "next-month",
+    ]);
+    expect(tonightWindow(THU_10AM)).toEqual({
+      startMs: win(THU_10AM, "tonight").startMs, endMs: win(THU_10AM, "tonight").endMs,
+    });
+    expect(weekendWindow(THU_10AM)).toEqual({
+      startMs: win(THU_10AM, "this-weekend").startMs, endMs: win(THU_10AM, "this-weekend").endMs,
+    });
+    // Every named window states its span in plain language — a reader never
+    // has to guess where "This weekend" starts.
+    for (const t of named) expect(t.note && t.note.length).toBeTruthy();
+  });
+});
+
+describe("named windows — a view narrows, it never deletes", () => {
+  const now = THU_10AM;
+
+  it("Tonight includes a show that is ON NOW but started before 5pm", () => {
+    const evening = Date.UTC(2026, 8, 10, 23); // Thu 6pm Austin
+    const t = win(evening, "tonight");
+    const startedAt4 = ev({
+      start_time: "2026-09-10T21:00:00Z", // Thu 4pm CDT — before the window
+      end_time: "2026-09-11T00:00:00Z", //   Thu 7pm CDT — still running at 6
+      confidence: "disputed", // and hiding a disputed row is a trust break
+    });
+    expect(liveEvents([startedAt4], evening)).toContain(startedAt4);
+    expect(inDayTab(startedAt4, t)).toBe(true);
+    // An ended matinee does NOT ride along on that rule.
+    const ended = ev({ start_time: "2026-09-10T16:00:00Z", end_time: "2026-09-10T18:00:00Z" });
+    expect(inDayTab(ended, t)).toBe(false);
+  });
+
+  it("a morning row is never dropped from a window that contains its day", () => {
+    const morning = ev({ start_time: "2026-09-10T14:00:00Z" }); // Thu 9am CDT
+    for (const key of ["today", "this-week", "this-month"]) {
+      expect(inDayTab(morning, win(now, key))).toBe(true);
+    }
+    // It is simply not part of TONIGHT — a window, not a deletion: Today and
+    // This week still carry it, which is the whole point.
+    expect(inDayTab(morning, win(now, "tonight"))).toBe(false);
+  });
+
+  it("countInWindow and applyFilters agree for every named window", () => {
+    const rows = [
+      ev({ start_time: "2026-09-10T14:00:00Z" }), // Thu morning
+      ev({ start_time: "2026-09-11T02:00:00Z" }), // Thu 9pm
+      ev({ start_time: "2026-09-12T03:00:00Z" }), // Fri 10pm
+      ev({ start_time: "2026-09-24T01:00:00Z" }), // later in September
+      ev({ start_time: "2026-10-20T01:00:00Z" }), // October
+      ev({ start_time: null }), // date TBA — "All upcoming" only
+    ];
+    for (const t of dayTabs(now, 7)) {
+      expect(countInWindow(rows, t)).toBe(applyFilters(rows, { tab: t }).length);
+      expect(countInWindow(rows, t)).toBeLessThanOrEqual(rows.length);
+    }
+    // A date-TBA row is never put on a named window — it has no date to put
+    // it on — and never disappears either: All upcoming holds it.
+    const tba = rows[rows.length - 1];
+    for (const t of dayTabs(now, 7)) {
+      if (t.key !== "all") expect(inDayTab(tba, t)).toBe(false);
+    }
+    expect(inDayTab(tba, win(now, "all"))).toBe(true);
+  });
+});
+
+describe("splitByTiming — on now leads, and the split is sum-preserving", () => {
+  const now = Date.parse("2026-09-10T23:00:00Z"); // Thu 6pm Austin
+
+  it("puts running shows first and everything else in coming-up", () => {
+    const onAir = ev({ start_time: "2026-09-10T22:00:00Z", title: "ON" }); // 5pm, running
+    const later = ev({ start_time: "2026-09-11T01:00:00Z", title: "LATER" }); // 8pm
+    const { onNow, upcoming } = splitByTiming([later, onAir], now);
+    expect(onNow.map((e) => e.title)).toEqual(["ON"]);
+    expect(upcoming.map((e) => e.title)).toEqual(["LATER"]);
+  });
+
+  it("both halves always sum to the input — a clock can never drop a row", () => {
+    const rows = [
+      ev({ start_time: "2026-09-10T22:00:00Z" }), // on now
+      ev({ start_time: "2026-09-10T14:00:00Z", end_time: "2026-09-10T16:00:00Z" }), // ended
+      ev({ start_time: "2026-09-11T01:00:00Z" }), // upcoming
+      ev({ start_time: null }), // date TBA
+      ev({ start_time: "not-a-date" }), // unparseable
+    ];
+    const { onNow, upcoming } = splitByTiming(rows, now);
+    expect(onNow.length + upcoming.length).toBe(rows.length);
+    expect([...onNow, ...upcoming].map((e) => e.licensed_event_id).sort())
+      .toEqual(rows.map((e) => e.licensed_event_id).sort());
+    expect(splitByTiming([], now)).toEqual({ onNow: [], upcoming: [] });
+  });
+
+  it("keeps a DISPUTED running show in the on-now half (a clock, never a trust filter)", () => {
+    const d = ev({ start_time: "2026-09-10T22:00:00Z", confidence: "disputed", title: "D" });
+    expect(splitByTiming([d], now).onNow.map((e) => e.title)).toEqual(["D"]);
+  });
+
+  it("sorts each half soonest-first", () => {
+    const a = ev({ start_time: "2026-09-11T04:00:00Z", title: "late" });
+    const b = ev({ start_time: "2026-09-11T01:00:00Z", title: "early" });
+    expect(splitByTiming([a, b], now).upcoming.map((e) => e.title)).toEqual(["early", "late"]);
+  });
+});
+
+describe("resolveTab — a token we do not serve renders Today, never nothing", () => {
+  const tabs = dayTabs(THU_10AM, 7);
+
+  it("resolves every key the chips publish", () => {
+    for (const t of tabs) expect(resolveTab(tabs, t.key).key).toBe(t.key);
+  });
+
+  it("falls back to the DEFAULT window on any unknown or missing token", () => {
+    for (const bad of ["", "tonite", "this_week", "weekend", "../../etc", "0", "ALL", null, undefined]) {
+      expect(resolveTab(tabs, bad).key).toBe("today");
+    }
+  });
+});
+
+describe("emptyWindowNote — an empty window is a state, never '0 events in Austin'", () => {
+  const tonight = win(THU_10AM, "tonight");
+
+  it("says nothing at all while the view has rows", () => {
+    expect(emptyWindowNote(tonight, { shown: 3, windowTotal: 5, heldBackByRegion: 0 })).toBeNull();
+  });
+
+  it("an empty WINDOW says we are gathering, and that walls are unknown", () => {
+    const note = emptyWindowNote(tonight, { shown: 0, windowTotal: 0, heldBackByRegion: 0 });
+    expect(note?.kind).toBe("gathering");
+    expect(note?.headline).toContain("Tonight");
+    expect(note?.headline).toMatch(/still gathering/i);
+    expect(note?.detail).toMatch(/what we have read/i);
+    expect(note?.detail).toMatch(/unknown, not empty/i);
+    // The failure this exists to prevent: a finished-sounding zero.
+    const all = `${note?.headline} ${note?.detail}`;
+    expect(all).not.toMatch(/\bno events\b/i);
+    expect(all).not.toMatch(/0 events/i);
+    expect(all).not.toMatch(/\bnone\b/i);
+  });
+
+  it("an empty view over a NON-empty window points at the reader's own filters", () => {
+    const note = emptyWindowNote(tonight, { shown: 0, windowTotal: 12, heldBackByRegion: 4 });
+    expect(note?.kind).toBe("filtered");
+    expect(note?.detail).toContain("12");
+    expect(note?.detail).toMatch(/clear a filter/i);
+    // …and it must NOT claim we are still gathering: we are not, for this
+    // window — we are holding rows back on the reader's instruction.
+    expect(note?.detail).not.toMatch(/gathering/i);
+  });
+
+  it("singular reads as singular", () => {
+    const note = emptyWindowNote(tonight, { shown: 0, windowTotal: 1, heldBackByRegion: 0 });
+    expect(note?.detail).toContain("1 listing in this window");
+    expect(note?.detail).toContain("to see it.");
+    expect(note?.detail).not.toContain("listings");
   });
 });
