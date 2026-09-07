@@ -481,7 +481,8 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
          max_pages: int = DEFAULT_MAX_PAGES,
          start_url: Optional[str] = None,
          kind_map: Optional[KindMap] = None,
-         patterns: Optional[Sequence[IdentityPattern]] = None) -> DeskWalk:
+         patterns: Optional[Sequence[IdentityPattern]] = None,
+         stop_when: Optional[Callable[[], Optional[str]]] = None) -> DeskWalk:
     """Follow one public desk's list to its end (or to the first honest stop).
 
     `fetch` is injected: this module never opens a socket, so the whole walk is
@@ -489,6 +490,11 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
     it is handed. `patterns` is passed straight through to `read()` and defaults
     to the committed identity table, so a test states the shapes of ITS pages
     without any host reaching this module.
+
+    `stop_when` is the JOB's bound, asked before each page is opened: it returns
+    a reason string to stop, or None to carry on. A walk stopped that way is
+    `tick_bound` — OUR limit, in the same family as `max_pages` — and never
+    `no_next_link`, so a budgeted stop can never be read as an exhausted desk.
     """
     if not isinstance(door, Door):
         raise DeskWalkError(f"walk() takes a Door, got {type(door).__name__}")
@@ -501,6 +507,9 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
         raise DeskWalkError("walk() needs a callable fetch(url) -> PageFetch")
     if not isinstance(max_pages, int) or max_pages < 1:
         raise DeskWalkError(f"max_pages must be a positive int, got {max_pages!r}")
+    if stop_when is not None and not callable(stop_when):
+        raise DeskWalkError(
+            "stop_when must be a callable returning a reason string or None")
 
     begin = start_url or door.url
     result = DeskWalk(door_id=door.door_id, door_type=door.door_type,
@@ -510,6 +519,12 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
     url: Optional[str] = begin
 
     while url is not None:
+        if stop_when is not None and (spent := stop_when()):
+            result.stopped_because = "tick_bound"
+            result.notes.append(
+                f"stopped by the job's tick ({spent}) with a next link still "
+                f"outstanding ({url}) — this is OUR bound, not the end of the desk")
+            break
         if len(result.pages) >= max_pages:
             result.stopped_because = "max_pages"
             result.notes.append(
