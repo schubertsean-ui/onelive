@@ -531,38 +531,28 @@ def test_a_claim_locked_row_is_not_disputed_by_a_desk(pg, registrations):
             "downgrade the principal's own listing")
 
 
-def test_a_date_only_row_never_reaches_the_public_table(pg, registrations):
-    """Evaluator, PR #229 r3, against a real database. A date-only row would
-    publish with a NULL clock and render as "Date TBA" — telling a reader we do
-    not know a date the desk stated. It is held as a candidate instead: in the
-    catalog, auditable, and not on the feed saying something false.
-    """
+def test_a_date_only_row_reaches_the_public_table_on_that_night(pg, registrations):
+    """A night is when. Date-only Chronicle rows publish at 17:00 Chicago."""
     from worker.locale.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
     title = f"Night Only {tag}"
     rows = [_happening(title, when=None, place=f"Day Room {tag}", via="Do512",
                        door_id=DO512_DOOR)]
-    # A date-only Happening: the desk stated the day, not the instant.
     rows[0] = type(rows[0])(**{**rows[0].__dict__, "when": "2026-09-13",
                                "when_precision": "date",
                                "when_text": "Sun., Sept. 13"})
     writes = plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations)
-    assert writes[0].hold_reason
+    assert writes[0].hold_reason is None
+    assert writes[0].start_time and "T17:00:00" in writes[0].start_time
 
     _t, result = _run(writes, pg=pg)
-    assert len(result["held"]) == 1, result
-    assert not result["promoted"]
+    assert len(result["promoted"]) == 1, result
+    assert not result["held"]
 
     with pg.cursor() as cur:
         cur.execute("select count(*) from event where title=%s", (title,))
-        assert cur.fetchone()[0] == 0, "a date-only row must not reach `event`"
-        cur.execute(
-            "select status, extracted->'_desk'->>'night' from event_candidate "
-            "where title=%s", (title,))
-        status, night = cur.fetchone()
-    assert status == "needs_review", "it is in the catalog, awaiting a display"
-    assert night == "2026-09-13", "and the night the desk gave us is kept"
+        assert cur.fetchone()[0] == 1
 
 
 def test_a_contested_clock_publishes_disputed_on_the_real_feed(pg, registrations):

@@ -259,15 +259,15 @@ def test_a_stated_time_is_published_as_the_start():
     assert w.clock_hole is None
 
 
-def test_a_date_with_no_time_publishes_with_a_null_start_never_midnight():
-    """A desk that printed "Sun., Sept. 13" stated a night. Writing 00:00 would
-    invent the one field this pipeline exists to be honest about, and would put
-    every such row at the top of a feed sorted by time.
+def test_a_date_with_no_time_publishes_the_night_at_evening_not_midnight():
+    """A desk that printed "Sun., Sept. 13" stated a night. Holding it hid
+    Chronicle from Tonight. Place at 17:00 Chicago, never 00:00.
     """
     one = _union(_walk(CHRONICLE, "Austin Chronicle",
                        [_row("Farm Stand", when="2026-09-13", when_text="Sun., Sept. 13")]))
     w = write_for(one.rows[0], REGS, mode="LIVE")
-    assert w.start_time is None
+    assert w.hold_reason is None
+    assert w.start_time is not None and "T17:00:00" in w.start_time
     assert w.clock_hole == "the desk stated a night, not a time"
     assert w.extracted[DESK_KEY]["night"] == "2026-09-13"
 
@@ -519,7 +519,7 @@ def test_no_union_row_is_dropped_on_the_way_to_the_write_plan(fixture_union):
 def test_the_digest_adds_up(fixture_union):
     writes = plan(fixture_union, REGS)
     d = plan_digest(writes)
-    assert d["timed"] + d["clock_holes"] == d["rows"]
+    assert d["publishable"] + d["held"] == d["rows"]
     assert d["single_desk"] + d["multi_desk"] == d["rows"]
 
 
@@ -805,22 +805,16 @@ def test_a_dispute_that_fails_records_nothing_so_the_next_run_retries():
 # (evaluator, PR #229 r3 — openai/attacker-smuggle)
 # --------------------------------------------------------------------------
 
-def test_a_date_only_row_is_held_rather_than_published_as_date_unknown():
-    """THE BLOCKING FINDING. `event` has one clock column, so a date-only row
-    can only be published with a NULL start — which the feed renders as "Date
-    TBA". That tells a reader we do not know a date the desk GAVE us, under
-    that desk's masthead. Manufacturing an absence is the mirror image of
-    fabricating a fact, so the row is held instead of published.
-    """
+def test_a_date_only_row_is_published_on_that_night():
+    """Founder: title + when + place. A night is when. Holding hid Chronicle."""
     one = _union(_walk(CHRONICLE, "Austin Chronicle",
                        [_row("Farm Stand", when="2026-09-13",
                              when_text="Sun., Sept. 13")]))
     w = write_for(one.rows[0], REGS, mode="LIVE")
-    assert w.start_time is None
-    assert w.hold_reason and "2026-09-13" in w.hold_reason
+    assert w.hold_reason is None
+    assert w.start_time is not None and "T17:00:00" in w.start_time
     assert not w.clock_disputed
-    assert w.extracted[DESK_KEY]["night"] == "2026-09-13", (
-        "the night the desk stated is kept on the record even while held")
+    assert w.extracted[DESK_KEY]["night"] == "2026-09-13"
 
 
 # --------------------------------------------------------------------------
@@ -962,8 +956,8 @@ def test_no_planned_row_reaches_the_public_feed_without_all_three(fixture_union)
             continue
         assert w.title.strip(), f"{w.ingest_key} publishes with no title"
         assert w.extracted["venue_name"], f"{w.ingest_key} publishes unplaced"
-        assert w.extracted[DESK_KEY]["night"], (
-            f"{w.ingest_key} publishes with no night")
+        assert w.start_time or w.extracted[DESK_KEY]["night"], (
+            f"{w.ingest_key} publishes with no when")
 
 
 def test_desks_disagreeing_on_the_time_publish_disputed_not_merely_unknown():
@@ -998,7 +992,7 @@ def test_the_holes_are_counted_apart(fixture_union):
 
 def test_a_held_row_is_written_but_never_promoted():
     one = _union(_walk(CHRONICLE, "Austin Chronicle",
-                       [_row("Farm Stand", when="2026-09-13")]))
+                       [_row("Farm Stand", when=None)]))
     writes = plan(one, REGS)
     promoted, created = [], []
     result = ingest_tool.ingest(
@@ -1208,7 +1202,7 @@ def test_genuinely_different_instants_are_still_contested():
     """The other side: the instant comparison must not swallow a real conflict."""
     one = _union(
         _walk(CHRONICLE, "Austin Chronicle",
-              [_row("Real Conflict", when="2026-09-13T01:00:00Z", place="Room")]),
+              [_row("Real Conflict", when="2026-09-13T01:00:00+00:00", place="Room")]),
         _walk(DO512, "Do512",
               [_row("Real Conflict", when="2026-09-12T21:30:00-05:00", place="Room",
                     via="Do512", door_id=DO512)]))
@@ -1255,9 +1249,9 @@ def _mixed_writes():
     pass an ordering assertion no matter what the loop does.
     """
     rows = [
-        _row("Held A", when="2026-09-13"),                       # night, no clock
+        _row("Held A", when=None),
         _row("Public A", when="2026-09-13T20:00:00-05:00", place="Room A"),
-        _row("Held B", when="2026-09-14"),
+        _row("Held B", when=None, place="Room B"),
         _row("Public B", when="2026-09-14T21:00:00-05:00", place="Room B"),
     ]
     return plan(_union(_walk(CHRONICLE, "Austin Chronicle", rows)), REGS)
@@ -1463,8 +1457,8 @@ def _correcting_plan():
     """
     rows = [
         _row("Public A", when="2026-09-12T20:00:00-05:00", place="Room A"),
-        _row("Hold Ordinary", when="2026-09-14"),
-        _row("Corrected Show", when="2026-09-13"),
+        _row("Hold Ordinary", when=None),
+        _row("Corrected Show", when=None),
     ]
     writes = plan(_union(_walk(CHRONICLE, "Austin Chronicle", rows)), REGS)
     by_title = {w.extracted["title"]: w for w in writes}
@@ -1515,7 +1509,9 @@ def test_corroboration_does_not_jump_the_queue():
     fresh = correcting.extracted[DESK_KEY]["statement"]
     # same clocks as the desk states now — only `vias` moved
     seen = {key: ("cand-old", "promoted", "event-old",
-                  _stored(clocks=fresh["clocks"], vias=("Do512",)))}
+                  _stored(clocks=fresh["clocks"], vias=("Do512",),
+                          night=fresh.get("night"),
+                          place=fresh.get("place") or "Shape Hall"))}
     ordered = ingest_tool.publish_first(writes, seen=seen)
     assert ordered[0] is not correcting
     assert not ordered[0].hold_reason, "the publics still lead"

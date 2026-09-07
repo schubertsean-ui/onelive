@@ -55,6 +55,19 @@ describe("buildLicensedQuery", () => {
     expect(p.getAll("start_time")).toEqual([]);
   });
 
+  it("the default feed can skip DATE-TBA so Tonight cannot hang paging nulls", () => {
+    const p = params(buildLicensedQuery({
+      fromISO: "2026-07-24T00:00:00Z",
+      toISO: "2026-08-14T00:00:00Z",
+      includeNullClock: false,
+    }));
+    expect(p.get("or")).toBeNull();
+    expect(p.getAll("start_time")).toEqual([
+      "gte.2026-07-24T00:00:00.000Z",
+      "lte.2026-08-14T00:00:00.000Z",
+    ]);
+  });
+
   // PR #216 r2, both openai seats (blocking): moving a caller string from a
   // VALUE slot (`start_time=gte.X`) into PostgREST GRAMMAR (`or=( … )`) made `,`
   // and `)` syntax rather than data. Safety comes from RE-SERIALIZING the
