@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-07:** Bar locked — ONE-LIVE-BAR.md (world-class / best-in-class as a filter, not a process). Docs only.
 **2026-09-07:** The desks wrote to the live catalog. `desk-ingest.yml` `timeout-minutes` 30 -> 60 (PR #244) after run 34079785167 was cancelled mid-write at the 30-minute wall. The authorized write (34085972074) came back green: promoted 2, held 546, skipped 977, changed 5, mash_n 0, tba_public_n 0; /events 24277 -> 24279, /tonight Austin 168h 3 -> 4. It finished in 11.6 min, so 60 is NOT yet proven sufficient for a cold write — 977 rows were already present from the cancelled run and were skipped. Contract #75 closed.
 **2026-09-07:** First public write ticket — a public promote requires title + when + place; no-date and unplaced rows HOLD (R-111's answer, widened). Contracts #71/#72 closed.
 **2026-09-07:** Locale Launch Law in force — ONE-LIVE-LOCALE-LAUNCH.md at root (a locale is a query; demand starts gather; a pack is cache; Apple-level location privacy; anti-attention); CLAUDE.md points to it. Docs only.
