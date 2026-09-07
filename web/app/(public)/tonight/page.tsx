@@ -21,7 +21,19 @@ import FeedApp from "./FeedApp";
 // client hides only what has genuinely ended (a time filter, never a trust one).
 export const dynamic = "force-dynamic";
 
-export default async function TonightPage() {
+export default async function TonightPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  const placeParam = typeof searchParams?.place === "string" ? searchParams.place : "";
+  const regionParam = typeof searchParams?.region === "string" ? searchParams.region : "";
+  const initialSearch = [
+    placeParam && `place=${encodeURIComponent(placeParam)}`,
+    regionParam && `region=${encodeURIComponent(regionParam)}`,
+  ].filter(Boolean).join("&");
+  const initialQs = initialSearch ? `?${initialSearch}` : "";
+
   // SYNTHETIC QA fixture mode (visual regression R-002 / a11y audits) — fully
   // fictional events, frozen clock, visible banner; fail-closed off unless the
   // server env carries ONELIVE_QA_FIXTURES=1 (never set in any deployment).
@@ -36,7 +48,7 @@ export default async function TonightPage() {
         <div className="qanote" role="note">
           SYNTHETIC QA FIXTURES — fictional events for rendering checks, not real listings
         </div>
-        <FeedApp events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock />
+        <FeedApp events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock initialSearch={initialQs} />
       </>
     );
   }
@@ -134,5 +146,5 @@ export default async function TonightPage() {
     );
   }
 
-  return <FeedApp events={events} serverNowMs={nowMs} />;
+  return <FeedApp events={events} serverNowMs={nowMs} initialSearch={initialQs} />;
 }

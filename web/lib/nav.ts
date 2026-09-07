@@ -13,6 +13,7 @@
 //     a screen-reader "external" label (§8).
 
 import type { RegionScope } from "./region";
+import { parsePlaceToken } from "./place";
 
 // ── Filters ⇄ URL (§6) ────────────────────────────────────────────────────────
 export type FeedFilterState = {
@@ -30,6 +31,9 @@ export type FeedFilterState = {
   // Whether the evening/night block LEADS a single-day river (the default) or
   // the day runs plainly by category/time. An ordering, never a filter.
   eveningFirst: boolean;
+  // Typed locale (Locale Launch Law). Empty = default view. Garbage tokens
+  // never survive queryToFilters — they fail closed rather than mint a city.
+  place: string;
 };
 
 export const DEFAULT_FILTERS: FeedFilterState = {
@@ -40,6 +44,7 @@ export const DEFAULT_FILTERS: FeedFilterState = {
   freeOnly: false,
   region: "capcog", // founder-directed default 2026-09-01: CAPCOG is the test view
   eveningFirst: true, // founder-directed default 2026-09-01: the evening leads
+  place: "",
 };
 
 // Compact, human-readable query: /tonight?when=today&domain=live-music,comedy
@@ -54,6 +59,7 @@ export function filtersToQuery(f: FeedFilterState): string {
   if (f.freeOnly) p.set("free", "1");
   if (f.region === "everywhere") p.set("region", "all"); // absent = the CAPCOG default
   if (!f.eveningFirst) p.set("order", "time"); // absent = evening leads
+  if (f.place) p.set("place", f.place);
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -83,13 +89,16 @@ export function queryToFilters(search: string): FeedFilterState {
     // at — it renders the default view, exactly like a bare /tonight.
     region: p.get("region") === "all" ? "everywhere" : "capcog",
     eveningFirst: p.get("order") !== "time",
+    // Garbage / empty fail closed to the default view. A well-formed token is
+    // kept verbatim so the address bar matches what the person typed.
+    place: parsePlaceToken(p.get("place")) ? String(p.get("place")).trim() : "",
   };
 }
 
 export function isDefaultFilters(f: FeedFilterState): boolean {
   return (
     f.tabKey === "today" && !f.domains.size && !f.areas.size && !f.genres.size &&
-    !f.freeOnly && f.region === "capcog" && f.eveningFirst
+    !f.freeOnly && f.region === "capcog" && f.eveningFirst && !f.place
   );
 }
 

@@ -27,6 +27,7 @@ describe("filters ⇄ URL (nav canon §6 — every meaningful view is a URL)", (
       freeOnly: true,
       region: "everywhere",
       eveningFirst: false,
+      place: "",
     };
     const q = filtersToQuery(state);
     const back = queryToFilters(q);
@@ -37,6 +38,7 @@ describe("filters ⇄ URL (nav canon §6 — every meaningful view is a URL)", (
     expect(back.freeOnly).toBe(true);
     expect(back.region).toBe("everywhere");
     expect(back.eveningFirst).toBe(false);
+    expect(back.place).toBe("");
   });
 
   // Coverage Law 2026-09-01: the region scope is a VIEW filter that travels in
@@ -64,6 +66,15 @@ describe("filters ⇄ URL (nav canon §6 — every meaningful view is a URL)", (
   it("counts a cleared region / plain ordering as NOT the default view", () => {
     expect(isDefaultFilters({ ...DEFAULT_FILTERS, region: "everywhere" })).toBe(false);
     expect(isDefaultFilters({ ...DEFAULT_FILTERS, eveningFirst: false })).toBe(false);
+  });
+
+  it("carries a typed place in the URL and fails closed on garbage", () => {
+    expect(filtersToQuery({ ...DEFAULT_FILTERS, place: "Round Rock TX" })).toBe("?place=Round+Rock+TX");
+    expect(queryToFilters("?place=Round+Rock+TX").place).toBe("Round Rock TX");
+    for (const bad of ["?place=", "?place=???", "?place=<script>", "?place=https://x"]) {
+      expect(queryToFilters(bad).place).toBe("");
+    }
+    expect(isDefaultFilters({ ...DEFAULT_FILTERS, place: "Round Rock TX" })).toBe(false);
   });
 
   it("is deterministic regardless of set insertion order (shareable = stable)", () => {

@@ -47,6 +47,21 @@
   font-size: 14px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600;
 }
 .flow .mast .lede { color: var(--dim); font-size: 13px; margin-top: 4px; max-width: 60ch; }
+.flow .placebar {
+  display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; flex-wrap: wrap;
+}
+.flow .placebar-label {
+  display: flex; flex-direction: column; gap: 4px; font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--dim);
+}
+.flow .placebar input {
+  min-width: 220px; border: 1px solid var(--line); background: var(--wash-2); color: var(--ink);
+  border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 14px;
+}
+.flow .placebar button {
+  border: 1px solid var(--ember); background: var(--ember); color: #1a0d07;
+  border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
 /* Mode switch (Browse / Ask / Plan) */
 .flow .modes { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
 .flow .modes button {

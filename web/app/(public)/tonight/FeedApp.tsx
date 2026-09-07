@@ -18,6 +18,7 @@ import {
   venueWebsite,
 } from "../../../lib/detail";
 import { applyRegionScope, type RegionScope } from "../../../lib/region";
+import { filterToPlace, resolvePlace } from "../../../lib/place";
 import { contextualPreview } from "../../../lib/preview";
 import Link from "next/link";
 import type { LicensedEvent, SparkLine } from "../../../lib/licensed";
@@ -426,27 +427,26 @@ function toggle(set: Set<string>, v: string): Set<string> {
   return n;
 }
 
-export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
+export default function FeedApp({ events, serverNowMs, qaFrozenClock, initialSearch }: {
   events: LicensedEvent[]; serverNowMs: number;
   // QA fixture mode only (web/qa/fixtures.ts): keep the server's frozen clock
   // after mount so screenshots are deterministic. Never set in production —
   // the real feed must always re-read the phone's real clock (canon §9).
   qaFrozenClock?: boolean;
+  // Server-parsed query so ?place= is Show on first paint, no client fetch.
+  initialSearch?: string;
 }) {
+  const boot = queryToFilters(initialSearch ?? "");
   const [nowMs, setNowMs] = useState(serverNowMs);
   const [mounted, setMounted] = useState(false);
-  const [tabKey, setTabKey] = useState("today"); // founder-directed default: start with today
-  const [domains, setDomains] = useState<Set<string>>(new Set());
-  const [areas, setAreas] = useState<Set<string>>(new Set());
-  const [genres, setGenres] = useState<Set<string>>(new Set());
-  const [freeOnly, setFreeOnly] = useState(false);
-  // The REGION scope. CAPCOG is the founder-directed default test view; it is a
-  // view filter, never a catalog delete, so it is visible, counted and
-  // clearable (Coverage Law 2026-09-01).
-  const [region, setRegion] = useState<RegionScope>("capcog");
-  // Whether a single day leads with its evening/night block. Default on
-  // (founder 2026-09-01) — an ORDERING; the morning rows still render below.
-  const [eveningFirst, setEveningFirst] = useState(true);
+  const [tabKey, setTabKey] = useState(boot.tabKey || "today");
+  const [domains, setDomains] = useState<Set<string>>(boot.domains);
+  const [areas, setAreas] = useState<Set<string>>(boot.areas);
+  const [genres, setGenres] = useState<Set<string>>(boot.genres);
+  const [freeOnly, setFreeOnly] = useState(boot.freeOnly);
+  const [region, setRegion] = useState<RegionScope>(boot.region);
+  const [eveningFirst, setEveningFirst] = useState(boot.eveningFirst);
+  const [place, setPlace] = useState(boot.place);
   const [desire, setDesire] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanScope | null>(null);
   const [mode, setMode] = useState<"browse" | "ask" | "plan">("browse");
@@ -470,6 +470,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     if (f.freeOnly) setFreeOnly(true);
     if (f.region !== "capcog") setRegion(f.region);
     if (!f.eveningFirst) setEveningFirst(false);
+    if (f.place) setPlace(f.place);
     setMounted(true);
   }, [qaFrozenClock]);
 
@@ -481,12 +482,12 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     // Never rewrite the URL while the lens owns it (its entry carries the
     // event's own /tonight/<id> address).
     if (isLensHistoryState(window.history.state)) return;
-    const q = filtersToQuery({ tabKey, domains, areas, genres, freeOnly, region, eveningFirst });
+    const q = filtersToQuery({ tabKey, domains, areas, genres, freeOnly, region, eveningFirst, place });
     const next = `${window.location.pathname}${q}`;
     if (`${window.location.pathname}${window.location.search}` !== next) {
       window.history.replaceState(window.history.state, "", next);
     }
-  }, [mounted, tabKey, domains, areas, genres, freeOnly, region, eveningFirst]);
+  }, [mounted, tabKey, domains, areas, genres, freeOnly, region, eveningFirst, place]);
 
   // History-modeled lens (nav canon §6/§7): opening pushes a history entry AT
   // THE EVENT'S OWN URL, so (a) hardware/gesture Back closes the sheet before
@@ -509,10 +510,14 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
   const live = useMemo(() => (mounted ? liveEvents(events, nowMs) : events), [events, nowMs, mounted]);
   const tabs = useMemo(() => dayTabs(nowMs, 7), [nowMs]);
   const tab = tabs.find((t) => t.key === tabKey) ?? tabs[0];
-  // VIEW side: the region scope. Everything downstream (facets, filters, the
-  // ask/plan lenses) works on this, so the scope is applied in exactly one
-  // place and no surface can quietly disagree with the count line.
-  const base = useMemo(() => applyRegionScope(live, region), [live, region]);
+  // Place is a query: a typed locale is the view. Garbage already failed closed
+  // to "". Gathering is a surface state, not a crawl (Locale Launch §2, §6a).
+  const placeRes = useMemo(() => resolvePlace(place, live), [place, live]);
+  const base = useMemo(() => {
+    if (placeRes.kind === "show") return filterToPlace(live, placeRes.key);
+    if (placeRes.kind === "gathering") return [];
+    return applyRegionScope(live, region);
+  }, [live, region, placeRes]);
 
 
   const areaFacet = useMemo(() => facet(base, "venue_area").slice(0, 8), [base]);
@@ -568,8 +573,39 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     <main className="flow">
       <div className="wrap">
         <div className="mast">
-          <h1>1LIVE · Austin</h1>
-          <p className="lede">What&rsquo;s on, by date. Pick a day, Tonight, a weekend, or a kind.</p>
+          {/* Date stays the organizer (#261); PLACE only changes which place
+              the date is read in — never "Tonight in X" as the title again. */}
+          <h1>
+            {placeRes.kind === "default"
+              ? "1LIVE · Austin"
+              : `1LIVE · ${placeRes.label}`}
+          </h1>
+          <p className="lede">
+            {placeRes.kind === "gathering"
+              ? `We’re gathering what’s on in ${placeRes.label}. That is not zero — we have not finished reading this place.`
+              : placeRes.kind === "show"
+                ? `What’s on in ${placeRes.label}, by date. Pick a day, Tonight, a weekend, or a kind.`
+                : "What’s on, by date. Pick a day, Tonight, a weekend, or a kind."}
+          </p>
+          <form
+            className="placebar"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = new FormData(e.currentTarget).get("place");
+              setPlace(String(v ?? "").trim());
+            }}
+          >
+            <label className="placebar-label">
+              Place
+              <input
+                name="place"
+                defaultValue={place}
+                placeholder="Round Rock, Miami, Lexington…"
+                autoComplete="address-level2"
+              />
+            </label>
+            <button type="submit">Show</button>
+          </form>
         </div>
 
         {/* mode switch */}
@@ -659,15 +695,32 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
                 place a reader can see what the view is NOT showing them, which
                 is what keeps a picky view from reading as a small catalog. */}
             <div className="count">
-              Showing {counts.shown.toLocaleString()} of {counts.windowTotal.toLocaleString()} known
-              {" "}listing{counts.windowTotal === 1 ? "" : "s"} for {tab.key === "all" ? "everything upcoming" : tab.label}
-              {" · "}
-              {tab.key === "all"
-                ? "soonest first within each section"
-                : splitApplies ? "evening first, then earlier in the day" : "by category, soonest first"}
+              {placeRes.kind === "gathering" ? (
+                <>Gathering listings for {placeRes.label} — not a finished count of zero.</>
+              ) : (
+                <>
+                  Showing {counts.shown.toLocaleString()} of {counts.windowTotal.toLocaleString()} known
+                  {" "}listing{counts.windowTotal === 1 ? "" : "s"} for {tab.key === "all" ? "everything upcoming" : tab.label}
+                  {" · "}
+                  {tab.key === "all"
+                    ? "soonest first within each section"
+                    : splitApplies ? "evening first, then earlier in the day" : "by category, soonest first"}
+                </>
+              )}
             </div>
             <p className="rnote">
-              {region === "capcog" ? (
+              {placeRes.kind !== "default" ? (
+                <>
+                  <span>
+                    {placeRes.kind === "gathering"
+                      ? "No crawl starts from this page. A gather job is a separate tick, not a page view."
+                      : `Showing catalog rows we already have for ${placeRes.label}.`}
+                  </span>{" "}
+                  <button type="button" className="rlink" onClick={() => setPlace("")}>
+                    Back to the default view
+                  </button>
+                </>
+              ) : region === "capcog" ? (
                 <>
                   <span>
                     Scoped to the CAPCOG test region
