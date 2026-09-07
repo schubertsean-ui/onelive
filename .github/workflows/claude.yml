@@ -5,8 +5,8 @@ name: Claude Code
 # Does not run on schedule. Does not write the catalog. Does not touch ingest.yml.
 # Trigger is fail-closed: only OWNER / MEMBER / COLLABORATOR may invoke it.
 #
-# PM 2026-09-07: jobs were dying because default permission mode requires a human
-# click to run python3/gh. acceptEdits + named allowedTools is the fix.
+# PM 2026-09-07: 40 turns burned on ceremony before any product file landed
+# (#253/#255 error_max_turns, branch never pushed). 80 is the working ceiling.
 # Still no ingest.yml, no catalog write, no schedule.
 
 on:
@@ -47,6 +47,6 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --max-turns 40
+            --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
