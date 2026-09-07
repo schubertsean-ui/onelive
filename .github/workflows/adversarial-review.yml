@@ -150,9 +150,10 @@ jobs:
           export GIT_CONFIG_KEY_0=http.extraheader
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           set +e
-          bash tools/validate --allow-skips 2>&1 | tee validate.log
-          vc=${PIPESTATUS[0]}
+          bash tools/validate --allow-skips > validate.log 2>&1
+          vc=$?
           set -e
+          cat validate.log
           echo "exit=$vc" >> "$GITHUB_OUTPUT"
           if [ "$vc" -ne 0 ]; then
             echo "::warning::validate red (exit $vc) — independent evaluator still runs; this job fails after the verdict. Ceremony must not skip review."
@@ -559,6 +560,9 @@ jobs:
         # Independent review always votes (the validate step no longer aborts
         # first). Validate still blocks merge. Neither is a skip of the other.
         if: always() && steps.validate.outputs.exit != '0'
+        env:
+          VALIDATE_EXIT: ${{ steps.validate.outputs.exit }}
         run: |
-          echo "::error::validate failed (exit ${{ steps.validate.outputs.exit }}). Independent evaluator still ran. Merge stays blocked — review is not a skip of validate, and validate is not a skip of review."
+          : "${VALIDATE_EXIT:?validate exit unresolved — failing closed}"
+          echo "::error::validate failed (exit $VALIDATE_EXIT). Independent evaluator still ran. Merge stays blocked — review is not a skip of validate, and validate is not a skip of review."
           exit 1
