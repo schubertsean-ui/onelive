@@ -63,7 +63,9 @@ export default async function TonightPage() {
     // 12h back so an event already under way is still shown ("on now"); the
     // client drops anything actually ended.
     const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
-    const toISO = new Date(nowMs + 21 * 24 * 60 * 60 * 1000).toISOString();
+    // Six months forward — Ticketmaster already stores that horizon; a 21-day
+    // fetch made months-out rows invisible even under "All upcoming".
+    const toISO = new Date(nowMs + 180 * 24 * 60 * 60 * 1000).toISOString();
     const window = { fromISO, toISO, includeNullClock: false as const };
     let licensedFailed = false;
     let promotedFailed = false;

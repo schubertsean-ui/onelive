@@ -51,6 +51,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import date as _date
 from html.parser import HTMLParser
 from typing import Callable, List, Optional, Sequence, Tuple
 from urllib.parse import urldefrag, urljoin, urlsplit
@@ -65,7 +66,9 @@ log = logging.getLogger(__name__)
 
 #: How many pages one walk may open. A desk with more says so
 #: (`stopped_because="max_pages"`) instead of being silently truncated.
-DEFAULT_MAX_PAGES = 40
+#: Austin Chronicle EventSearch is 62 pages (~2,454 listings) as of 2026-09-07;
+#: 40 stopped the walk at ~1,519 rows. 80 covers that desk with headroom.
+DEFAULT_MAX_PAGES = 80
 
 #: The class a pack-declared public door starts from, before the desk answers.
 #: Stated here rather than assumed downstream, so the demotion below has
@@ -481,7 +484,8 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
          max_pages: int = DEFAULT_MAX_PAGES,
          start_url: Optional[str] = None,
          kind_map: Optional[KindMap] = None,
-         patterns: Optional[Sequence[IdentityPattern]] = None) -> DeskWalk:
+         patterns: Optional[Sequence[IdentityPattern]] = None,
+         as_of: Optional[_date] = None) -> DeskWalk:
     """Follow one public desk's list to its end (or to the first honest stop).
 
     `fetch` is injected: this module never opens a socket, so the whole walk is
@@ -572,7 +576,7 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
         landed = fetched.landed_url
         try:
             page_read = read(door, fetched.body, base_url=landed, kind_map=kind_map,
-                             patterns=patterns)
+                             patterns=patterns, as_of=as_of)
         except DeskReadError as exc:
             page.blocked_reason = f"unreadable: {exc}"[:300]
             result.stopped_because = "unreadable"

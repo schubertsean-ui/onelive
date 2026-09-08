@@ -49,9 +49,9 @@ on:
         type: string
         default: "all"
       max_pages:
-        description: "Page ceiling per desk (per DOOR, not per run)"
+        description: "Page ceiling per desk (per DOOR, not per run). Chronicle EventSearch is 62 pages."
         type: string
-        default: "40"
+        default: "80"
 
 permissions:
   contents: read

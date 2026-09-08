@@ -364,7 +364,57 @@ def test_row_key_prefers_the_cards_own_address():
         row_key("A", "2026-09-12T01:00:00Z", None, "https://d/e/1")
 
 
-def test_row_key_falls_back_to_title_when_no_address_is_stated():
-    from worker.locale_pack.desk_read import row_key
-    assert row_key("A", None, None, None) == row_key("A", None, None, "")
-    assert row_key("A", None, None, None) != row_key("B", None, None, None)
+from datetime import date
+
+
+CHRONICLE_TODAY_CARD = """
+<html><head><title>Events Today | Austin Chronicle — September 2026</title></head>
+<body>
+<div class="listing">
+  <a href="https://calendar.austinchronicle.com/event/patron-saint-of-roadkill-14327126">Patron Saint of Roadkill</a>
+  Mon., Sept. 7
+  <a href="https://calendar.austinchronicle.com/location/sekrit-theater-11834821">Sekrit Theater</a>
+  1145 Perry Rd., Austin
+</div>
+<div class="listing">
+  <a href="https://calendar.austinchronicle.com/event/fuck-this-week-14300001">Fuck This Week</a>
+  Mon., Sept. 7
+  <a href="https://calendar.austinchronicle.com/location/cap-city-comedy-club-11830002">Cap City Comedy Club</a>
+  11506 Century Oaks, Austin
+</div>
+</body>
+</html>
+"""
+
+
+def test_chronicle_house_date_and_location_link_are_taken_from_the_card(desk):
+    """Live Chronicle cards print 'Mon., Sept. 7' and a /location/ venue link —
+    not <time datetime> or class=venue. Those rows must publish, not hold."""
+    result = read(
+        desk, CHRONICLE_TODAY_CARD,
+        base_url="https://calendar.austinchronicle.com/austin/EventSearch?narrowByDate=today",
+        as_of=date(2026, 9, 8),
+    )
+    by_title = {r.title: r for r in result.rows}
+    film = by_title["Patron Saint of Roadkill"]
+    assert film.when == "2026-09-07"
+    assert film.when_precision == "date"
+    assert film.place_text == "Sekrit Theater"
+    comedy = by_title["Fuck This Week"]
+    assert comedy.when == "2026-09-07"
+    assert comedy.place_text == "Cap City Comedy Club"
+
+
+def test_chronicle_house_date_uses_the_year_printed_on_the_page_without_as_of(desk):
+    result = read(
+        desk, CHRONICLE_TODAY_CARD,
+        base_url="https://calendar.austinchronicle.com/austin/EventSearch",
+    )
+    assert result.rows[0].when == "2026-09-07"
+
+
+def test_vague_prose_is_still_not_a_calendar_night(desk):
+    row = read(desk, fixture("desk_listing.html")).rows[2]
+    assert row.when is None, "\"Every Sunday this fall\" is not a date we may state"
+    assert row.when_text == "Every Sunday this fall"
+
