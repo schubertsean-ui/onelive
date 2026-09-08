@@ -62,12 +62,21 @@ from worker.locale_pack.kind_map import KindMap
 from worker.locale_pack.pack import Door
 from worker.sourcing.source_class import ClassVerdict, demote_on_response
 
-log = logging.getLogger(__name__)
+#: The desk stating its own last page: "page 1 of 62". Result counts
+#: ("2,454 results") are NOT this — those are listings, not pages.
+_PAGE_OF_RE = re.compile(
+    r"\bpage\s*[:.]?\s*\d+\s*(?:of|/)\s*(\d+)\b",
+    re.I,
+)
+_PAGE_NUM_IN_URL_RE = re.compile(
+    r"(?:[?&](?:page|p|pg|startpage)=|/page/)(\d+)\b",
+    re.I,
+)
 
-#: How many pages one walk may open. A desk with more says so
-#: (`stopped_because="max_pages"`) instead of being silently truncated.
-#: Austin Chronicle EventSearch is 62 pages (~2,454 listings) as of 2026-09-07;
-#: 40 stopped the walk at ~1,519 rows. 80 covers that desk with headroom.
+#: How many pages one walk may open when the desk does NOT say where it ends.
+#: If the page prints "page 1 of 62", that 62 is the cap — ours never cuts
+#: their list short. This number is only a runaway backstop for a next-link
+#: carousel that never ends.
 DEFAULT_MAX_PAGES = 80
 
 #: The class a pack-declared public door starts from, before the desk answers.
@@ -274,7 +283,7 @@ class DeskWalk:
         continuation control we cannot follow — means the list may go on, and no
         table may call this walk the desk's whole output.
         """
-        return self.stopped_because == "no_next_link"
+        return self.stopped_because in ("no_next_link", "desk_last_page")
 
 
 # --------------------------------------------------------------------------
@@ -298,6 +307,7 @@ class _LinkScanner(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.rel_next: List[str] = []
+        self.rel_last: List[str] = []
         self.text_next: List[str] = []
         self.controls: List[str] = []
         self._open_anchor: Optional[str] = None
@@ -313,12 +323,19 @@ class _LinkScanner(HTMLParser):
     def _is_rel_next(value: str) -> bool:
         return "next" in {t.lower() for t in _REL_SPLIT_RE.split(value or "") if t}
 
+    @staticmethod
+    def _is_rel_last(value: str) -> bool:
+        return "last" in {t.lower() for t in _REL_SPLIT_RE.split(value or "") if t}
+
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         a = self._attrs(attrs)
         href = a.get("href", "").strip()
         if tag == "link" and href and self._is_rel_next(a.get("rel", "")):
             self.rel_next.append(href)
+            return
+        if tag == "link" and href and self._is_rel_last(a.get("rel", "")):
+            self.rel_last.append(href)
             return
         aria = _WS_RE.sub(" ", a.get("aria-label", "").strip().lower())
         says_next = bool(aria) and any(needle in aria for needle in NEXT_ARIA)
@@ -341,6 +358,9 @@ class _LinkScanner(HTMLParser):
             return
         if self._is_rel_next(a.get("rel", "")):
             self.rel_next.append(href)
+            return
+        if self._is_rel_last(a.get("rel", "")):
+            self.rel_last.append(href)
             return
         if says_next:
             self.text_next.append(href)
@@ -433,6 +453,42 @@ def _same_host(candidate: str, current: str) -> bool:
     return a.netloc.lower() == b.netloc.lower()
 
 
+def _page_num_in_url(url: str) -> Optional[int]:
+    m = _PAGE_NUM_IN_URL_RE.search(url or "")
+    return int(m.group(1)) if m else None
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def stated_page_total(html: str) -> Optional[int]:
+    """The last page THIS desk printed, or None if it didn't say.
+
+    Founder rule: the cap is the last page of the site we are looking at.
+    "page 1 of 62" and `rel="last"` are the desk stating that number.
+    A result count ("2,454 results") is not a page total and is ignored.
+    """
+    if not html:
+        return None
+    totals: List[int] = []
+    visible = _TAG_RE.sub(" ", html)
+    for m in _PAGE_OF_RE.finditer(visible):
+        n = int(m.group(1))
+        if n >= 1:
+            totals.append(n)
+    scanner = _LinkScanner()
+    try:
+        scanner.feed(html)
+        scanner.close()
+        for href in scanner.rel_last:
+            n = _page_num_in_url(href)
+            if n is not None and n >= 1:
+                totals.append(n)
+    except Exception:  # noqa: BLE001 — a pathological page just doesn't state a last page
+        pass
+    return max(totals) if totals else None
+
+
 def next_page_url(html: str, current_url: str) -> Tuple[Optional[str], Optional[str]]:
     """The desk's own next-page link, absolutised. Returns `(url, note)`.
 
@@ -512,13 +568,22 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
     seen_identities: dict = {}
     visited: set = set()
     url: Optional[str] = begin
+    # Founder runaway — used only until (or unless) the desk states its last page.
+    cap = max_pages
+    desk_cap: Optional[int] = None
 
     while url is not None:
-        if len(result.pages) >= max_pages:
-            result.stopped_because = "max_pages"
-            result.notes.append(
-                f"stopped at the {max_pages}-page cap with a next link still "
-                f"outstanding ({url}) — this is OUR limit, not the end of the desk")
+        if len(result.pages) >= cap:
+            if desk_cap is not None:
+                result.stopped_because = "desk_last_page"
+                result.notes.append(
+                    f"stopped on the desk's last page ({desk_cap}) — that is "
+                    f"their cap, not ours")
+            else:
+                result.stopped_because = "max_pages"
+                result.notes.append(
+                    f"stopped at the {max_pages}-page cap with a next link still "
+                    f"outstanding ({url}) — this is OUR limit, not the end of the desk")
             break
         key = _normalize(url)
         if key in visited:
@@ -572,6 +637,15 @@ def walk(door: Door, fetch: Callable[[str], PageFetch], *,
             page.blocked_reason = "empty body — nothing read (not 'nothing on')"
             result.stopped_because = "empty_page"
             break
+
+        if desk_cap is None:
+            stated = stated_page_total(fetched.body)
+            if stated is not None:
+                desk_cap = stated
+                cap = stated
+                result.notes.append(
+                    f"desk states {stated} pages — that is the cap "
+                    f"(runaway was {max_pages})")
 
         landed = fetched.landed_url
         try:
