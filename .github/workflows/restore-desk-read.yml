@@ -1,0 +1,24 @@
+name: restore-desk-read
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: house-year-current
+          fetch-depth: 0
+      - name: Copy master reader and wire year + siblings
+        run: |
+          git fetch origin master
+          git show origin/master:worker/locale_pack/desk_read.py > worker/locale_pack/desk_read.py
+          python3 tools/wire_desk_read.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/locale_pack/desk_read.py
+          git diff --cached --stat
+          git commit -m "Restore full desk_read from master; year never blocks."
+          git push origin HEAD:house-year-current
