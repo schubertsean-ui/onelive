@@ -53,6 +53,8 @@ Holes are expected. Subsequent runs and other doors fill them before the show. A
 
 Founder 2026-09-08: a house date with no year (`Tue., Sept. 8`) takes the current year. Year never blocks publishing. Month past December rolls the year.
 
+Founder 2026-09-08: a trusted desk (Chronicle, KUT, civic calendar, official venue) that printed a title publishes. Missing year, missing minute, or missing place is a hole on the card. It is not a reason to hold the row off 1live.co. Views may filter. The catalog keeps the row. Do not invent a day or a place. Do not drop what the desk printed.
+
 ## Mutation (fail-closed) — shipped intent of #214
 
 - Confirmed same-page change → update time / cancel / postpone evidence. Row is never deleted.
