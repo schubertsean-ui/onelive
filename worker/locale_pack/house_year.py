@@ -1,23 +1,17 @@
 """Complete a house date that printed no year.
 
-Printed 20xx on the card or title wins. Else prefer the upcoming
-occurrence: this year if that month+day is today, still ahead, or
-within the last 14 days; otherwise next year.
+Founder 2026-09-08: year is the current year unless the month is past
+December. Year never blocks publishing. Analog is a listings catalog
+(Chronicle / TimeOut / dateutil default=today), not Google Calendar
+next-occurrence. January read in September stays this year.
 
-That is the listings-catalog prefer-future rule. Last night stays
-this year so Tonight does not lose neighbors. January read in
-September becomes next January. December read in January becomes
-next December.
-
-Year never blocks publishing. Vague prose is refused by the caller
-before this function runs. Weekday is accepted and never a veto.
+Printed 20xx on the card or title wins. Weekday is accepted and never
+a veto. Vague prose is refused by the caller before this function runs.
 """
 from __future__ import annotations
 
 from datetime import date as _date
 from typing import Optional
-
-LOOKBACK_DAYS = 14
 
 
 def complete_house_year(
@@ -39,12 +33,6 @@ def complete_house_year(
         except ValueError:
             return None
     try:
-        this_year = _date(today.year, month, day)
+        return _date(today.year, month, day).isoformat()
     except ValueError:
         return None
-    if this_year >= today or (today - this_year).days <= LOOKBACK_DAYS:
-        return this_year.isoformat()
-    try:
-        return _date(today.year + 1, month, day).isoformat()
-    except ValueError:
-        return this_year.isoformat()

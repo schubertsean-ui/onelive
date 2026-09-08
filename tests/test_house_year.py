@@ -1,4 +1,4 @@
-"""House-date year: prefer the upcoming night. Year never blocks."""
+"""House-date year: current year. Year never blocks publishing."""
 from datetime import date
 
 from worker.locale_pack.house_year import complete_house_year
@@ -12,24 +12,12 @@ def test_yesterday_stays_this_year():
     assert complete_house_year(9, 7, as_of=date(2026, 9, 8)) == "2026-09-07"
 
 
-def test_two_weeks_ago_stays_this_year():
-    assert complete_house_year(8, 25, as_of=date(2026, 9, 8)) == "2026-08-25"
+def test_january_in_september_stays_this_year():
+    assert complete_house_year(1, 15, as_of=date(2026, 9, 8)) == "2026-01-15"
 
 
-def test_older_than_lookback_goes_next_year():
-    assert complete_house_year(8, 20, as_of=date(2026, 9, 8)) == "2027-08-20"
-
-
-def test_january_in_september_is_next_january():
-    assert complete_house_year(1, 15, as_of=date(2026, 9, 8)) == "2027-01-15"
-
-
-def test_december_in_january_is_next_december():
+def test_december_in_january_stays_this_year():
     assert complete_house_year(12, 12, as_of=date(2027, 1, 15)) == "2027-12-12"
-
-
-def test_january_card_in_december_is_next_year():
-    assert complete_house_year(1, 5, as_of=date(2026, 12, 20)) == "2027-01-05"
 
 
 def test_printed_year_wins():
