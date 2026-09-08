@@ -438,6 +438,23 @@ def test_a_house_date_without_a_page_year_stays_null(desk):
     assert result.rows[0].when is None
 
 
+def test_a_footer_copyright_year_is_not_the_event_year(desk):
+    html = """
+    <html><body>
+    <div class="event">
+      <a href="https://calendar.austinchronicle.com/event/footer-year-1">Footer Band</a>
+      Mon., Sept. 7
+    </div>
+    <footer>© 2020 Austin Chronicle</footer>
+    </body></html>
+    """
+    result = read(
+        desk, html,
+        base_url="https://calendar.austinchronicle.com/austin/EventSearch",
+    )
+    assert result.rows[0].when is None
+
+
 def test_a_location_link_is_never_the_listing_url(desk):
     html = """
     <html><head><title>Events — 2026</title></head><body>

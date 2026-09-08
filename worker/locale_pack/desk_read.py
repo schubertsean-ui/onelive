@@ -127,6 +127,29 @@ def _is_location_href(href: str) -> bool:
     return bool(_LOCATION_HREF_RE.search(urlsplit(href).path or href))
 
 
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+_HEADING_RE = re.compile(r"<h[1-3][^>]*>(.*?)</h[1-3]>", re.I | re.S)
+_INNER_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _years_in_date_context(card_text: str, page_html: str) -> set:
+    """Years the desk printed next to the calendar, not footer copyright.
+
+    Order: the card itself, then <title> and h1–h3. A 20xx anywhere else on
+    the page (© 2020, archive links) is not a year for this listing.
+    """
+    years = {int(y) for y in _PAGE_YEAR_RE.findall(card_text or "")}
+    if years:
+        return years
+    blobs = []
+    html = page_html or ""
+    for m in _TITLE_RE.finditer(html):
+        blobs.append(_INNER_TAG_RE.sub(" ", m.group(1)))
+    for m in _HEADING_RE.finditer(html):
+        blobs.append(_INNER_TAG_RE.sub(" ", m.group(1)))
+    return {int(y) for y in _PAGE_YEAR_RE.findall(" ".join(blobs))}
+
+
 def _house_when(card_text: str, page_html: str,
                 as_of: Optional[_date]) -> Optional[str]:
     """The one calendar date THIS CARD printed, year completed from the page.
@@ -148,9 +171,7 @@ def _house_when(card_text: str, page_html: str,
     month = _HOUSE_MONTHS[mon.lower()]
     day = int(day_s)
     weekday = _HOUSE_WEEKDAYS[wd[:3].lower()]
-    # Years the PAGE printed. as_of is the walk's clock, not the desk's word —
-    # it must not supply a year the page never stated (evaluator, PR #267).
-    years = {int(y) for y in _PAGE_YEAR_RE.findall(page_html or "")}
+    years = _years_in_date_context(text, page_html)
     if not years:
         return None
     found: List[_date] = []
