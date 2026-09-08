@@ -49,9 +49,11 @@ on:
         type: string
         default: "all"
       max_pages:
-        description: "Page ceiling per desk (per DOOR, not per run)"
+        description: >-
+          Runaway page ceiling per desk, used only when the desk does not
+          print a last page. If the page says "page 1 of 62", 62 is the cap.
         type: string
-        default: "40"
+        default: "80"
 
 permissions:
   contents: read

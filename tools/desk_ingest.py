@@ -71,7 +71,7 @@ import os
 import sys
 from contextlib import contextmanager
 from dataclasses import replace as dc_replace
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -769,7 +769,7 @@ def walk_doors(locale: str, door_ids: Sequence[str], *, real: bool,
                     f"on this FIXTURE run; `--real` walks it"))
                 continue
         walks.append(walk(door, fetch, max_pages=max_pages, start_url=start_url,
-                          kind_map=kind_map))
+                          kind_map=kind_map, as_of=date.today()))
 
     if door_ids and not walks:
         raise DeskPublishError(

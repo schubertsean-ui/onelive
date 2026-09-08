@@ -3053,3 +3053,12 @@ re-confirmed EGRESS_BLOCKED, so all evidence_tier search_only/none, 0 fetched.
 7 blocked_now holes now carry a real candidate URL (none promoted to
 confirmed — needs an actual fetch). TAM_CAPCOG.csv itself untouched. PR opened,
 not merged. STATUS: CLOSED.
+
+## 2026-09-07 — Chronicle list cards: take the date and venue they printed
+Coverage Law miss: EventSearch is 62 pages / ~2,454 listings; we stopped at
+page 40 (1,519 rows) and held 1,388 because the card's "Mon., Sept. 7" and
+`/location/` venue were ignored. The cap is the desk's last page ("page 1 of
+62", rel=last), not a number we picked. House date from the weekday+month+day
+on the card plus a year the same page printed. Location href is place. Tonight
+fetch window 180 days. Vague prose stays NULL. STATUS: OPEN until the write
+run exhausts EventSearch.

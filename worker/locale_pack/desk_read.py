@@ -48,6 +48,7 @@ import logging
 import re
 from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
+from datetime import date as _date
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from worker.importers.structured_feed import parse_jsonld
@@ -80,6 +81,15 @@ _EVENT_ITEMTYPE_RE = re.compile(r"schema\.org/[A-Za-z]*Event\b", re.I)
 # page (structured data, or a permalink in the committed identity table) or, at
 # tier 3, by a selector committed for that one door. Nothing is guessed.
 _PLACEISH_RE = re.compile(r"venue|location|place|where", re.I)
+#: A venue the card DECLARED by linking at the desk's own location page.
+#: Chronicle (and several other desks) print the venue as
+#: `<a href="/location/sekrit-theater-11834821">Sekrit Theater</a>` with no
+#: class="venue" — so a class-only reader left 1,388 live rows unplaced and
+#: the publisher held them off the feed. The path token is the declaration.
+_LOCATION_HREF_RE = re.compile(r"(?:^|/)location(?:/|$)", re.I)
+#: Years a page itself prints. Used only to complete a weekday+month+day the
+#: CARD already printed ("Mon., Sept. 7") — never to invent a day.
+_PAGE_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 #: Where a card may STATE its own category. Every one of these is a DECLARATION
 #: — a `rel` the page wrote, a schema.org property, a class the page named after
 #: its own taxonomy. None of it is a guess from the title, which is why a card
@@ -90,6 +100,93 @@ _CATEGORY_ITEMPROPS = frozenset({"genre", "eventtype", "keywords"})
 #: date or date+time; anything else (a duration, a bare year, a weekday) is kept
 #: as text instead of being coerced.
 _ISO_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$")
+#: Chronicle house style: "Mon., Sept. 7" — weekday + month + day, no year,
+#: no <time datetime>. Vague prose ("Every Sunday this fall") does not match.
+_HOUSE_WD_MD_RE = re.compile(
+    r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?,?\s+"
+    r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|"
+    r"Dec(?:ember)?)\.?\s+(\d{1,2})\b",
+    re.I,
+)
+_HOUSE_MONTHS = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+    "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+    "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+}
+_HOUSE_WEEKDAYS = {
+    "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+}
+
+
+def _is_location_href(href: str) -> bool:
+    if not href:
+        return False
+    from urllib.parse import urlsplit
+    return bool(_LOCATION_HREF_RE.search(urlsplit(href).path or href))
+
+
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+_HEADING_RE = re.compile(r"<h[1-3][^>]*>(.*?)</h[1-3]>", re.I | re.S)
+_INNER_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _years_in_date_context(card_text: str, page_html: str) -> set:
+    """Years the desk printed next to the calendar, not footer copyright.
+
+    Order: the card itself, then <title> and h1–h3. A 20xx anywhere else on
+    the page (© 2020, archive links) is not a year for this listing.
+    """
+    years = {int(y) for y in _PAGE_YEAR_RE.findall(card_text or "")}
+    if years:
+        return years
+    blobs = []
+    html = page_html or ""
+    for m in _TITLE_RE.finditer(html):
+        blobs.append(_INNER_TAG_RE.sub(" ", m.group(1)))
+    for m in _HEADING_RE.finditer(html):
+        blobs.append(_INNER_TAG_RE.sub(" ", m.group(1)))
+    return {int(y) for y in _PAGE_YEAR_RE.findall(" ".join(blobs))}
+
+
+def _house_when(card_text: str, page_html: str,
+                as_of: Optional[_date]) -> Optional[str]:
+    """The one calendar date THIS CARD printed, year completed from the page.
+
+    Chronicle list cards print "Mon., Sept. 7" with no <time datetime>. That is
+    the desk stating a night. Vague prose ("Every Sunday this fall") returns
+    None. Two different dates on one card also return None — we do not pick.
+    The weekday the card printed must match the completed date, or we refuse.
+    `as_of` is accepted so callers can pass the walk clock; it is not a year.
+    """
+    del as_of
+    text = (card_text or "").strip()
+    if not text:
+        return None
+    hits = list(_HOUSE_WD_MD_RE.finditer(text))
+    if len(hits) != 1:
+        return None
+    wd, mon, day_s = hits[0].groups()
+    month = _HOUSE_MONTHS[mon.lower()]
+    day = int(day_s)
+    weekday = _HOUSE_WEEKDAYS[wd[:3].lower()]
+    years = _years_in_date_context(text, page_html)
+    if not years:
+        return None
+    found: List[_date] = []
+    for year in years:
+        try:
+            candidate = _date(year, month, day)
+        except ValueError:
+            continue
+        if candidate.weekday() != weekday:
+            continue
+        if candidate not in found:
+            found.append(candidate)
+    if len(found) == 1:
+        return found[0].isoformat()
+    return None
 
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
@@ -514,19 +611,21 @@ def _selector_rows(root: _Node,
     return [n for n in hits if not any(matches(d) for d in n.descendants())]
 
 
-def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
+def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
+                as_of: Optional[_date] = None) -> Dict[str, object]:
     """Reduce one row node to its stated fields, plus the category signals it
     declared (`category_labels`, `hrefs`) for a committed mapping to read.
 
     Every value returned is either an attribute the page declared or a substring
-    of the text the page printed. Nothing is composed, normalized into an
-    instant, or inferred.
+    of the text the page printed. A weekday+month+day the card printed may be
+    completed with a year the SAME PAGE printed; that is reading, not inferring.
     """
     text_parts: List[str] = []
     time_text_parts: List[str] = []
     name_parts: List[str] = []
     heading_parts: List[str] = []
     anchor_parts: List[str] = []
+    event_title_parts: List[str] = []
     place_parts: List[str] = []
     category_parts: List[str] = []
     category_labels: List[str] = []
@@ -577,6 +676,8 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                     # category, its venue) are anchors too. Reading anchors first
                     # concatenated the category onto the title.
                     heading_parts.append(child)
+                elif in_anchor and not in_place and not in_category:
+                    event_title_parts.append(child)
                 elif in_anchor:
                     anchor_parts.append(child)
                 continue
@@ -592,7 +693,7 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                 candidate = _ws(child.attrs.get("href") or "")
                 if candidate and not candidate.startswith(
                         ("#", "javascript:", "mailto:", "tel:")):
-                    if href is None:
+                    if href is None and not _is_location_href(candidate):
                         href = candidate
                     if candidate not in hrefs:
                         hrefs.append(candidate)
@@ -603,6 +704,7 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                 stated = _ws(child.attrs.get("content") or "")
                 if stated and stated not in category_labels:
                     category_labels.append(stated)
+            child_href = _ws(child.attrs.get("href") or "") if child.tag == "a" else ""
             walk(
                 child,
                 in_time=in_time or child.tag == "time",
@@ -613,6 +715,7 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
                     in_place
                     or itemprop in ("location", "address")
                     or bool(_PLACEISH_RE.search(child.attrs.get("class") or ""))
+                    or (child.tag == "a" and _is_location_href(child_href))
                 ),
                 in_category=child_category,
             )
@@ -641,11 +744,14 @@ def _row_fields(node: _Node, *, base_url: str) -> Dict[str, object]:
 
     when_text = _ws(" ".join(time_text_parts)) or None
     when = time_iso or itemprop_date
+    if not when:
+        when = _house_when(_ws(" ".join(text_parts)), page_html, as_of)
 
     # Title, in authority order: the row's own declared name, then its heading,
-    # then its link text, then whatever text is left once the time text is
-    # removed. Every branch returns text the page printed.
+    # then the event permalink's link text (not the venue/category anchors),
+    # then remaining link text, then leftover card text.
     title = (_ws(" ".join(name_parts)) or _ws(" ".join(heading_parts))
+             or _ws(" ".join(event_title_parts))
              or _ws(" ".join(anchor_parts)))
     if not title:
         leftover = _ws(" ".join(text_parts))
@@ -774,7 +880,8 @@ def _dedupe_key(title: str, when: Optional[str], when_text: Optional[str]) -> Tu
 
 def read(door: Door, html: str, *, base_url: Optional[str] = None,
          kind_map: Optional[KindMap] = None,
-         patterns: Optional[Sequence[IdentityPattern]] = None) -> DeskRead:
+         patterns: Optional[Sequence[IdentityPattern]] = None,
+         as_of: Optional[_date] = None) -> DeskRead:
     """Read one public desk page into happening rows, by the SPLIT LADDER.
 
     ONE-LIVE-ENTITY-SPLIT-LAW.md §2: a page that declares more than one
@@ -984,13 +1091,15 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
         _add(ev.get("title"), ev.get("start_time"), None, place, ev.get("url"),
              hrefs=tuple(u for u in (ev.get("url"),) if u))
     for row_node in microdata_rows:
-        fields = _row_fields(row_node, base_url=source_url)
+        fields = _row_fields(row_node, base_url=source_url, page_html=html,
+                             as_of=as_of)
         _add(fields["title"], fields["when"], fields["when_text"],
              fields["place_text"], fields["listing_url"],
              labels=tuple(fields.get("category_labels") or ()),
              hrefs=tuple(fields.get("hrefs") or ()))
     for identity, row_node in html_rows:
-        fields = _row_fields(row_node, base_url=source_url)
+        fields = _row_fields(row_node, base_url=source_url, page_html=html,
+                             as_of=as_of)
         # On the permalink rung the row's address is the IDENTITY the committed
         # pattern matched, never whichever anchor `_row_fields` read first (a
         # card's ticket link, its venue link, its category link).

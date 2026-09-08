@@ -245,6 +245,36 @@ def test_the_page_cap_is_reported_as_ours_not_as_the_desks_end(desk):
     assert "OUR limit, not the end of the desk" in " ".join(result.notes)
 
 
+def test_the_desks_last_page_is_the_cap_even_if_ours_is_smaller(desk):
+    """Founder: the cap is the last page of the site, not a number we picked."""
+    mapping = {}
+    for n in range(1, 8):
+        mapping[f"{HOST}/p{n}"] = page(
+            f"<p>page {n} of 5</p>"
+            + CARD.format(n=n)
+            + f'<a rel="next" href="{HOST}/p{n + 1}">Next</a>')
+    result = walk(desk, pages(mapping), start_url=f"{HOST}/p1", max_pages=3)
+    assert len(result.pages) == 5
+    assert result.stopped_because == "desk_last_page"
+    assert result.exhausted is True
+
+
+def test_rel_last_states_the_cap(desk):
+    from worker.locale_pack.desk_walk import stated_page_total
+    html = page(
+        CARD.format(n=1)
+        + '<link rel="last" href="/events?page=62">'
+        + '<a rel="next" href="/events?page=2">Next</a>'
+    )
+    assert stated_page_total(html) == 62
+
+
+def test_a_result_count_is_not_a_page_total():
+    from worker.locale_pack.desk_walk import stated_page_total
+    html = "<p>2,454 results</p><p>Showing 1-40</p>"
+    assert stated_page_total(html) is None
+
+
 @pytest.mark.parametrize("status", [401, 402, 403, 407, 429])
 def test_a_wall_ends_the_walk_and_is_never_worked_around(desk, status):
     asked = []
