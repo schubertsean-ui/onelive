@@ -51,6 +51,8 @@ Trusted does **not** mean: perfect schema, multi-confirm, ready_to_promote, a re
 
 Holes are expected. Subsequent runs and other doors fill them before the show. A missing minute is not a missing night.
 
+Founder 2026-09-08: a house date with no year (`Tue., Sept. 8`) takes the current year. Year never blocks publishing. Month past December rolls the year.
+
 ## Mutation (fail-closed) — shipped intent of #214
 
 - Confirmed same-page change → update time / cancel / postpone evidence. Row is never deleted.
