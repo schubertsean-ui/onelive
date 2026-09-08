@@ -418,3 +418,42 @@ def test_vague_prose_is_still_not_a_calendar_night(desk):
     assert row.when is None, "\"Every Sunday this fall\" is not a date we may state"
     assert row.when_text == "Every Sunday this fall"
 
+
+def test_a_house_date_without_a_page_year_stays_null(desk):
+    html = """
+    <html><body>
+    <div class="listing">
+      <a href="https://calendar.austinchronicle.com/event/no-year-1">No Year Show</a>
+      Mon., Sept. 7
+      <a href="https://calendar.austinchronicle.com/location/some-venue-1">Some Venue</a>
+    </div>
+    </body></html>
+    """
+    result = read(
+        desk, html,
+        base_url="https://calendar.austinchronicle.com/austin/EventSearch",
+        as_of=date(2026, 9, 8),
+    )
+    assert result.rows[0].title == "No Year Show"
+    assert result.rows[0].when is None
+
+
+def test_a_location_link_is_never_the_listing_url(desk):
+    html = """
+    <html><head><title>Events — 2026</title></head><body>
+    <div class="event">
+      <a href="https://calendar.austinchronicle.com/location/sekrit-theater-11834821">Sekrit Theater</a>
+      Patron Saint of Roadkill
+      Mon., Sept. 7
+    </div>
+    </body></html>
+    """
+    result = read(
+        desk, html,
+        base_url="https://calendar.austinchronicle.com/austin/EventSearch",
+    )
+    row = result.rows[0]
+    assert row.place_text == "Sekrit Theater"
+    assert row.listing_url is None or "/location/" not in row.listing_url
+    assert row.when == "2026-09-07"
+

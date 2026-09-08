@@ -135,7 +135,9 @@ def _house_when(card_text: str, page_html: str,
     the desk stating a night. Vague prose ("Every Sunday this fall") returns
     None. Two different dates on one card also return None — we do not pick.
     The weekday the card printed must match the completed date, or we refuse.
+    `as_of` is accepted so callers can pass the walk clock; it is not a year.
     """
+    del as_of
     text = (card_text or "").strip()
     if not text:
         return None
@@ -146,10 +148,9 @@ def _house_when(card_text: str, page_html: str,
     month = _HOUSE_MONTHS[mon.lower()]
     day = int(day_s)
     weekday = _HOUSE_WEEKDAYS[wd[:3].lower()]
+    # Years the PAGE printed. as_of is the walk's clock, not the desk's word —
+    # it must not supply a year the page never stated (evaluator, PR #267).
     years = {int(y) for y in _PAGE_YEAR_RE.findall(page_html or "")}
-    if as_of is not None:
-        years.add(as_of.year)
-        years.add(as_of.year + 1)
     if not years:
         return None
     found: List[_date] = []
@@ -672,8 +673,6 @@ def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
                 if candidate and not candidate.startswith(
                         ("#", "javascript:", "mailto:", "tel:")):
                     if href is None and not _is_location_href(candidate):
-                        href = candidate
-                    if href is None:
                         href = candidate
                     if candidate not in hrefs:
                         hrefs.append(candidate)
