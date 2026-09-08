@@ -1,0 +1,26 @@
+{
+  "_comment": "Place/Actor directories the founder named. Entity Split Law §3.3: these write venue/artist rows, never Tonight happenings. desk-ingest must not walk these URLs as event lists.",
+  "version": 1,
+  "directories": [
+    {
+      "directory_id": "do512-venues",
+      "brand": "Do512",
+      "url": "https://do512.com/venues",
+      "entity_kind": "place",
+      "path_re": "^/venues/[^/]+$",
+      "city": "Austin",
+      "evidence": "founder_named",
+      "note": "Austin venue directory. City is the directory's locale, not a venue invented from a title."
+    },
+    {
+      "directory_id": "do512-artists",
+      "brand": "Do512",
+      "url": "https://do512.com/artists",
+      "entity_kind": "actor",
+      "path_re": "^/artists/[^/]+$",
+      "city": null,
+      "evidence": "founder_named",
+      "note": "Artist/people directory. No city stamp — artists tour. Hometown on the page is not written until a later ticket reads it as a stated field."
+    }
+  ]
+}
