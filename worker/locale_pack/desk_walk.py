@@ -60,6 +60,8 @@ from worker.locale_pack.desk_read import DeskReadError, Happening, fill_holes, r
 from worker.locale_pack.identity_patterns import IdentityPattern
 from worker.locale_pack.kind_map import KindMap
 from worker.locale_pack.pack import Door
+
+log = logging.getLogger(__name__)
 from worker.sourcing.source_class import ClassVerdict, demote_on_response
 
 #: The desk stating its own last page: "page 1 of 62". Result counts
@@ -484,8 +486,8 @@ def stated_page_total(html: str) -> Optional[int]:
             n = _page_num_in_url(href)
             if n is not None and n >= 1:
                 totals.append(n)
-    except Exception:  # noqa: BLE001 — a pathological page just doesn't state a last page
-        pass
+    except Exception as exc:  # noqa: BLE001 — a pathological page just doesn't state a last page
+        log.info("stated_page_total: page could not be scanned (%s); treating as unstated", exc)
     return max(totals) if totals else None
 
 
