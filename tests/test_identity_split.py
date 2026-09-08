@@ -413,7 +413,7 @@ def test_no_reader_module_leaves_an_invalid_escape_in_a_docstring():
     import, which buries real warnings in the validate output."""
     import warnings
     for name in ("desk_read.py", "desk_walk.py", "identity_patterns.py", "pack.py"):
-        path = os.path.join(REPO, "worker", "locale", name)
+        path = os.path.join(REPO, "worker", "locale_pack", name)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             with open(path, encoding="utf-8") as fh:
@@ -539,7 +539,7 @@ def test_no_reader_module_names_a_host():
     appears in the readers' code at all. Host knowledge lives in
     `sources/identity_patterns.json` and in the locale pack — as data."""
     for name in ("desk_read.py", "desk_walk.py", "identity_patterns.py"):
-        code = _code_only(os.path.join(REPO, "worker", "locale", name))
+        code = _code_only(os.path.join(REPO, "worker", "locale_pack", name))
         for host in ("austinchronicle", "do512", "eventbrite", "chronicle"):
             assert host not in code, f"{name} names {host} in code, not in data"
 
