@@ -1,0 +1,49 @@
+"""House-date year: prefer the upcoming night. Year never blocks.
+
+Founder 2026-09-08 09:17 PDT.
+"""
+from datetime import date
+
+from worker.locale_pack.house_year import complete_house_year
+
+
+def test_today_stays_this_year():
+    assert complete_house_year(9, 8, as_of=date(2026, 9, 8)) == "2026-09-08"
+
+
+def test_yesterday_within_14_days_stays_this_year():
+    assert complete_house_year(9, 7, as_of=date(2026, 9, 8)) == "2026-09-07"
+
+
+def test_two_days_ahead_is_this_year():
+    assert complete_house_year(9, 10, as_of=date(2026, 9, 8)) == "2026-09-10"
+
+
+def test_january_in_september_is_next_january():
+    assert complete_house_year(1, 15, as_of=date(2026, 9, 8)) == "2027-01-15"
+
+
+def test_december_in_january_is_next_december():
+    assert complete_house_year(12, 12, as_of=date(2027, 1, 15)) == "2027-12-12"
+
+
+def test_august_more_than_14_days_ago_is_next_august():
+    assert complete_house_year(8, 1, as_of=date(2026, 9, 8)) == "2027-08-01"
+
+
+def test_printed_year_wins():
+    assert complete_house_year(
+        9, 8, as_of=date(2026, 9, 8), printed_years={2027}
+    ) == "2027-09-08"
+
+
+def test_weekday_mismatch_still_publishes():
+    assert complete_house_year(
+        9, 8, as_of=date(2026, 9, 8), weekday=0
+    ) == "2026-09-08"
+
+
+def test_missing_20xx_never_returns_none():
+    assert complete_house_year(9, 8, as_of=date(2026, 9, 8), printed_years=set()) == (
+        "2026-09-08"
+    )
