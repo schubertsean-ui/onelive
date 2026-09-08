@@ -33,3 +33,27 @@ def doors():
 @pytest.fixture()
 def desk(doors):
     return doors["austin-chronicle-eventsearch"]
+
+
+# --- the four page shapes read ----------------------------------------------
+
+def test_a_desk_list_yields_one_row_per_listing(desk):
+    result = read(desk, fixture("desk_listing.html"))
+    titles = [r.title for r in result.rows]
+    assert titles == [
+        "Hot Luck Block Party",
+        "Blanton Late Night",
+        "East Side Artisan Market",
+        "County Line Fiddle Contest",
+        "Lockhart Lecture Series: Caldwell County Water",
+    ]
+    assert result.skipped_untitled == 0
+
+
+def test_a_json_ld_calendar_is_read_through_the_repos_one_json_ld_parser(doors):
+    result = read(doors["ut-austin-localist"], fixture("civic_jsonld.html"))
+    assert [r.title for r in result.rows] == [
+        "Open Rehearsal: Wind Ensemble",
+        "Public Lecture: Groundwater in the Hill Country",
+        "Farmers Market on the Plaza",
+    ]
