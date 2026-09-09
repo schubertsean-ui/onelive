@@ -1,37 +1,43 @@
 # 1Live Success catalog
 
-Aligned to Vision and Goals. The Monitor (M) probes these. A miss starts step 1 of `docs/ONE-LIVE-FIX-LOOP.md`.
+Source of truth for M (Monitor). Hourly alignment check.
+A miss kicks Process step 1: docs/ONE-LIVE-FIX-LOOP.md.
 
-## Vision
+Global-core Vision is ONE-LIVE-VISION.md (the lock) plus what 1Live is.
+Goals are how Vision is achieved. Tickets are not Success.
 
-A world where every live activity is easy to find, fairly represented, and culturally valued. At scale: let culture grow without being stripped of its soul. 1Live is the ethical heartbeat of culture.
+## Global-core Vision — Success looks like
 
 What it is: a system of record for what’s really on — any category, any locale, person, organization, group, activity, artist, performance, and place-first — a happening.
 
-## Goals → Success → Probe
+The world: every live activity is easy to find, fairly represented, and culturally valued. Culture keeps its soul. 1Live is the ethical heartbeat of culture.
+
+| Lock (ONE-LIVE-VISION.md) | Success looks like | Probe |
+|---|---|---|
+| Map, not shop | We map what is on. We do not sell the map | No pay-to-rank. Via goes to the specialist |
+| Every category, any locale | No refused category. No refused locale | A new locale is a pack. A new kind is listed |
+| No category weighting | Model does not prefer music over civic or the reverse | Kind list is flat. Other is residual |
+| Publishers trusted until wrong | One trusted door is enough. Disputed is shown | No second-desk hold. Disputed still prints |
+| On-device plans | Intent lives on the device | No server behavior log of a person’s plan |
+| Heartbeat = de-identified pulse | City pulse, not a person | No re-identification |
+| Beautiful + automagical | Fast, quiet, no ceremony in the product | Tonight answers without a dashboard |
+| Trust serves the vision | Trust is infrastructure, not the product | A trust gate is not a shop window |
+
+## Goals — Success looks like
 
 | Goal | Success looks like | Probe |
 |---|---|---|
-| 1. Answer tonight in under 10 seconds | The locale page loads and answers what’s on | Open 1live.co / that locale. Time to first listings |
-| 2. Every real activity findable. Discovery never for sale | 100% of that locale’s counted union is on 1Live. No pay-to-rank | Live unique N vs union. No paid slot |
-| 3. Time given back | Person finds the happening without hunting desks | Default view shows the window they asked |
-| 4. Listed by default if it is on | Trusted door + title is a row. Views filter; they do not delete | Catalog holds the row. All upcoming ≥ Today |
-| 5. Places appear from activity, not payment | Place exists because a happening named it | Place row has a happening; no paid place |
-| 6. Social validates, never defines | A social post alone does not create the happening | Source class; via is a desk or claim |
+| 1. Answer tonight in under 10 seconds | Locale page loads and answers what’s on | Open 1live.co. Time to first listings |
+| 2. Every real activity findable. Discovery never for sale | 100% of that locale’s counted union is on 1Live | Live N vs union. No paid slot |
+| 3. Time given back | One place to look | Default view is the window they asked |
+| 4. Listed by default if it is on | Trusted door + title is a row. Views filter only | Catalog holds it. Filter does not delete |
+| 5. Places appear from activity, not payment | Place exists because a happening named it | No paid place |
+| 6. Social validates, never defines | A post alone does not create the happening | Via is desk, official, civic, or claim |
 | 7. No sponsored discovery | Rank is not sold | No sponsor field on the default river |
-| 8. Heartbeat is city pulse, not a person | Pulse is de-identified | No person-tracking on Heartbeat |
+| 8. Heartbeat is city pulse, not a person | Pulse is de-identified | No person-tracking |
 
-Vision constraints that ride with every Goal:
+## How M uses this (hourly)
 
-- Fairly represented — holes stay holes. Nothing invented.
-- Culturally valued — no slighting venue copy.
-- Any category, any locale — pack + IANA zone. Device or search picks locale.
-- Map, not shop — we send people to specialists.
-
-## How M uses this
-
-Probe the Goal row. If the probe is not Success, that is a failure.
-M writes: Goal number, actual, Success from this table, then starts the 15-step process at step 1.
+Each hour: walk Vision lock rows, then Goal rows.
+If any probe is not Success: write which Vision line or Goal missed, actual vs Success, start Process step 1.
 M does not patch.
-
-Ingest crashes, stubs, and missed deploys are *causes* (step 2), not Goals.
