@@ -1,0 +1,28 @@
+name: delete-year-gate
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -c "
+          from pathlib import Path
+          p=Path('worker/locale_pack/desk_read.py')
+          t=p.read_text()
+          t=t.replace('    del as_of\n','',1)
+          t=t.replace('    if not years:\n        return None\n','    if not years and as_of is not None:\n        years = {as_of.year}\n    if not years:\n        from datetime import date as _today\n        years = {_today.today().year}\n',1)
+          if 'del as_of' in t:
+              raise SystemExit('del as_of remains')
+          p.write_text(t)
+          print('deleted year gate')
+          "
+      - run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add worker/locale_pack/desk_read.py
+          git diff --cached --quiet || git commit -m "Delete year gate. Yearless card date uses walk year."
+          git push origin HEAD:master
