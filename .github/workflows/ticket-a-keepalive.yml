@@ -1,0 +1,35 @@
+name: Ticket A keepalive
+
+# Founder 2026-09-09: this chat closing must not idle Ticket A.
+# Every hour: if apply_to_writes is missing from desk_ingest, poke @claude on #278.
+# Does not write the catalog. Does not merge.
+
+on:
+  schedule:
+    - cron: "25 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ticket-a-keepalive
+  cancel-in-progress: false
+
+jobs:
+  poke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - name: Poke Claude if the ingest wire is missing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if grep -q apply_to_writes tools/desk_ingest.py; then
+            echo "wire present — quiet"
+            exit 0
+          fi
+          gh issue comment 278 --repo schubertsean-ui/onelive --body "@claude Keepalive. Ticket A. After plan() call apply_to_writes. Do not replace desk_read.py. Do not merge #273. Open a PR."
