@@ -1,6 +1,7 @@
 # 1Live AI Instructions
 
-Paste this block into Grok Project / AI Instructions. Claude reads this file first.
+Paste this entire file into Grok Project / AI Instructions.
+Claude reads this file first every session.
 Master wins over any chat.
 
 1Live. Founder is a non-coder. Plain language. Numbered clicks. Do not wander.
@@ -10,9 +11,15 @@ Master wins over any chat.
 - ONE-LIVE-VISION.md
 - docs/ONE-LIVE-SUCCESS.md
 - docs/ONE-LIVE-FIX-LOOP.md
-- ONE-LIVE-FIX-LOOP.md
 - docs/fix-library/
 - docs/1Live_Platform_Plan.md
+- ONE-LIVE-COVERAGE-LAW.md
+- ONE-LIVE-OPERATING-LAW.md
+- ONE-LIVE-TRUST.md
+- ONE-LIVE-LOCALE-LAUNCH.md
+- ONE-LIVE-ENTITY-SPLIT-LAW.md
+
+Do not rewrite those law files. Read them.
 
 ## Vision (do not shrink)
 
@@ -26,7 +33,7 @@ Map, not shop. No category weighting. Publishers trusted until wrong. On-device 
 
 ## Goals (means)
 
-1. Answer tonight in under 10 seconds.
+1. Answer tonight in under 2 seconds.
 2. Every real activity findable. Discovery never for sale.
 3. Time given back.
 4. Listed by default if it is on.
@@ -38,7 +45,21 @@ Map, not shop. No category weighting. Publishers trusted until wrong. On-device 
 ## Done
 
 A person opens https://1live.co (or that locale) and sees the activity.
-A PR is not done. A green job is not done. Master is not live.
+A board, a PR, a table, or a green job is not done.
+Master is not live.
+If the live count did not move, the work failed. Say so.
+
+## Universal
+
+- Locale = device or the city the person searched. A new city is a new pack + IANA timezone. No hardcoded city is the product.
+- CAPCOG / Austin is the TEST pack and a default view filter, not the map.
+- 1Live is the one. Every door maps into title / when / place / kind / via.
+- When = start date + optional start time. End is optional. Year is current unless that page prints a year. Year is not a gate. Night is a view filter, not a field.
+- Views filter. Views do not delete catalog rows.
+- Catalog is greedy: if we legally saw it, it may exist.
+- One trusted door is enough. Holes stay holes. Never invent a date, time, place, or duration.
+- Source classes A/B/E/F ingest in any locale without asking permission for the locale. Class D = claim only. Do not bypass login, paywall, or bot protection.
+- Same title + when + place = one happening.
 
 ## Failure process (any failure, any ticket, any locale)
 
@@ -47,13 +68,28 @@ Find → why → write Success for THIS miss → prescribe → search fix librar
 Do not skip steps. Do not invent a second theory while live still misses.
 Definer is not Fixer. Nobody declares Success except the live check.
 
+After every product change: authorized save to master → desk-ingest write=true doors=all (that locale pack) if the hole is catalog → open 1live.co and count.
+
 ## Alignment
 
 Hourly. Independent of tickets. M probes Vision + Goals. M does not patch.
 Tickets A–G run continuously. Nothing is paused.
 
+## How you work
+
+One chat = one prescription = one change = one live count.
+If it is not in the Must-do, do not do it. List extras under Refused.
+Code before essays. Ceremony is off.
+
 ## Never
 
-Invent a clock or duration. Stub desk_read / desk_publish / feed. Merge #273.
-Treat aggregator names as 1Live fields. Treat a view as a catalog gate.
+Invent a clock or duration.
+Stub desk_read / desk_publish / feed.
+Merge #273.
+Treat aggregator names as 1Live fields.
+Treat a view as a catalog gate.
 Call ingest green Success if 1live.co did not move.
+Drop a row for missing city, missing category, or “not this city.”
+Tell a venue we have their calendar unless they claimed or partnered.
+Bypass a wall.
+}
