@@ -261,13 +261,13 @@ def test_a_stated_time_is_published_as_the_start():
 
 def test_a_date_with_no_time_publishes_the_night_at_evening_not_midnight():
     """A desk that printed "Sun., Sept. 13" stated a night. Holding it hid
-    Chronicle from Tonight. Place at 17:00 Chicago, never 00:00.
+    Chronicle from Tonight. Date-only is the day. Do not invent a clock.
     """
     one = _union(_walk(CHRONICLE, "Austin Chronicle",
                        [_row("Farm Stand", when="2026-09-13", when_text="Sun., Sept. 13")]))
     w = write_for(one.rows[0], REGS, mode="LIVE")
     assert w.hold_reason is None
-    assert w.start_time is not None and "T17:00:00" in w.start_time
+    assert w.start_time is not None and "2026-09-13" in w.start_time and "T17:00:00" not in (w.start_time or "")
     assert w.clock_hole == "the desk stated a night, not a time"
     assert w.extracted[DESK_KEY]["night"] == "2026-09-13"
 
@@ -812,7 +812,7 @@ def test_a_date_only_row_is_published_on_that_night():
                              when_text="Sun., Sept. 13")]))
     w = write_for(one.rows[0], REGS, mode="LIVE")
     assert w.hold_reason is None
-    assert w.start_time is not None and "T17:00:00" in w.start_time
+    assert w.start_time is not None and "2026-09-13" in w.start_time and "T17:00:00" not in (w.start_time or "")
     assert not w.clock_disputed
     assert w.extracted[DESK_KEY]["night"] == "2026-09-13"
 

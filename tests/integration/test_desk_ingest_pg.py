@@ -532,7 +532,7 @@ def test_a_claim_locked_row_is_not_disputed_by_a_desk(pg, registrations):
 
 
 def test_a_date_only_row_reaches_the_public_table_on_that_night(pg, registrations):
-    """A night is when. Date-only Chronicle rows publish at 17:00 Chicago."""
+    """Date-only rows publish the day. Do not invent a clock."""
     from worker.locale_pack.desk_publish import plan
 
     tag = uuid.uuid4().hex[:8]
@@ -544,7 +544,7 @@ def test_a_date_only_row_reaches_the_public_table_on_that_night(pg, registration
                                "when_text": "Sun., Sept. 13"})
     writes = plan(_live_union(_walk(DO512_DOOR, "Do512", rows)), registrations)
     assert writes[0].hold_reason is None
-    assert writes[0].start_time and "T17:00:00" in writes[0].start_time
+    assert writes[0].start_time and "T17:00:00" not in writes[0].start_time
 
     _t, result = _run(writes, pg=pg)
     assert len(result["promoted"]) == 1, result
