@@ -1,0 +1,34 @@
+name: Prepend AI Instructions to CLAUDE.md
+on:
+  workflow_dispatch:
+jobs:
+  prepend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Prepend if missing
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("CLAUDE.md")
+          t = p.read_text()
+          needle = "docs/AI_INSTRUCTIONS.md"
+          if needle in t[:800]:
+              print("already bound")
+          else:
+              header = "# Standing instructions\n\nRead `docs/AI_INSTRUCTIONS.md` first every session. Then `ONE-LIVE-VISION.md`. Master wins. Goal 1 is 2 seconds. 1Live publishes every activity anywhere in the world. Do not stub. Do not invent a clock. Done is 1live.co.\n\n---\n\n"
+              p.write_text(header + t)
+              print("prepended")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add CLAUDE.md
+          git diff --cached --quiet && echo nochg && exit 0
+          git commit -m "CLAUDE.md starts with docs/AI_INSTRUCTIONS.md."
+          git push origin HEAD:master
