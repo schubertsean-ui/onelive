@@ -1,5 +1,13 @@
-# CLAUDE.md — 1LIVE Autonomous Build Charter (place at repo root)
-This file is read by Claude Code at the start of every session. It is the standing contract.
+# CLAUDE.md — 1LIVE Autonomous Build Charter
+This file is read by Claude Code at the start of every session.
+
+## Standing (read first)
+Read docs/AI_INSTRUCTIONS.md then ONE-LIVE-VISION.md.
+1Live accurately publishes every activity anywhere in the world.
+Goal 1: answer tonight in under 2 seconds.
+Done = a person opens 1live.co and sees the activity.
+Any failure uses docs/ONE-LIVE-FIX-LOOP.md. Tickets run continuously. Alignment is independent of tickets.
+Do not invent a clock. Do not stub. Do not merge #273.
 
 ## Ceremony is off (founder, 2026-09-07)
 Jobs died because plan-first hooks, `session_reconcile.py`, and Session Contracts
