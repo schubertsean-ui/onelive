@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
-from zoneinfo import ZoneInfo
 from worker.locale_pack.desk_union import BASIS_LOCAL, DeskUnion, UnionRow
 from worker.locale_pack.pack import Door
 from worker.locale_pack.existence import hold_reason as existence_hold
@@ -29,7 +28,7 @@ def _host(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 def _same_publisher(door_url: str, base_url: str) -> bool:
-    door, base = (_host(door_url), _host(base_url))
+    door, base = _host(door_url), _host(base_url)
     if not door or not base:
         return False
     return door == base or door.endswith("." + base) or base.endswith("." + door)
@@ -40,13 +39,13 @@ def registration_for(door: Door, catalog: Sequence[Mapping[str, Any]]) -> DeskRe
         name = (door.via or door.door_id or "desk").strip()
         return DeskRegistration(door_id=door.door_id, via=name, source_name=name, source_class="local_media", base_url=door.url or "", catalog_id=f"pack:{door.door_id}")
     if len(hits) > 1:
-        names = sorted((str(r.get("name")) for r in hits))
+        names = sorted(str(r.get("name")) for r in hits)
         raise DeskPublishError(f"door {door.door_id!r} matches {len(hits)} catalog rows")
     row = hits[0]
     source_class = str(row.get("category") or row.get("source_type") or "").strip()
     name = str(row.get("name") or "").strip()
     if not source_class or not name:
-        raise DeskPublishError(f"catalog row for door {door.door_id!r} missing name or category")
+        raise DeskPublishError(f"catalog row for {door.door_id!r} missing name or category")
     return DeskRegistration(door_id=door.door_id, via=door.via or name, source_name=name, source_class=source_class, base_url=str(row.get("base_url") or ""), catalog_id=str(row.get("id") or ""))
 
 @dataclass(frozen=True)
@@ -129,7 +128,7 @@ def contradicts(stored: Optional[Mapping[str, Any]], fresh: Mapping[str, Any]) -
     return [f for f in drift(stored, fresh) if f in CONTRADICTING]
 
 def describe_drift(stored: Mapping[str, Any], fresh: Mapping[str, Any], fields: Sequence[str]) -> str:
-    return "; ".join((f"{f}: {stored.get(f)!r} -> {fresh.get(f)!r}" for f in fields))
+    return "; ".join(f"{f}: {stored.get(f)!r} -> {fresh.get(f)!r}" for f in fields)
 
 def _quote(row: UnionRow, member) -> str:
     parts = [member.row.title or "(untitled)"]
@@ -143,23 +142,21 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration], *, m
     vias = row.vias
     first = registrations.get(vias[0]) if vias else None
     if first is None:
-        raise DeskPublishError(f"row {row.key!r} has no registration")
+        raise DeskPublishError(f"row {row.key!r} came from desk {vias[0]!r} with no registration")
     clocks = _stated_clocks(row)
-    clock_desks = {m.via for m in row.members if m.row.when and m.row.when_precision == "datetime"}
     clock_hole: Optional[str] = None
     clock_disputed = False
     start_time: Optional[str] = None
     if len(clocks) == 1:
         start_time = clocks[0]
     elif len(clocks) > 1:
-        clock_hole = "desks stated different times"
+        clock_hole = f"{len(clocks)} times stated"
         clock_disputed = True
     elif row.night:
         clock_hole = "date printed, clock not printed"
-        start_time = None
     else:
         clock_hole = "date not printed"
-    hold_reason = existence_hold(door_readable=True, title=row.title, listing_url=_listing_url(row), is_fixture=mode != LIVE)
+    hold_reason = existence_hold(door_readable=True, title=row.title, listing_url=_listing_url(row), is_fixture=(mode != LIVE))
     listing_url = _listing_url(row)
     desk_note = {"key": ingest_key(row), "union_key": row.key, "basis": row.basis, "night": row.night, "vias": list(vias), "doors": sorted({m.row.door_id for m in row.members}), "kind": row.kind, "kind_source": row.kind_source, "titles": list(row.titles), "clocks_stated": clocks, "clock_hole": clock_hole, "clock_disputed": clock_disputed, "held": hold_reason, "walk_mode": mode, "statement": _statement(row, clocks, listing_url)}
     extracted: Dict[str, Any] = {"title": row.title, "start_time": start_time, "start_date": row.night, "clock_stated": bool(start_time), "end_time": None, "venue_name": row.place_text, "city": None, "artist_names": [], "ticket_link": None, "rsvp_link": None, "is_private_rsvp": False, "private_access": {}, DESK_KEY: desk_note}
@@ -167,18 +164,19 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration], *, m
         extracted["start_times"] = [{"source": registrations[m.via].source_name, "at": m.row.when} for m in row.members if m.row.when and m.row.when_precision == "datetime" and m.via in registrations]
     if listing_url:
         extracted["listing_url"] = listing_url
+    raw_lines = [f"{m.via}: {_quote(row, m)}" for m in row.members]
+    raw_lines.append(f"[1Live desk walk — key {desk_note['key']}]")
     evidence = []
     for member in row.members:
         reg = registrations.get(member.via)
         if reg is None:
-            raise DeskPublishError(f"row {row.key!r} desk {member.via!r} unregistered")
+            raise DeskPublishError(f"row {row.key!r} carries desk {member.via!r} with no registration")
         evidence.append(Evidence(source_class=reg.source_class, source_name=reg.source_name, source_url=member.row.listing_url or member.row.source_url, quote=_quote(row, member)))
-    raw_text = "\n".join([f"{m.via}: {_quote(row, m)}" for m in row.members] + [f"[1Live desk walk — key {desk_note['key']}]"])
-    return CandidateWrite(ingest_key=desk_note["key"], source_name=first.source_name, source_class=first.source_class, source_url=row.members[0].row.source_url, raw_text=raw_text, extracted=extracted, evidence=evidence, vias=vias, clock_hole=clock_hole, clock_disputed=clock_disputed, hold_reason=hold_reason)
+    return CandidateWrite(ingest_key=desk_note["key"], source_name=first.source_name, source_class=first.source_class, source_url=row.members[0].row.source_url, raw_text="\n".join(raw_lines), extracted=extracted, evidence=evidence, vias=vias, clock_hole=clock_hole, clock_disputed=clock_disputed, hold_reason=hold_reason)
 
 def refuse_fixture_write(one: DeskUnion) -> None:
     if one.mode != LIVE:
-        raise DeskPublishError(f"refusing to write a {one.mode} union")
+        raise DeskPublishError(f"refusing to write a {one.mode} union: fixtures never reach the catalog")
 
 def plan(one: DeskUnion, registrations: Mapping[str, DeskRegistration]) -> List[CandidateWrite]:
     return [write_for(row, registrations, mode=one.mode) for row in one.rows]
