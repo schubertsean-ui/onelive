@@ -1,0 +1,50 @@
+name: fl001-fl003-feed
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Patch eventTiming and inDayTab
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('web/lib/feed.ts')
+          t = p.read_text()
+          if 'from "./when"' not in t:
+              t = t.replace(
+                  'import type { LicensedEvent } from "./licensed";',
+                  'import type { LicensedEvent } from "./licensed";\nimport { marketDayString, startDate as whenStartDate, isDateOnlyStart } from "./when";',
+              )
+          t = t.replace(
+              'const ASSUMED_MS = 18 * 60 * 60 * 1000; // missing end stays through the locale day',
+              '// FL-001: missing end stays the locale day. No invented duration.',
+          )
+          t = t.replace(
+              'const ASSUMED_MS = 3 * 60 * 60 * 1000; // 3h assumed run when end_time is absent.',
+              '// FL-001: missing end stays the locale day. No invented duration.',
+          )
+          old_et = '''export function eventTiming(e: LicensedEvent, nowMs: number): Timing {\n  const start = e.start_time ? Date.parse(e.start_time) : NaN;\n  if (Number.isNaN(start)) return "upcoming"; // date TBA \u2014 never hide it\n  if (start > nowMs) return "upcoming";\n  const end = e.end_time ? Date.parse(e.end_time) : NaN;\n  const endMs = Number.isNaN(end) ? start + ASSUMED_MS : end;\n  return endMs > nowMs ? "on-now" : "ended";\n}'''
+          new_et = '''export function eventTiming(e: LicensedEvent, nowMs: number): Timing {\n  if (!e.start_time) return "upcoming";\n  const day = whenStartDate(e.start_time);\n  const today = marketDayString(nowMs);\n  if (!day) return "upcoming";\n  const start = Date.parse(e.start_time);\n  if (e.end_time) {\n    const end = Date.parse(e.end_time);\n    if (!Number.isNaN(end)) {\n      if (end <= nowMs) return "ended";\n      return !Number.isNaN(start) && start > nowMs ? "upcoming" : "on-now";\n    }\n  }\n  if (day > today) return "upcoming";\n  if (day < today) return "ended";\n  if (!Number.isNaN(start) && !isDateOnlyStart(e.start_time) && start > nowMs) return "upcoming";\n  return "on-now";\n}'''
+          if old_et not in t:
+              print('eventTiming block not exact; writing marker')
+          t = t.replace(old_et, new_et)
+          t = t.replace('t + ASSUMED_MS', 'startOfLocalDay(t + 30 * 3_600_000)')
+          t = t.replace('start + ASSUMED_MS', 'start')
+          if 'ASSUMED_MS' in t:
+              raise SystemExit('ASSUMED_MS still present')
+          p.write_text(t)
+          print('patched', p.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add web/lib/feed.ts
+          git diff --cached --quiet || git commit -m "FL-001 FL-003: missing end and date-only stay the locale day."
+          git push origin HEAD:master
