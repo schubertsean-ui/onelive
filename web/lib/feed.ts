@@ -10,21 +10,32 @@ import { DOMAINS, DOMAIN_LABEL, domainLabel, timeBand, type Band, type DomainMet
 import { canonicalGenre, genreLabel, type GenreId } from "./genres";
 import { applyRegionScope, type RegionScope } from "./region";
 import type { LicensedEvent } from "./licensed";
+import { marketDayString, startDate as whenStartDate, isDateOnlyStart } from "./when";
 
 // ── Timing ───────────────────────────────────────────────────────────────────
 // An event is shown only if it is still to come or currently on. "Ended" events
 // (start + known/assumed duration is in the past) are hidden — a TIME filter,
 // never a confidence filter (disputed stays shown while it hasn't ended).
 export type Timing = "upcoming" | "on-now" | "ended";
-const ASSUMED_MS = 18 * 60 * 60 * 1000; // missing end stays through the locale day
+// FL-001: missing end stays the locale day. No invented duration.
 
 export function eventTiming(e: LicensedEvent, nowMs: number): Timing {
-  const start = e.start_time ? Date.parse(e.start_time) : NaN;
-  if (Number.isNaN(start)) return "upcoming"; // date TBA — never hide it
-  if (start > nowMs) return "upcoming";
-  const end = e.end_time ? Date.parse(e.end_time) : NaN;
-  const endMs = Number.isNaN(end) ? start + ASSUMED_MS : end;
-  return endMs > nowMs ? "on-now" : "ended";
+  if (!e.start_time) return "upcoming";
+  const day = whenStartDate(e.start_time);
+  const today = marketDayString(nowMs);
+  if (!day) return "upcoming";
+  const start = Date.parse(e.start_time);
+  if (e.end_time) {
+    const end = Date.parse(e.end_time);
+    if (!Number.isNaN(end)) {
+      if (end <= nowMs) return "ended";
+      return !Number.isNaN(start) && start > nowMs ? "upcoming" : "on-now";
+    }
+  }
+  if (day > today) return "upcoming";
+  if (day < today) return "ended";
+  if (!Number.isNaN(start) && !isDateOnlyStart(e.start_time) && start > nowMs) return "upcoming";
+  return "on-now";
 }
 
 // Live (still relevant) = upcoming OR on-now. This is the base set the feed and
@@ -195,7 +206,7 @@ export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
   // Friday, not Friday and Saturday.
   if (tab.key === "today" && t < tab.startMs) {
     const end = e.end_time ? Date.parse(e.end_time) : NaN;
-    const endMs = Number.isNaN(end) ? t + ASSUMED_MS : end;
+    const endMs = Number.isNaN(end) ? startOfLocalDay(t + 30 * 3_600_000) : end;
     return endMs > tab.startMs;
   }
   return false;
