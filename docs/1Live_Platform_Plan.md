@@ -1,51 +1,51 @@
-ONE LIVE — Platform Plan v4
+# 1Live Platform Plan v4
 
-Populate 1Live with every activity we legally see. That is the ticket.
-Date: 8 September 2026. Replaces v3.
+PM guiding document. Lives on master. Read this file first on every run.
 
-Done: a person opens https://1live.co and https://1live.co/tonight and sees the activity. N of M is true. mash_n = 0.
+Done is not a PR. Done is a person opening https://1live.co and seeing the activity.
 
-This file on master is the PM guiding document. Every agent, bot, and tool reads THIS file first. Do not follow a chat copy if it disagrees with this file.
+## Vision
 
-STANDING PM RULE (founder 2026-09-08 21:53 PDT)
-- Never idle.
-- Always read this Plan on master before the next action.
-- Coordinate every agent, bot, AI, and tool until listings are on 1live.co.
-- A board, a PR, or a green check is not done. Done = live N moved after desk-ingest write=true doors=all on master.
-- Do not replace desk_read.py or desk_publish.py with a stub. Both stay >10KB.
-- Do not merge #273. Do not merge a branch that deleted desk_read.py.
-- Year never blocks. Date and place cannot hold a titled row from a trusted door.
-
-1. Vision (ratified)
 A world where every live activity is easy to find, fairly represented, and culturally valued. At scale: let culture grow without being stripped of its soul. 1Live is the ethical heartbeat of culture.
 
 What it is: a system of record for what’s really on — any category, any locale, person, organization, group, activity, artist, performance, and place-first — a happening.
 
-2. Goals
-(1) answer tonight in <10s
-(2) every real activity findable, discovery never for sale
-(3) time given back
-(4) listed by default if it is on
-(5) places appear from activity not payment
-(6) social validates never defines
-(7) no sponsored discovery
-(8) Heartbeat is city pulse, not a person
+Map, not shop. No category weighting. Publishers trusted until proven wrong. On-device plans. Heartbeat = de-identified pulse. Beautiful + automagical. Anti-attention. Trust serves the vision. We send people to specialists. No pay-to-rank.
 
-3. Ticket A now (Pass 0–1)
-Existence = readable door + title (or listing URL).
-Date, time, place, year are holes, not holds.
-Yearless month+day prefers the upcoming occurrence. Printed 20xx wins.
-Every public pack door walks. Unlabeled doors synthesize a registration.
-desk-ingest default doors=all. held_titled_n must be 0.
-After merge: desk-ingest write=true doors=all, then open 1live.co and count.
+## Goals
 
-4. Must-not
-Invent events, dates, minutes (no T17:00), or places.
-Bypass login / paywall / bot wall.
-Treat Chronicle-only as the Vision.
-Treat a cancelled Claude run as work completed.
+1. Answer tonight in under 10 seconds.
+2. Every real activity findable. Discovery never for sale.
+3. Time given back.
+4. Listed by default if it is on.
+5. Places appear from activity, not payment.
+6. Social validates, never defines.
+7. No sponsored discovery.
+8. Heartbeat is city pulse, not a person.
 
-5. How to see work
-https://github.com/schubertsean-ui/onelive/commits/master
-https://github.com/schubertsean-ui/onelive/actions
-https://1live.co/tonight
+## Standing PM rule (permanent)
+
+- Never idle while 1live.co Showing N of M has not moved toward the public desks.
+- Always read this file on master before writing code.
+- One chat = one ticket = one PR. Ticket A first: populate.
+- Do not replace desk_read.py or desk_publish.py with a stub.
+- After merge: desk-ingest write=true doors=all → open 1live.co and count.
+- If the count did not move, the work failed. Keep going.
+- Do not merge PR #273.
+
+## Ticket A
+
+A happening exists when a readable trusted door printed a title or a listing URL.
+Missing date, time, place, or year is a hole on the card. It is not a hold.
+Yearless house date prefers the upcoming night. Printed 20xx wins. Year never blocks.
+Do not invent 17:00. Night is a view filter, not a column.
+
+## Execution
+
+1. Keep the 54KB reader on master. Wire complete_house_year into _house_when.
+2. desk_publish: date and place cannot hold. Pack door may register without a catalog JSON row.
+3. desk_ingest: after plan(), call apply_to_writes.
+4. Merge only a green PR that still has the full reader.
+5. Run desk-ingest write=true doors=all.
+6. Open 1live.co and 1live.co/tonight. Record Showing N of M.
+7. Repeat until N moves. Chronicle today ~179 is a step, not the vision.

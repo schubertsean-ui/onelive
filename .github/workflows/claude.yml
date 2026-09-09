@@ -1,17 +1,8 @@
 name: Claude Code
 
-# Atlas (founder conductor): @claude on an issue or PR comment starts a Claude Code job.
-# Uses the existing ANTHROPIC_API_KEY Actions secret (same key as ingest.yml).
-# Does not run on schedule. Does not write the catalog. Does not touch ingest.yml.
-# Trigger is fail-closed: only OWNER / MEMBER / COLLABORATOR may invoke it.
-#
-# PM 2026-09-07: 40 turns burned on ceremony before any product file landed
-# (#253/#255 error_max_turns, branch never pushed). 80 is the working ceiling.
-# Still no ingest.yml, no catalog write, no schedule.
-#
-# One job per ticket. A new @claude on the same issue/PR cancels the in-flight
-# run instead of stacking 80-turn burns. Skips on comments without @claude are
-# cheap; stacked runs are not.
+# Ticket A 2026-09-08: checkout the PR head. Do not cancel an in-flight run.
+# Always read docs/1Live_Platform_Plan.md on master first.
+# A stub reader must fail. Do not merge #273.
 
 on:
   issue_comment:
@@ -25,7 +16,7 @@ on:
 
 concurrency:
   group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   claude:
@@ -47,6 +38,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Run Claude Code
@@ -58,4 +50,4 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
-            --append-system-prompt "Narrow invariants, wide execution. Plan-first/session-reconcile/construction-loop hooks do not block product commits. Trust gates stay. Open the Must-do files, write them with tests, push onto the existing PR if one exists. 80 turns is a ceiling not a target. If CI is red, fix the named checks. Do not invent a second PR."
+            --append-system-prompt "Read docs/1Live_Platform_Plan.md on master first. Ticket A only. Implement tickets/TICKET-A-POPULATE.md. Do not merge #273. Do not stub desk_read.py. Do not add a hold for missing date or place. Do not invent a minute. Do not write warehouse or card rooms. Open the Must-do files, write them with tests, push onto this PR. Done is ingest doors=all then 1live.co Showing N of M moved. Never idle while that count has not moved."
