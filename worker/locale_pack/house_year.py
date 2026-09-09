@@ -1,11 +1,11 @@
-"""Yearless house dates. Year never blocks publishing."""
+"""Yearless printed dates. Year is current unless the page prints a year."""
 from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Iterable, Optional, Set
 
 
-def complete_house_year(
+def complete_year(
     month: int,
     day: int,
     as_of: Optional[date] = None,
@@ -27,6 +27,9 @@ def complete_house_year(
             return this.isoformat()
     nxt = _safe(today.year + 1, month, day)
     return nxt.isoformat() if nxt else f"{today.year + 1:04d}-{month:02d}-{day:02d}"
+
+
+complete_house_year = complete_year
 
 
 def _safe(year: int, month: int, day: int) -> Optional[date]:
