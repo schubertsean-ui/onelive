@@ -1507,6 +1507,8 @@ def main(argv=None) -> int:
     one = union(walks, timezone=tz, timezone_id=tz_id, mode=mode)
     writes = plan(one, registrations)
     digest = plan_digest(writes)
+    from worker.locale_pack.ticket_a_apply import apply_to_writes
+    writes = apply_to_writes(writes)
 
     print(f"# Desk ingest — {len(walks)} door(s) of the `{args.locale}` pack "
           f"— {mode} walk")
