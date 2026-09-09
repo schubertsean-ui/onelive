@@ -160,7 +160,6 @@ def _house_when(card_text: str, page_html: str,
     The weekday the card printed must match the completed date, or we refuse.
     `as_of` is accepted so callers can pass the walk clock; it is not a year.
     """
-    del as_of
     text = (card_text or "").strip()
     if not text:
         return None
@@ -172,8 +171,11 @@ def _house_when(card_text: str, page_html: str,
     day = int(day_s)
     weekday = _HOUSE_WEEKDAYS[wd[:3].lower()]
     years = _years_in_date_context(text, page_html)
+    if not years and as_of is not None:
+        years = {as_of.year}
     if not years:
-        return None
+        from datetime import date as _today
+        years = {_today.today().year}
     found: List[_date] = []
     for year in years:
         try:
