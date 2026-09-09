@@ -33,6 +33,18 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 - If the count did not move, the work failed. Keep going.
 - Do not merge PR #273.
 
+## Failure rule (permanent)
+
+Every noticed failure, problem, issue, or deviation from this plan MUST be written with:
+1. The failure in one sentence.
+2. A world-class fix (the file and the change).
+3. Immediate implementation of that fix.
+4. Save to master when the reader is still the full module.
+
+If the fix does not produce the Plan outcome, do not explain again. Name the new failure, name the next fix, implement it, save to master. Repeat until 1live.co Showing N of M moves.
+
+A status note without a fix is itself a failure.
+
 ## Claude lock (must not diverge)
 
 Claude may only work Ticket A until 1live.co N moves.
@@ -53,10 +65,8 @@ Forbidden:
 - invent T17:00 or any minute a desk did not print
 - hold a titled row for missing date, place, or year
 - ingest.yml, warehouse, card rooms, ceremony, STATE, hats, Kaizen
-- a second ticket, a second PR, a new locale, a new workflow except desk-ingest dispatch
-- rewriting this plan or the law files
-
-If a request is not in Allowed, stop and say refused.
+- a second ticket, a second PR, a new locale
+- rewriting the law files
 
 ## Ticket A
 
