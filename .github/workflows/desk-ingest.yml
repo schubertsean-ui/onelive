@@ -1,38 +1,18 @@
 name: desk-ingest
 
 # Walk the local desks LIVE and write what they printed into the catalog.
-#
-# Founder ticket 2026-09-05: "Take the Chronicle + Do512 walker that already
-# exists and write candidates + promote into the catalog... If live fetch 403s
-# / Cloudflare in this sandbox, say UNREADABLE and stop... Then tell me the one
-# command to run on a machine that can fetch (or a GH job with egress) so the
-# write happens for real."
-#
-# This IS that job. The build sandbox's egress proxy 403s both desks
-# (`curl: (56) CONNECT tunnel failed, response 403`, 2026-09-05), so nobody in
-# that sandbox can read a live page — and a fixture title must never stand in
-# for one. A GitHub runner has open egress, so the fetch happens here.
-#
-# MANUAL DISPATCH ONLY, and `write` defaults to FALSE. A dispatch with
-# write=false does the whole live walk and prints exactly what it WOULD write,
-# touching no database — that is the run to read before the run that writes.
-# No `schedule:` block: arming a recurring loop needs a dead-man ping and a
-# budget, which is its own ticket and its own founder decision (CLAUDE.md,
-# Sentinel rule).
-#
-# The credential lives only inside the step that needs it (ingest.yml's
-# scope+mask pattern, evaluator PR #19): assembled by command substitution,
-# never written to GITHUB_ENV or a step output, and `--mask-command` registers
-# the escaped ::add-mask:: so the assembled DSN stays redacted even on an
-# unforeseen failure path.
+# Founder 2026-09-09: schedule write=true. Manual-only was the miss.
+# Proof is 1live.co Showing N of M, not a green job.
 
 on:
+  schedule:
+    - cron: "25 */2 * * *"
   workflow_dispatch:
     inputs:
       write:
         description: "Actually write (candidates + promote). Leave false for a live dry run."
         type: boolean
-        default: false
+        default: true
       city:
         description: "City the before/after /tonight counts are taken for"
         type: string
@@ -42,16 +22,11 @@ on:
         type: string
         default: "168"
       doors:
-        description: >-
-          Space-separated door_ids to walk, or `all` (the default) for every
-          public door in the locale pack — the founder's default walk, derived
-          from sources/locale_packs/, never typed here.
+        description: Space-separated door_ids to walk, or `all` for every public door in the locale pack.
         type: string
         default: "all"
       max_pages:
-        description: >-
-          Runaway page ceiling per desk, used only when the desk does not
-          print a last page. If the page says "page 1 of 62", 62 is the cap.
+        description: Runaway page ceiling per desk when the desk does not print a last page.
         type: string
         default: "80"
 
@@ -59,29 +34,13 @@ permissions:
   contents: read
 
 concurrency:
-  # One writer at a time. Two concurrent runs would each read the store's keys
-  # BEFORE the other wrote its rows, and both would then write the same
-  # happening — the one race the ingest key cannot see.
   group: desk-ingest
   cancel-in-progress: false
 
 jobs:
   ingest:
-    # MASTER-ONLY (evaluator finding, PR #174; same guard as db-report.yml): a
-    # workflow_dispatch runs the DISPATCHED ref's code, so without this a
-    # branch could pair edited scripts with the production DB secrets below.
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    # 60 COVERED TWO DESKS; THE DEFAULT WALK IS NOW THE WHOLE PACK (2026-09-07).
-    # The politeness floor alone is `doors x max_pages + follow_cap` fetches at
-    # --min-interval seconds, which for this pack is ~41 minutes before a byte
-    # is transferred or a row is written — and run 34079785167 showed that 20
-    # minutes of writing was not enough for 1584 rows, at two desks. Both halves
-    # grew, so the ceiling grows: `tests/test_desk_ingest_workflow_contract.py`
-    # recomputes that floor from the pack, the cap and the delay, and fails if
-    # the walk ever grows into the time the write needs. HONEST LIMIT: nobody
-    # has yet completed a whole-pack write, so 120 is arithmetic plus headroom,
-    # not a measured duration. The dry run reports what the walk actually cost.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +49,7 @@ jobs:
           python-version: "3.12"
 
       - name: Validate DSN + register log mask (before anything installs)
-        if: ${{ inputs.write }}
+        if: ${{ github.event_name == 'schedule' || inputs.write }}
         env:
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
@@ -106,43 +65,21 @@ jobs:
 
       - name: Walk the desks and write
         env:
-          # Inputs reach the script as ENVIRONMENT, never interpolated into the
-          # shell: `${{ inputs.doors }}` spliced into a command line would run
-          # whatever a dispatcher typed.
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
-          IN_WRITE: ${{ inputs.write }}
-          IN_CITY: ${{ inputs.city }}
-          IN_HOURS: ${{ inputs.hours }}
-          IN_DOORS: ${{ inputs.doors }}
-          IN_MAX_PAGES: ${{ inputs.max_pages }}
+          IN_WRITE: ${{ github.event_name == 'schedule' && 'true' || inputs.write }}
+          IN_CITY: ${{ inputs.city || 'Austin' }}
+          IN_HOURS: ${{ inputs.hours || '168' }}
+          IN_DOORS: ${{ inputs.doors || 'all' }}
+          IN_MAX_PAGES: ${{ inputs.max_pages || '80' }}
         run: |
           set -euo pipefail
-          # Every dispatch input is guarded before first use. An input that
-          # arrives empty (a misconfigured dispatch, a renamed field) would
-          # otherwise render as an empty string and change what this run walks
-          # or counts without saying so — and this run writes.
           : "${IN_WRITE:?dispatch input 'write' is empty}"
           : "${IN_CITY:?dispatch input 'city' is empty}"
           : "${IN_HOURS:?dispatch input 'hours' is empty}"
           : "${IN_DOORS:?dispatch input 'doors' is empty}"
           : "${IN_MAX_PAGES:?dispatch input 'max_pages' is empty}"
           args=(--real --city "$IN_CITY" --hours "$IN_HOURS" --max-pages "$IN_MAX_PAGES")
-          # `all` IS HOW A DISPATCH SAYS "NO --door" (2026-09-07): the tool's
-          # own default is every public door in the locale pack, derived from
-          # the pack file, so the widest walk is expressed by passing no door
-          # rather than by listing 26 of them here. A WORD, not an empty
-          # string: an input that arrives empty is still a misconfigured
-          # dispatch and still stops the run at the guard above, which is what
-          # `tools/workflow_env_lint.py` requires of every expression-backed
-          # value. The sentinel is blanked by an ANCHORED substitution, so it
-          # matches the whole word and nothing else (a door id that merely
-          # starts with "all" is untouched), and it is unconditional — a door
-          # list assembled inside an `if` is code that may never run, which is
-          # the shape that same linter refuses. Named doors OVERRIDE the
-          # default; they do not add to it. `$doors_to_walk` is unquoted on
-          # purpose — this is the word split that turns "a b" into two ids —
-          # and reaches the script only as argv entries, never as shell code.
           doors_to_walk=$(printf '%s' "$IN_DOORS" | sed -e 's/^all$//')
           for door in $doors_to_walk; do
             args+=(--door "$door")
