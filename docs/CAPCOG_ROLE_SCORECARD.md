@@ -1,9 +1,12 @@
 # CAPCOG role scorecard
 
-Locale pack: `sources/locale_packs/us-tx-capcog.json`
-Timezone: America/Chicago
+CAPCOG is a **test filter only**. It is not the map. It is not the TAM. It is not a catalog border.
+A happening outside CAPCOG still exists. Views may hide it. Catalog must not delete it.
+
+Pack used for the test: `sources/locale_packs/us-tx-capcog.json`
+Timezone in that pack: America/Chicago
 Hunt date: 2026-09-09
-A door here means the pack named it. It does not mean 1live.co shows that door’s union.
+A door here means the test pack named it. It does not mean 1live.co shows that door’s union.
 
 | Role | Status | Pack doors |
 |---|---|---|
@@ -15,13 +18,13 @@ A door here means the pack named it. It does not mean 1live.co shows that door�
 | Community marketplace | door | Meetup Austin |
 | City government | partial | Round Rock, San Marcos, Lockhart, Bastrop rec. **No City of Austin municipal calendar** |
 | County government | gap | Travis, Williamson, Hays, Bastrop, Caldwell, Burnet not packed |
-| Parks and rec | gap | Not a pack door (Bastrop RecDesk is city rec, not Austin Parks) |
+| Parks and rec | gap | Not a pack door |
 | School district | gap | AISD / others not packed |
 | Campus | door | UT Austin Localist, Southwestern |
 | Library | door | Austin Public Library |
-| Official place | gap | No venue-ICS sweep in pack |
-| Official artist / org | gap | Claim path, not a hunt door |
-| Sports | gap | Teams ride Ticketmaster; no team official calendars packed |
+| Official place | gap | No venue-ICS sweep |
+| Official artist / org | gap | Claim path |
+| Sports | gap | Teams ride Ticketmaster |
 | Performing arts | gap | Presenters not packed as official doors |
 | Film | gap | — |
 | Markets | gap | — |
@@ -30,14 +33,7 @@ A door here means the pack named it. It does not mean 1live.co shows that door�
 | Faith / hall | gap | — |
 | Classes / workshops | gap | Campus covers some |
 | Other public list | door | AllEvents, austingallery.org |
-| Unvalidated social | lead only | Facebook, Instagram, Nextdoor — Class D / unvalidated |
+| Unvalidated social | lead only | Facebook, Instagram, Nextdoor |
 
-## CAPCOG next hunt (Fix Process if live still short)
-
-1. City of Austin official events calendar
-2. Travis County + Williamson County calendars
-3. Austin Parks and Rec
-4. One sports official (Austin FC or UT athletics already via Localist/TM)
-5. One film list
-
-Live Success is still 1live.co showing the union. This scorecard is not Success.
+The same hunt runs for any locale. CAPCOG is rehearsal.
+Live Success is 1live.co showing the union for the locale the person asked. This scorecard is not Success.
