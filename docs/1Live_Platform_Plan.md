@@ -1,22 +1,17 @@
 # 1Live Platform Plan v4
 
-PM guiding document. Lives on master. Every agent reads this first.
+PM guiding document. Lives on master. Read `docs/AI_INSTRUCTIONS.md` first.
 
 Done is not a PR. Done is a person opening https://1live.co and seeing the activity.
 
 ## Vision
 
-A world where every live activity is easy to find, fairly represented, and culturally valued. At scale: let culture grow without being stripped of its soul. 1Live is the ethical heartbeat of culture.
-
-What it is: a system of record for what’s really on — any category, any locale, person, organization, group, activity, artist, performance, and place-first — a happening.
-
-Map, not shop. No category weighting. Publishers trusted until proven wrong. On-device plans. Heartbeat = de-identified pulse. Beautiful + automagical. Anti-attention. Trust serves the vision. We send people to specialists. No pay-to-rank.
-
-Global-core lock: ONE-LIVE-VISION.md.
+ONE-LIVE-VISION.md. Do not shrink it.
+1Live accurately publishes every activity anywhere in the world.
 
 ## Goals
 
-1. Answer tonight in under 10 seconds.
+1. Answer tonight in under 2 seconds.
 2. Every real activity findable. Discovery never for sale.
 3. Time given back.
 4. Listed by default if it is on.
@@ -25,35 +20,35 @@ Global-core lock: ONE-LIVE-VISION.md.
 7. No sponsored discovery.
 8. Heartbeat is city pulse, not a person.
 
-## Alignment (independent of tickets)
+## Alignment
 
-M checks Vision lock + Goals every hour. docs/ONE-LIVE-SUCCESS.md.
-A miss kicks the Failure-Correction Process. M does not wait for a ticket. M does not patch.
+Hourly. Independent of tickets. M reads Vision + Goals. Miss → 15-step process. M does not patch.
 
 ## Tickets (run continuously)
 
-Tickets are not a queue you pause. They run at the same time.
-Each ticket uses the 15-step Process when it misses its own bar.
+Each ticket has a bar. The 15-step process is how a miss is closed. Valid Source Library + FIND_AGGREGATORS apply to all of them.
+CAPCOG is the test view filter only. Not the map.
 
-A — Populate. Trusted door + title is enough.
-B — Density. 100% of that locale’s counted union on 1Live.
-C — Card slots. Holes allowed.
-D — Place is a query.
-E — Gather.
-F — Pack doors without a catalog JSON row.
-G — All locales, all kinds.
+**A — Populate.** A validated door + title becomes a catalog row. Date and place are holes, not holds. One door is enough.
+Bar: ingest of a validated door writes rows (`GET /events` moves).
 
-## Standing PM rule
+**B — Density (next).** 100% of that locale’s counted aggregator union is on 1live.co. Deduped title + when + place.
+Bar: Today on 1live.co ≥ that locale’s union (test floor: Chronicle today).
+This is the ingest → showing gap.
 
-- Do not replace desk_read.py or desk_publish.py with a stub.
-- Do not merge PR #273.
-- Do not invent a start time. Do not invent a duration.
-- Aggregator jargon is not 1Live taxonomy. Diverse doors in. One card out.
+**C — Card.** Print title / when / place / kind / via + the other slots when a door printed them. Holes allowed. Nothing invented.
 
-## Translator (many → one)
+**D — Place is a query.** Locale = device or searched city. CAPCOG is an opt-in test filter.
 
-1Live is the one. Every door maps into title / when / place / kind / via.
+**E — Gather.** Demand starts a hunt. FIND_AGGREGATORS 15 steps. A hit is a lead.
 
-## When (binding)
+**F — Pack holes.** Every pack door that is a public list has catalog rows, or an honest ingest miss in the Fix Process.
 
-Two facts. Start date is enough. Start time only if printed. End optional. Timezone from the locale pack. Today is a filter, not a gate.
+**G — All locales, all kinds.** New city = new pack + hunt. Roles, not Austin brand names.
+
+## Standing
+
+- No stub desk_read / desk_publish / feed. No merge #273.
+- No invented clock or duration.
+- Aggregator names are not 1Live fields.
+- After a catalog change: ingest → open 1live.co → count.
