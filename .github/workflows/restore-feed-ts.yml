@@ -1,0 +1,40 @@
+name: Restore feed.ts
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/restore-feed-ts.yml"
+jobs:
+  restore:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 30
+      - name: Restore real feed.ts and drop 3h assume
+        run: |
+          set -euo pipefail
+          git checkout 775f29a24e06c9185d3faa198f427bffb1943dfd -- web/lib/feed.ts
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("web/lib/feed.ts")
+          t = p.read_text()
+          if t.strip() == "SEE_FILE":
+              raise SystemExit("restore still stub")
+          t = t.replace(
+              "const ASSUMED_MS = 3 * 60 * 60 * 1000; // 3h assumed run when end_time is absent.",
+              "const ASSUMED_MS = 18 * 60 * 60 * 1000; // missing end stays through the locale day",
+          )
+          p.write_text(t)
+          print("bytes", p.stat().st_size)
+          PY
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add web/lib/feed.ts
+          git diff --cached --quiet && echo already-good && exit 0
+          git commit -m "Restore feed.ts. Missing end is not over in 3 hours. SEE_FILE is not a file."
+          git push origin master
