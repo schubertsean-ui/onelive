@@ -1,8 +1,7 @@
 """Ticket A glue. Does not replace desk_read.py or desk_publish.py.
 
-After plan(): date/place holds become holes.
-After read(): yearless house dates get complete_house_year.
-Start (the day) is enough. End time is optional. Never invent 17:00.
+After plan(): date/place holds become holes. Yearless printed dates get a year.
+Start is enough. End is optional. Never invent 17:00.
 """
 from __future__ import annotations
 
@@ -11,9 +10,9 @@ from datetime import date
 from typing import Any, Optional, Sequence
 
 from worker.locale_pack.existence import hold_reason as existence_hold
-from worker.locale_pack.house_year import complete_house_year
+from worker.locale_pack.house_year import complete_year
 
-_HOUSE_MD_RE = re.compile(
+_MD_RE = re.compile(
     r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
     r"Jul(?:y)?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|"
     r"Dec(?:ember)?)\.?\s+(\d{1,2})\b",
@@ -28,19 +27,19 @@ _MONTHS = {
 _DATE_HOLD = ("date", "place", "unplaced", "night and no time", "no desk stated")
 
 
-def fill_house_date(when_text: Optional[str], as_of: Optional[date] = None) -> Optional[str]:
+def fill_printed_date(when_text: Optional[str], as_of: Optional[date] = None) -> Optional[str]:
     text = (when_text or "").strip()
     if not text:
         return None
-    hit = _HOUSE_MD_RE.search(text)
+    hit = _MD_RE.search(text)
     if not hit:
         return None
     mon, day_s = hit.groups()
-    return complete_house_year(_MONTHS[mon.lower()], int(day_s), as_of=as_of)
+    return complete_year(_MONTHS[mon.lower()], int(day_s), as_of=as_of)
 
 
 def apply_to_write(write: Any) -> Any:
-    """Keep titled rows. Date and place cannot hold. Fill house start date."""
+    """Keep titled rows. Date and place cannot hold. Fill printed start date."""
     extracted = dict(getattr(write, "extracted", None) or {})
     title = getattr(write, "title", None) or extracted.get("title")
     listing_url = extracted.get("listing_url")
@@ -61,14 +60,23 @@ def apply_to_write(write: Any) -> Any:
         or ""
     )
     if not when:
-        filled = fill_house_date(str(when_text) if when_text else None)
+        filled = fill_printed_date(str(when_text) if when_text else None)
         if filled:
             extracted["when"] = filled
             extracted["when_precision"] = "date"
+            desk = dict(extracted.get("_desk") or {})
+            stmt = dict(desk.get("statement") or {})
+            if stmt:
+                stmt["when"] = filled
+                desk["statement"] = stmt
+                extracted["_desk"] = desk
             write.extracted = extracted
             if hasattr(write, "when"):
                 write.when = filled
     return write
+
+
+fill_house_date = fill_printed_date
 
 
 def apply_to_writes(writes: Sequence[Any]) -> list:
