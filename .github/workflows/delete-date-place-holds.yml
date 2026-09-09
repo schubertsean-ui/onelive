@@ -1,0 +1,46 @@
+name: delete-date-place-holds
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/delete-date-place-holds.yml']
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Delete date and place holds in desk_publish.py
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("worker/locale_pack/desk_publish.py")
+          t = p.read_text(encoding="utf-8")
+          t = t.replace(
+          '''    else:\n        # NO DESK STATED A DATE AT ALL. This branch used to publish with a NULL\n        # clock because "Date TBA" is a true rendering of "nobody said". The\n        # founder reversed it for the first public write (2026-09-07): a row a\n        # friend cannot place in time is not a listing, however honestly its\n        # emptiness is displayed, and Tonight's window cannot hold it anyway.\n        # Same answer as R-111 — held as a candidate, not deleted, not faked.\n        clock_hole = "no desk stated a date for this row"\n        hold_reason = (\n            "no desk stated a date for this row; publishing would put a bare "\n            "'Date TBA' on a discovery surface, and a row with no night is one "\n            "a friend cannot act on — held until a desk states one (R-111's "\n            "answer, widened by the founder on 2026-09-07)")\n''',
+          '''    else:\n        # Missing date is a hole. It is not a hold.\n        clock_hole = "no desk stated a date for this row"\n'''
+          )
+          t = t.replace(
+          '''        except ValueError:\n            hold_reason = (\n                f"the desk stated a night ({row.night}) we could not place "\n                f"on the calendar — held"\n            )\n''',
+          '''        except ValueError:\n            clock_hole = (\n                f"the desk stated a night ({row.night}) we could not place "\n                f"on the calendar"\n            )\n'''
+          )
+          t = t.replace(
+          '''    gaps = [reason for missing, reason in (\n        (not (row.title or "").strip(),\n         "no desk stated a title for this row"),\n        (not (row.place_text or "").strip(),\n         "no desk stated a place for this row — an unplaced row is one a "\n         "friend cannot get to"),\n    ) if missing]\n''',
+          '''    gaps = [reason for missing, reason in (\n        (not (row.title or "").strip(),\n         "no desk stated a title for this row"),\n    ) if missing]\n'''
+          )
+          t = t.replace("start_time = _night_as_public_clock(row.night)", "start_time = row.night")
+          if "held until a desk states one" in t:
+              raise SystemExit("date hold text still present")
+          if "no desk stated a place for this row" in t:
+              raise SystemExit("place hold text still present")
+          p.write_text(t, encoding="utf-8")
+          print("holds deleted")
+          PY
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add worker/locale_pack/desk_publish.py
+          git diff --cached --quiet && echo none || git commit -m "Delete date and place holds. Title only. No invented clock."
+          git push origin master
