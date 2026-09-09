@@ -26,75 +26,41 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 ## Standing PM rule
 
 - Never idle while 1live.co Showing N of M has not moved toward the public desks.
-- This chat closing is not a stop. The watchdog keeps Ticket A moving.
-- Read this file on master before writing code.
-- One chat = one ticket = one PR. Ticket A first: populate.
+- This chat closing is not a stop.
+- Ticket A first. The Plan does not end at Ticket A.
 - Do not replace desk_read.py or desk_publish.py with a stub.
-- After merge: desk-ingest write=true doors=all → open 1live.co and count.
-- If the count did not move, the work failed. Keep going.
 - Do not merge PR #273.
 
-## Continuous operation (permanent)
+## Sequence (do in order)
 
-This chat is not the factory. If the chat is closed, work still runs.
+### Ticket A — populate (now)
+A happening exists when a trusted door printed a title or listing URL.
+Missing date, time, place, or year is a hole. It is not a hold.
+Year never blocks. Do not invent 17:00. Night is a view filter.
+PR #279. Merge when green and reader still >10KB. Then desk-ingest write=true doors=all. Count 1live.co.
+Chronicle today ~179 is a step, not the Vision.
 
-Watchdog (hourly, app-only): taskId `15c63a96-7563-44fe-93a6-ab7acad4ede2`
-- Reads this Plan.
-- Opens 1live.co and /tonight.
-- If N did not move, comments @claude on issue #278 to wire apply_to_writes. Does not stub the reader. Does not start a second Claude if one is already yellow.
-- Next scheduled fire: 06:00 America/Chicago / 13:00 UTC, then every hour.
+### Ticket B — density
+1Live unique dated+placed must exceed the union of named public aggregators, deduped. Not a sum of site counts. PR #272 after A moves N.
 
-If the watchdog is paused or missing, that is itself a failure. Recreate it before writing another status note.
+### Ticket C — the card the visitor sees
+Slots: date, time, title, category + subgenre, venue, street address, via, tickets cue, preview hook, spark line, price.
+Incomplete fill is not a disqualifier. Never invent. Missing time still publishes.
+PR #274 after A. Night is not a column.
 
-## Failure rule (permanent)
+### Ticket D — any locale
+Locale is a query. CAPCOG is the test view, not the catalog border.
+PR #258 / #263 after A.
 
-Every noticed failure, problem, issue, or deviation from this plan MUST be written with:
-1. The failure in one sentence.
-2. A world-class fix (the file and the change).
-3. Immediate implementation of that fix.
-4. Save to master when the reader is still the full module.
+### Ticket E — every pack door
+Every public door writes. 12 of 26 doors still lack a catalog row. After A.
 
-If the fix does not produce the Plan outcome, do not explain again. Name the new failure, name the next fix, implement it, save to master. Repeat until 1live.co Showing N of M moves.
+## Ticket A execution (this hour)
 
-A status note without a fix is itself a failure.
-
-## Claude lock (must not diverge)
-
-Claude may only work Ticket A until 1live.co N moves.
-
-Allowed files:
-- tools/desk_ingest.py (call apply_to_writes after plan())
-- worker/locale_pack/desk_publish.py (edit in place; keep >10KB)
-- worker/locale_pack/desk_read.py (edit _house_when only; keep >10KB)
-- worker/locale_pack/existence.py
-- worker/locale_pack/house_year.py
-- worker/locale_pack/ticket_a_apply.py
-- tests for those files only
-- tickets/TICKET-A-POPULATE.md
-- docs/1Live_Platform_Plan.md
-
-Forbidden:
-- stub, PLACEHOLDER, see-file, delete desk_read.py
-- merge #273
-- invent T17:00 or any minute a desk did not print
-- hold a titled row for missing date, place, or year
-- ingest.yml, warehouse, card rooms, ceremony, STATE, hats, Kaizen
-- a second ticket, a second PR, a new locale
-- rewriting the law files
-
-## Ticket A
-
-A happening exists when a readable trusted door printed a title or a listing URL.
-Missing date, time, place, or year is a hole on the card. It is not a hold.
-Yearless house date prefers the upcoming night. Printed 20xx wins. Year never blocks.
-Do not invent 17:00. Night is a view filter, not a column.
-
-## Execution
-
-1. Keep the 54KB reader on master. Wire complete_house_year into _house_when.
-2. desk_publish: date and place cannot hold. Pack door may register without a catalog JSON row.
-3. desk_ingest: after plan(), call apply_to_writes.
+1. Keep the 54KB reader. Wire complete_house_year into _house_when.
+2. Date and place cannot hold.
+3. After plan(), apply_to_writes.
 4. Merge only a green PR that still has the full reader.
-5. Run desk-ingest write=true doors=all.
-6. Open 1live.co and 1live.co/tonight. Record Showing N of M.
-7. Repeat until N moves. Chronicle today ~179 is a step, not the vision.
+5. desk-ingest write=true doors=all.
+6. Count 1live.co and /tonight.
+7. Then start Ticket B. Do not stop at A.
