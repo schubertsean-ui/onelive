@@ -1,0 +1,52 @@
+name: Ticket A wire now
+
+# Claude is not a builder we can drive. This job inserts apply_to_writes
+# after plan() on PR branch fix/ticket-a-wire-ingest. Does not stub the reader.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/ticket-a-wire-ingest
+          fetch-depth: 0
+      - name: Insert apply_to_writes after plan()
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("tools/desk_ingest.py")
+          text = p.read_text()
+          marker = "from worker.locale_pack.ticket_a_apply import apply_to_writes"
+          if marker in text and "writes = apply_to_writes(writes)" in text:
+              print("already wired")
+          else:
+              import re
+              # After the first complete writes = plan(...) assignment (may be multi-line)
+              pat = re.compile(r"(writes\s*=\s*plan\([^\n]*\n(?:[ \t]+[^\n]*\n)*)")
+              m = pat.search(text)
+              if not m:
+                  # single line
+                  pat = re.compile(r"(writes\s*=\s*plan\([^)]*\))")
+                  m = pat.search(text)
+              if not m:
+                  raise SystemExit("plan() assignment not found")
+              insert = m.group(1).rstrip() + "\n    from worker.locale_pack.ticket_a_apply import apply_to_writes\n    writes = apply_to_writes(writes)\n"
+              text = text[:m.start()] + insert + text[m.end():]
+              p.write_text(text)
+              print("wired")
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add tools/desk_ingest.py
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Ticket A: call apply_to_writes after plan(). Do not stub desk_read."
+          git push origin fix/ticket-a-wire-ingest
