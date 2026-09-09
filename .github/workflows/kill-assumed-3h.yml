@@ -1,0 +1,60 @@
+name: Kill assumed 3h end
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Patch eventTiming
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("web/lib/feed.ts")
+          t = p.read_text()
+          old = '''const ASSUMED_MS = 3 * 60 * 60 * 1000; // 3h assumed run when end_time is absent.
+
+export function eventTiming(e: LicensedEvent, nowMs: number): Timing {
+  const start = e.start_time ? Date.parse(e.start_time) : NaN;
+  if (Number.isNaN(start)) return "upcoming"; // date TBA — never hide it
+  if (start > nowMs) return "upcoming";
+  const end = e.end_time ? Date.parse(e.end_time) : NaN;
+  const endMs = Number.isNaN(end) ? start + ASSUMED_MS : end;
+  return endMs > nowMs ? "on-now" : "ended";
+}'''
+          new = '''// Missing end is not a duration we invent. Stay through the locale day.
+
+export function eventTiming(e: LicensedEvent, nowMs: number): Timing {
+  const start = e.start_time ? Date.parse(e.start_time) : NaN;
+  if (Number.isNaN(start)) return "upcoming"; // date TBA — never hide it
+  if (start > nowMs) return "upcoming";
+  if (e.end_time) {
+    const end = Date.parse(e.end_time);
+    if (!Number.isNaN(end)) return end > nowMs ? "on-now" : "ended";
+  }
+  const dayEnd = startOfLocalDay(nowMs + 30 * 3_600_000);
+  return nowMs < dayEnd ? "on-now" : "ended";
+}'''
+          if old not in t:
+              raise SystemExit("eventTiming block not found")
+          t = t.replace(old, new, 1)
+          t = t.replace(
+              "const endMs = Number.isNaN(end) ? t + ASSUMED_MS : end;",
+              "const endMs = Number.isNaN(end) ? startOfLocalDay(nowMs + 30 * 3_600_000) : end;",
+          )
+          # inDayTab uses nowMs only in today branch via tab bounds; keep compile
+          p.write_text(t)
+          print("patched feed.ts")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add web/lib/feed.ts
+          git diff --cached --quiet && echo nochg && exit 0
+          git commit -m "Missing end stays through the locale day. Do not invent a 3-hour run."
+          git push origin HEAD:master
