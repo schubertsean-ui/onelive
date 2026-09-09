@@ -10,3 +10,4 @@ Access: classify, then this index. Evaluate same class + same observable. Existi
 | FL-003 | VIEW | Date-only missing from Today | UTC midnight | Date-only is that locale day | Partial |
 | FL-004 | STUB | Product file became SEE_FILE | Stub shipped | Restore real module | Restored |
 | FL-005 | CATALOG | Validated desk never publishes | Gate wants two sources | One validated door is enough | Not yet |
+| FL-006 | OPS | Old ingest blocks the new one | cancel-in-progress: false | Newest master ingest wins; no ingest on docs-only | Applied |
