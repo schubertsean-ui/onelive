@@ -1,0 +1,52 @@
+name: Drop fake 5pm test expects
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Rewrite T17:00 expects on date-only writes
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          files = [
+            Path("tests/test_desk_publish.py"),
+            Path("tests/integration/test_desk_ingest_pg.py"),
+          ]
+          for p in files:
+              t = p.read_text()
+              t2 = t.replace(
+                  'assert w.start_time is not None and "T17:00:00" in w.start_time',
+                  'assert w.start_time is not None and "2026-09-13" in w.start_time and "T17:00:00" not in (w.start_time or "")',
+              )
+              t2 = t2.replace(
+                  'assert writes[0].start_time and "T17:00:00" in writes[0].start_time',
+                  'assert writes[0].start_time and "T17:00:00" not in writes[0].start_time',
+              )
+              t2 = t2.replace(
+                  "Place at 17:00 Chicago, never 00:00.",
+                  "Date-only is the day. Do not invent a clock.",
+              )
+              t2 = t2.replace(
+                  '"""A night is when. Date-only Chronicle rows publish at 17:00 Chicago."""',
+                  '"""Date-only rows publish the day. Do not invent a clock."""',
+              )
+              if t2 == t:
+                  print("no change", p)
+              else:
+                  p.write_text(t2)
+                  print("patched", p)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add tests/test_desk_publish.py tests/integration/test_desk_ingest_pg.py
+          git diff --cached --quiet && echo nochg && exit 0
+          git commit -m "Date-only tests no longer expect an invented 5 PM."
+          git push origin master
