@@ -27,40 +27,37 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 
 - Never idle while 1live.co Showing N of M has not moved toward the public desks.
 - This chat closing is not a stop.
-- Ticket A first. The Plan does not end at Ticket A.
+- Ticket A first. Ticket A is not the last ticket.
 - Do not replace desk_read.py or desk_publish.py with a stub.
+- After merge: desk-ingest write=true doors=all → open 1live.co and count.
+- If the count did not move, the work failed. Keep going.
 - Do not merge PR #273.
 
-## Sequence (do in order)
+## Ticket order (entire Plan)
 
-### Ticket A — populate (now)
-A happening exists when a trusted door printed a title or listing URL.
-Missing date, time, place, or year is a hole. It is not a hold.
-Year never blocks. Do not invent 17:00. Night is a view filter.
-PR #279. Merge when green and reader still >10KB. Then desk-ingest write=true doors=all. Count 1live.co.
-Chronicle today ~179 is a step, not the Vision.
+A — Populate. Trusted door + title is enough. Date/place/year cannot hold. Wire apply_to_writes. Ingest doors=all. N moves. Chronicle ~179 is a step.
+B — Density bar. 1Live unique dated+placed > union of named public aggregators, deduped. PR #272.
+C — Card the visitor sees. Slots: date, time, title, category + subgenre, venue, street, via, tickets cue, preview hook, spark line, price. Holes allowed. Two rooms after rows exist. PR #274.
+D — Place is a query. Locale is typed, not a catalog border. PR #258.
+E — Gather. First visitor in a thin place starts one bounded pipe. PR #263.
+F — Pack doors register without a catalog JSON row. PR #262.
+G — All locales, all kinds. CAPCOG is a test filter. Heartbeat pulse. On-device plans. No pay-to-rank.
 
-### Ticket B — density
-1Live unique dated+placed must exceed the union of named public aggregators, deduped. Not a sum of site counts. PR #272 after A moves N.
+Start B only after A ingest is running. Do not shrink Vision to Chronicle.
 
-### Ticket C — the card the visitor sees
-Slots: date, time, title, category + subgenre, venue, street address, via, tickets cue, preview hook, spark line, price.
-Incomplete fill is not a disqualifier. Never invent. Missing time still publishes.
-PR #274 after A. Night is not a column.
+## Ticket A now
 
-### Ticket D — any locale
-Locale is a query. CAPCOG is the test view, not the catalog border.
-PR #258 / #263 after A.
+A happening exists when a readable trusted door printed a title or a listing URL.
+Missing date, time, place, or year is a hole on the card. It is not a hold.
+Yearless house date prefers the upcoming occurrence. Printed 20xx wins. Year never blocks.
+Do not invent 17:00. Night is a view filter, not a column.
 
-### Ticket E — every pack door
-Every public door writes. 12 of 26 doors still lack a catalog row. After A.
+Vehicle: PR #279. Grok is the builder. Claude is not required.
 
-## Ticket A execution (this hour)
+## Execution this hour
 
-1. Keep the 54KB reader. Wire complete_house_year into _house_when.
-2. Date and place cannot hold.
-3. After plan(), apply_to_writes.
-4. Merge only a green PR that still has the full reader.
-5. desk-ingest write=true doors=all.
-6. Count 1live.co and /tonight.
-7. Then start Ticket B. Do not stop at A.
+1. Green #279 with the 54KB reader still present.
+2. Squash-merge.
+3. desk-ingest write=true doors=all.
+4. Count 1live.co and /tonight.
+5. If N moved, open Ticket B. If not, fix the next hold and ingest again.
