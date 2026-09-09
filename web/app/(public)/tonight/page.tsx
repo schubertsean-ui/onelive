@@ -66,7 +66,10 @@ export default async function TonightPage() {
     // Six months forward — Ticketmaster already stores that horizon; a 21-day
     // fetch made months-out rows invisible even under "All upcoming".
     const toISO = new Date(nowMs + 180 * 24 * 60 * 60 * 1000).toISOString();
-    const window = { fromISO, toISO, includeNullClock: false as const };
+    // Ticket A / Coverage Law: a missing clock is a hole, not a reason to
+    // omit the row from the page. Today still filters by day. All upcoming
+    // is where undated published rows are viewable and tappable.
+    const window = { fromISO, toISO, includeNullClock: true as const };
     let licensedFailed = false;
     let promotedFailed = false;
     const [licensed, promoted] = await Promise.all([
