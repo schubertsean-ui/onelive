@@ -1,0 +1,37 @@
+{
+  "rule": "A validated source promotes on one statement. Two sources only for unofficial or invalidated statements.",
+  "validated_classes": [
+    "local_media",
+    "ticketing",
+    "venue_calendar",
+    "calendar_feed",
+    "city_calendar",
+    "university_calendar",
+    "university",
+    "library_calendar",
+    "festival_feed",
+    "claimed_upload",
+    "email_opt_in",
+    "theater_arts",
+    "gallery_museum",
+    "food_culinary",
+    "directory",
+    "community",
+    "artist_aggregator",
+    "music_platform"
+  ],
+  "validated_names": [
+    "Austin Chronicle",
+    "Do512",
+    "Ticketmaster",
+    "Bandsintown",
+    "Meetup",
+    "KUTX"
+  ],
+  "two_source_classes": [
+    "social",
+    "blog",
+    "link_hub",
+    "search_benchmark"
+  ]
+}
