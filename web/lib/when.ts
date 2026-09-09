@@ -1,14 +1,15 @@
-/** 1Live when: start date and start time are two facts.
+/** 1Live when: start date + optional start time.
  *
- * Date-only strings and UTC-midnight stamps keep the printed calendar day.
- * A real clock uses America/Chicago. Never invent 17:00.
+ * Timezone is the locale pack IANA zone (test default: CAPCOG America/Chicago).
+ * Date-only and UTC-midnight keep the printed calendar day.
+ * Do not invent a minute.
  */
 
-const MARKET_TZ = "America/Chicago";
+export const TEST_LOCALE_TZ = "America/Chicago";
 
-export function marketDayString(ms: number): string {
+export function marketDayString(ms: number, timeZone = TEST_LOCALE_TZ): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: MARKET_TZ,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -21,7 +22,10 @@ export function isDateOnlyStart(iso: string): boolean {
   return /T00:00(?::00)?(?:\.0+)?(?:Z|[+-]00:00)?$/.test(raw);
 }
 
-export function startDate(iso: string | null | undefined): string | null {
+export function startDate(
+  iso: string | null | undefined,
+  timeZone = TEST_LOCALE_TZ,
+): string | null {
   if (!iso) return null;
   const m = iso.trim().match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2}))?/);
   if (!m) return null;
@@ -29,10 +33,13 @@ export function startDate(iso: string | null | undefined): string | null {
   if (isDateOnlyStart(iso.trim()) || !m[2]) return day;
   const instant = Date.parse(iso);
   if (Number.isNaN(instant)) return day;
-  return marketDayString(instant);
+  return marketDayString(instant, timeZone);
 }
 
-export function startTime(iso: string | null | undefined): string | null {
+export function startTime(
+  iso: string | null | undefined,
+  timeZone = TEST_LOCALE_TZ,
+): string | null {
   if (!iso || isDateOnlyStart(iso.trim())) return null;
   const m = iso.trim().match(/T(\d{2}):(\d{2})/);
   if (!m) return null;
@@ -40,7 +47,7 @@ export function startTime(iso: string | null | undefined): string | null {
   const instant = Date.parse(iso);
   if (Number.isNaN(instant)) return `${m[1]}:${m[2]}`;
   return new Intl.DateTimeFormat("en-GB", {
-    timeZone: MARKET_TZ,
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
