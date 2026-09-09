@@ -25,34 +25,43 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 
 ## Standing PM rule
 
-- Never idle while 1live.co Showing N of M has not moved toward the public desks.
-- This chat closing is not a stop.
-- Ticket A first. Ticket A is not the last ticket. Ticket B is paused until the founder says resume.
+- Ticket B is paused until the founder says resume.
 - Do not replace desk_read.py or desk_publish.py with a stub.
-- After merge: desk-ingest write=true doors=all → open 1live.co and count.
 - Do not merge PR #273.
+- Do not invent a start time. Do not invent a duration.
+- Aggregator jargon is not 1Live taxonomy. Diverse doors in. One card out.
 
-## Clock rule (universal — every aggregator, every input)
+## Translator (many → one)
 
-This applies to Chronicle, Do512, KUTX, Eventbrite, Meetup, ICS, JSON-LD, RSS, civic calendars, claims, and any later door.
+1Live is the one. Every door maps into:
 
-1. A happening exists when a trusted readable door printed a title or a listing URL.
-2. Start date or start time is enough to date the row.
-3. End time and duration are optional. Never hold, drop, or mark ended for a missing end.
-4. Yearless month+day uses complete_house_year (upcoming). Printed 20xx wins. Year never blocks.
-5. Do not invent 17:00 or any minute the door did not print.
-6. Do not invent a 3-hour duration.
-7. A dated row with no end stays on the view through the end of its America/Chicago calendar day.
-8. Night is a view filter, not a column.
+- title
+- when (start date + optional start time)
+- place
+- kind
+- via
 
-Code path: `apply_to_writes` after every `plan()`. Existence ignores when/place/end.
+## When (binding on all current and future work)
 
-## Ticket order (entire Plan)
+Two facts. One happening.
 
-A — Populate. Trusted door + title is enough. Date/place/year/end cannot hold.
-B — Density bar. PAUSED.
-C — Card the visitor sees. Holes allowed. PR #274.
-D — Place is a query. PR #258.
-E — Gather. PR #263.
-F — Pack doors register without a catalog JSON row. PR #262.
+1. **Start date** — the calendar day the door printed. Enough to list.
+2. **Start time** — only if the door printed a clock.
+3. **End date / end time** — optional. Missing end is not ended and not a hold.
+4. **Timezone** — IANA zone on the locale pack (and later the place). Not a hardcoded city. CAPCOG test pack is America/Chicago. London is Europe/London. A new locale is a new pack file.
+5. **Today** is a view filter: that locale’s calendar day. It does not decide what is in the database.
+6. **Year** is current unless that page or site prints a year. Year is not a gate.
+7. Night is a view filter, not a field.
+8. Existence = trusted readable door + title or listing URL. Date, time, place, year, end cannot hold.
+
+Code: `apply_to_writes` after every `plan()`. `web/lib/when.ts` owns date-only vs datetime. Date-only is that locale day, not UTC midnight.
+
+## Ticket order
+
+A — Populate. Trusted door + title is enough.
+B — Density. PAUSED.
+C — Card slots. Holes allowed.
+D — Place is a query.
+E — Gather.
+F — Pack doors without a catalog JSON row.
 G — All locales, all kinds.
