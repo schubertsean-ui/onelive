@@ -1,34 +1,16 @@
-// Build-trigger marker (2026-08-02): forces a fresh PRODUCTION build so the
-// operator-set NEXT_PUBLIC_AUTH_DISABLED=1 (non-Sensitive) is build-inlined into
-// the edge middleware and the open feed serves publicly. Vercel skips production
-// builds for pushes that don't touch web/ (rootDirectory=web), so a web/ change
-// is required to rebuild. No behavior change — see lib/auth.ts / docs/DEPLOY.md.
+// Build-trigger marker (2026-09-09): locale is device or search. CAPCOG is a test filter.
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { authProviderActive } from "../lib/auth";
-// Monitoring GO (founder-ratified 2026-08-03, decision record
-// 2026-08-03_frictionless-nav-geg-monitoring-ratified.md): field CWV
-// (SpeedInsights → real-user LCP/INP/CLS, the R-070 trigger) + aggregate
-// page analytics. Both are NO-OPs until the founder enables them in the
-// Vercel dashboard; neither identifies users (aggregate, cookieless) —
-// consistent with the surveillance-free measurement stance (nav canon §2A).
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata = {
-  // Honest by construction (evaluator #144): no completeness claim ("everything")
-  // and no price-veracity guarantee ("real prices") — those would overclaim on a
-  // public search/social surface. The venue is always the last word.
-  title: "1Live — What's on in Austin",
+  title: "1Live — What's on",
   description:
-    "What's happening in Austin and Central Texas, by date. Pick Today, Tonight, a weekend, a kind. Real listings; the venue is always the last word.",
+    "What's really on — any category, any locale. Today, Tonight, a kind. Real listings. We send you to the specialist.",
 };
 
-// The Clerk auth context is applied ONLY when a provider is actually configured
-// (see lib/auth.ts — the single source of truth). With no provider the app still
-// builds and renders; access control is then decided by middleware.ts, which
-// fails closed unless an explicit disable is declared. This is why the build no
-// longer fails on a missing Clerk key — WITHOUT silently opening the app.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const shell = (
     <html lang="en">
