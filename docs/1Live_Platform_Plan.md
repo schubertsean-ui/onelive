@@ -12,6 +12,8 @@ What it is: a system of record for what’s really on — any category, any loca
 
 Map, not shop. No category weighting. Publishers trusted until proven wrong. On-device plans. Heartbeat = de-identified pulse. Beautiful + automagical. Anti-attention. Trust serves the vision. We send people to specialists. No pay-to-rank.
 
+Global-core lock: ONE-LIVE-VISION.md.
+
 ## Goals
 
 1. Answer tonight in under 10 seconds.
@@ -23,9 +25,26 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 7. No sponsored discovery.
 8. Heartbeat is city pulse, not a person.
 
+## Alignment (independent of tickets)
+
+M checks Vision lock + Goals every hour. docs/ONE-LIVE-SUCCESS.md.
+A miss kicks the Failure-Correction Process. M does not wait for a ticket. M does not patch.
+
+## Tickets (run continuously)
+
+Tickets are not a queue you pause. They run at the same time.
+Each ticket uses the 15-step Process when it misses its own bar.
+
+A — Populate. Trusted door + title is enough.
+B — Density. 100% of that locale’s counted union on 1Live.
+C — Card slots. Holes allowed.
+D — Place is a query.
+E — Gather.
+F — Pack doors without a catalog JSON row.
+G — All locales, all kinds.
+
 ## Standing PM rule
 
-- Ticket B is paused until the founder says resume.
 - Do not replace desk_read.py or desk_publish.py with a stub.
 - Do not merge PR #273.
 - Do not invent a start time. Do not invent a duration.
@@ -33,35 +52,8 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 
 ## Translator (many → one)
 
-1Live is the one. Every door maps into:
+1Live is the one. Every door maps into title / when / place / kind / via.
 
-- title
-- when (start date + optional start time)
-- place
-- kind
-- via
+## When (binding)
 
-## When (binding on all current and future work)
-
-Two facts. One happening.
-
-1. **Start date** — the calendar day the door printed. Enough to list.
-2. **Start time** — only if the door printed a clock.
-3. **End date / end time** — optional. Missing end is not ended and not a hold.
-4. **Timezone** — IANA zone on the locale pack (and later the place). Not a hardcoded city. CAPCOG test pack is America/Chicago. London is Europe/London. A new locale is a new pack file.
-5. **Today** is a view filter: that locale’s calendar day. It does not decide what is in the database.
-6. **Year** is current unless that page or site prints a year. Year is not a gate.
-7. Night is a view filter, not a field.
-8. Existence = trusted readable door + title or listing URL. Date, time, place, year, end cannot hold.
-
-Code: `apply_to_writes` after every `plan()`. `web/lib/when.ts` owns date-only vs datetime. Date-only is that locale day, not UTC midnight.
-
-## Ticket order
-
-A — Populate. Trusted door + title is enough.
-B — Density. PAUSED.
-C — Card slots. Holes allowed.
-D — Place is a query.
-E — Gather.
-F — Pack doors without a catalog JSON row.
-G — All locales, all kinds.
+Two facts. Start date is enough. Start time only if printed. End optional. Timezone from the locale pack. Today is a filter, not a gate.
