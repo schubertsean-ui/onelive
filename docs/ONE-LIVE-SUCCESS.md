@@ -1,43 +1,36 @@
 # 1Live Success catalog
 
-Source of truth for M (Monitor). Hourly alignment check.
-A miss kicks Process step 1: docs/ONE-LIVE-FIX-LOOP.md.
+M probes this every hour. A miss kicks Fix Loop step 1.
+Source of truth for wording: docs/1Live_Platform_Plan.md and ONE-LIVE-VISION.md.
 
-Global-core Vision is ONE-LIVE-VISION.md (the lock) plus what 1Live is.
-Goals are how Vision is achieved. Tickets are not Success.
+## Global-core Vision (this is Success at the world layer)
 
-## Global-core Vision — Success looks like
+A world where every live activity is easy to find, fairly represented, and culturally valued.
+At scale: let culture grow without being stripped of its soul.
+1Live is the ethical heartbeat of culture.
 
 What it is: a system of record for what’s really on — any category, any locale, person, organization, group, activity, artist, performance, and place-first — a happening.
 
-The world: every live activity is easy to find, fairly represented, and culturally valued. Culture keeps its soul. 1Live is the ethical heartbeat of culture.
+If the live system shrinks that sentence, that is a Vision miss. M flags it.
 
-| Lock (ONE-LIVE-VISION.md) | Success looks like | Probe |
-|---|---|---|
-| Map, not shop | We map what is on. We do not sell the map | No pay-to-rank. Via goes to the specialist |
-| Every category, any locale | No refused category. No refused locale | A new locale is a pack. A new kind is listed |
-| No category weighting | Model does not prefer music over civic or the reverse | Kind list is flat. Other is residual |
-| Publishers trusted until wrong | One trusted door is enough. Disputed is shown | No second-desk hold. Disputed still prints |
-| On-device plans | Intent lives on the device | No server behavior log of a person’s plan |
-| Heartbeat = de-identified pulse | City pulse, not a person | No re-identification |
-| Beautiful + automagical | Fast, quiet, no ceremony in the product | Tonight answers without a dashboard |
-| Trust serves the vision | Trust is infrastructure, not the product | A trust gate is not a shop window |
+## Global-core Goals (this is Success at the goal layer)
 
-## Goals — Success looks like
+1. Answer tonight in under 10 seconds.
+2. Every real activity findable. Discovery never for sale.
+3. Time given back.
+4. Listed by default if it is on.
+5. Places appear from activity, not payment.
+6. Social validates, never defines.
+7. No sponsored discovery.
+8. Heartbeat is city pulse, not a person.
 
-| Goal | Success looks like | Probe |
-|---|---|---|
-| 1. Answer tonight in under 10 seconds | Locale page loads and answers what’s on | Open 1live.co. Time to first listings |
-| 2. Every real activity findable. Discovery never for sale | 100% of that locale’s counted union is on 1Live | Live N vs union. No paid slot |
-| 3. Time given back | One place to look | Default view is the window they asked |
-| 4. Listed by default if it is on | Trusted door + title is a row. Views filter only | Catalog holds it. Filter does not delete |
-| 5. Places appear from activity, not payment | Place exists because a happening named it | No paid place |
-| 6. Social validates, never defines | A post alone does not create the happening | Via is desk, official, civic, or claim |
-| 7. No sponsored discovery | Rank is not sold | No sponsor field on the default river |
-| 8. Heartbeat is city pulse, not a person | Pulse is de-identified | No person-tracking |
+A Goal miss is a failure. Ticket bars and engineering probes only explain *why* a Goal missed.
 
-## How M uses this (hourly)
+## Hourly M check
 
-Each hour: walk Vision lock rows, then Goal rows.
-If any probe is not Success: write which Vision line or Goal missed, actual vs Success, start Process step 1.
-M does not patch.
+Each hour M asks:
+- Does 1live.co still serve the Vision sentence (findable, fair, any category, any locale, a happening)?
+- Which Goals 1–8 are PASS / FAIL / UNVERIFIED on the live locale?
+- If any FAIL → Find Failure. M does not patch.
+
+Locale = device or search. Austin is the test pack.
