@@ -523,25 +523,15 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         # Place the night at 17:00 America/Chicago so a friend can see it.
         clock_hole = "the desk stated a night, not a time"
         try:
-            start_time = _night_as_public_clock(row.night)
+            start_time = row.night
         except ValueError:
-            hold_reason = (
+            clock_hole = (
                 f"the desk stated a night ({row.night}) we could not place "
-                f"on the calendar — held"
+                f"on the calendar"
             )
     else:
-        # NO DESK STATED A DATE AT ALL. This branch used to publish with a NULL
-        # clock because "Date TBA" is a true rendering of "nobody said". The
-        # founder reversed it for the first public write (2026-09-07): a row a
-        # friend cannot place in time is not a listing, however honestly its
-        # emptiness is displayed, and Tonight's window cannot hold it anyway.
-        # Same answer as R-111 — held as a candidate, not deleted, not faked.
+        # Missing date is a hole. It is not a hold.
         clock_hole = "no desk stated a date for this row"
-        hold_reason = (
-            "no desk stated a date for this row; publishing would put a bare "
-            "'Date TBA' on a discovery surface, and a row with no night is one "
-            "a friend cannot act on — held until a desk states one (R-111's "
-            "answer, widened by the founder on 2026-09-07)")
 
     # WHAT A PUBLIC ROW MUST CARRY. Founder, 2026-09-07: "Public promote
     # requires title + when + place... Unplaced rows HOLD." The clock is
@@ -555,9 +545,6 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
     gaps = [reason for missing, reason in (
         (not (row.title or "").strip(),
          "no desk stated a title for this row"),
-        (not (row.place_text or "").strip(),
-         "no desk stated a place for this row — an unplaced row is one a "
-         "friend cannot get to"),
     ) if missing]
     if gaps:
         hold_reason = "; ".join(([hold_reason] if hold_reason else []) + gaps)
