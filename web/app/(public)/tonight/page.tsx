@@ -21,7 +21,22 @@ import FeedApp from "./FeedApp";
 // client hides only what has genuinely ended (a time filter, never a trust one).
 export const dynamic = "force-dynamic";
 
-export default async function TonightPage() {
+// Next 15 hands searchParams as a PROMISE. The props type must not itself be
+// optional (`= {}` would widen it to `… | undefined`, which fails the generated
+// PageProps constraint at build time); the runtime nullish guards below are
+// what let page.render.test.tsx call this with no arguments at all.
+export default async function TonightPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await (props ?? {}).searchParams) ?? {};
+  const placeParam = typeof sp.place === "string" ? sp.place : "";
+  const regionParam = typeof sp.region === "string" ? sp.region : "";
+  const initialSearch = [
+    placeParam && `place=${encodeURIComponent(placeParam)}`,
+    regionParam && `region=${encodeURIComponent(regionParam)}`,
+  ].filter(Boolean).join("&");
+  const initialQs = initialSearch ? `?${initialSearch}` : "";
+
   // SYNTHETIC QA fixture mode (visual regression R-002 / a11y audits) — fully
   // fictional events, frozen clock, visible banner; fail-closed off unless the
   // server env carries ONELIVE_QA_FIXTURES=1 (never set in any deployment).
@@ -36,7 +51,7 @@ export default async function TonightPage() {
         <div className="qanote" role="note">
           SYNTHETIC QA FIXTURES — fictional events for rendering checks, not real listings
         </div>
-        <FeedApp events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock />
+        <FeedApp events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock initialSearch={initialQs} />
       </>
     );
   }
@@ -136,5 +151,5 @@ export default async function TonightPage() {
     );
   }
 
-  return <FeedApp events={events} serverNowMs={nowMs} />;
+  return <FeedApp events={events} serverNowMs={nowMs} initialSearch={initialQs} />;
 }
