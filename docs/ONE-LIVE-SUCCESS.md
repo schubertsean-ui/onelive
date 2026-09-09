@@ -1,30 +1,37 @@
 # 1Live Success catalog
 
-What Success looks like for each aspect of the platform.
-The Monitor (M) uses this list. A miss is a failure. That miss starts step 1 of `docs/ONE-LIVE-FIX-LOOP.md`.
+Aligned to Vision and Goals. The Monitor (M) probes these. A miss starts step 1 of `docs/ONE-LIVE-FIX-LOOP.md`.
 
-Universal. Any locale. Ticket bars are instances of these aspects.
+## Vision
 
-Done for any aspect is observed on the live system that aspect owns — usually https://1live.co. GitHub green is not Success.
+A world where every live activity is easy to find, fairly represented, and culturally valued. At scale: let culture grow without being stripped of its soul. 1Live is the ethical heartbeat of culture.
 
-## Aspects and Success
+What it is: a system of record for what’s really on — any category, any locale, person, organization, group, activity, artist, performance, and place-first — a happening.
 
-| Aspect | Success looks like | Probe |
+## Goals → Success → Probe
+
+| Goal | Success looks like | Probe |
 |---|---|---|
-| Site | 1live.co and /tonight load | HTTP page shows the product, not an error |
-| Catalog | A trusted readable door + title is a row | That happening can be found in the catalog |
-| View | A view filter hides nothing that belongs in that window | Today / All upcoming / searched locale show the rows the catalog holds for that filter |
-| Density | 100% of that locale’s counted aggregator union is on 1Live | Live unique N ≥ union U (title + when + place = one) |
-| When | Start date is enough; start time only if printed; timezone is the locale pack | Date-only stays that locale day; no invented clock; no invented duration |
-| Card | Printed fields came from a door; holes are holes | No invented title, place, time, or price |
-| Ingest | The write job finishes and applies the current translator | desk-ingest conclusion success AND no missing-name crash |
-| Deploy | Live is running master | Production SHA is master tip (or newer ingest on that tip) |
-| Module | Product files are real modules | No `SEE_FILE`, no empty stub on desk_read / desk_publish / feed |
-| Locale | A new city is a pack, not a rewrite | Timezone and desks come from the pack; device or search picks the locale |
-| Trust | One trusted door is enough; disputed is shown | No second-desk hold; no hide for missing end or missing category |
+| 1. Answer tonight in under 10 seconds | The locale page loads and answers what’s on | Open 1live.co / that locale. Time to first listings |
+| 2. Every real activity findable. Discovery never for sale | 100% of that locale’s counted union is on 1Live. No pay-to-rank | Live unique N vs union. No paid slot |
+| 3. Time given back | Person finds the happening without hunting desks | Default view shows the window they asked |
+| 4. Listed by default if it is on | Trusted door + title is a row. Views filter; they do not delete | Catalog holds the row. All upcoming ≥ Today |
+| 5. Places appear from activity, not payment | Place exists because a happening named it | Place row has a happening; no paid place |
+| 6. Social validates, never defines | A social post alone does not create the happening | Source class; via is a desk or claim |
+| 7. No sponsored discovery | Rank is not sold | No sponsor field on the default river |
+| 8. Heartbeat is city pulse, not a person | Pulse is de-identified | No person-tracking on Heartbeat |
+
+Vision constraints that ride with every Goal:
+
+- Fairly represented — holes stay holes. Nothing invented.
+- Culturally valued — no slighting venue copy.
+- Any category, any locale — pack + IANA zone. Device or search picks locale.
+- Map, not shop — we send people to specialists.
 
 ## How M uses this
 
-For each aspect: observe the probe. If the probe is not Success, that is a failure.
-M writes: aspect, actual, Success from this table, then starts the 15-step process at step 1.
+Probe the Goal row. If the probe is not Success, that is a failure.
+M writes: Goal number, actual, Success from this table, then starts the 15-step process at step 1.
 M does not patch.
+
+Ingest crashes, stubs, and missed deploys are *causes* (step 2), not Goals.
