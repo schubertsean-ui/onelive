@@ -1,6 +1,6 @@
 # 1Live Platform Plan v4
 
-PM guiding document. Lives on master. Read this file first on every run.
+PM guiding document. Lives on master. Every agent reads this first.
 
 Done is not a PR. Done is a person opening https://1live.co and seeing the activity.
 
@@ -23,15 +23,40 @@ Map, not shop. No category weighting. Publishers trusted until proven wrong. On-
 7. No sponsored discovery.
 8. Heartbeat is city pulse, not a person.
 
-## Standing PM rule (permanent)
+## Standing PM rule
 
 - Never idle while 1live.co Showing N of M has not moved toward the public desks.
-- Always read this file on master before writing code.
+- Read this file on master before writing code.
 - One chat = one ticket = one PR. Ticket A first: populate.
 - Do not replace desk_read.py or desk_publish.py with a stub.
 - After merge: desk-ingest write=true doors=all → open 1live.co and count.
 - If the count did not move, the work failed. Keep going.
 - Do not merge PR #273.
+
+## Claude lock (must not diverge)
+
+Claude may only work Ticket A until 1live.co N moves.
+
+Allowed files:
+- tools/desk_ingest.py (call apply_to_writes after plan())
+- worker/locale_pack/desk_publish.py (edit in place; keep >10KB)
+- worker/locale_pack/desk_read.py (edit _house_when only; keep >10KB)
+- worker/locale_pack/existence.py
+- worker/locale_pack/house_year.py
+- worker/locale_pack/ticket_a_apply.py
+- tests for those files only
+- tickets/TICKET-A-POPULATE.md
+
+Forbidden:
+- stub, PLACEHOLDER, see-file, delete desk_read.py
+- merge #273
+- invent T17:00 or any minute a desk did not print
+- hold a titled row for missing date, place, or year
+- ingest.yml, warehouse, card rooms, ceremony, STATE, hats, Kaizen
+- a second ticket, a second PR, a new locale, a new workflow except desk-ingest dispatch
+- rewriting this plan or the law files
+
+If a request is not in Allowed, stop and say refused.
 
 ## Ticket A
 

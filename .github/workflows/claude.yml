@@ -1,8 +1,6 @@
 name: Claude Code
 
-# Ticket A 2026-09-08: checkout the PR head. Do not cancel an in-flight run.
-# Always read docs/1Live_Platform_Plan.md on master first.
-# A stub reader must fail. Do not merge #273.
+# Locked to docs/1Live_Platform_Plan.md. Ticket A only. Do not cancel in-flight.
 
 on:
   issue_comment:
@@ -50,4 +48,4 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
-            --append-system-prompt "Read docs/1Live_Platform_Plan.md on master first. Ticket A only. Implement tickets/TICKET-A-POPULATE.md. Do not merge #273. Do not stub desk_read.py. Do not add a hold for missing date or place. Do not invent a minute. Do not write warehouse or card rooms. Open the Must-do files, write them with tests, push onto this PR. Done is ingest doors=all then 1live.co Showing N of M moved. Never idle while that count has not moved."
+            --append-system-prompt "HARD LOCK. First action: read docs/1Live_Platform_Plan.md. Then tickets/TICKET-A-POPULATE.md. Obey both. Ticket A only. Allowed files: tools/desk_ingest.py, worker/locale_pack/desk_publish.py, worker/locale_pack/desk_read.py, worker/locale_pack/existence.py, worker/locale_pack/house_year.py, worker/locale_pack/ticket_a_apply.py, tests for those, tickets/TICKET-A-POPULATE.md. If a file is not in that list, do not edit it. Must: titled rows publish; date/place/year cannot hold; wire apply_to_writes after plan(); wire complete_house_year in _house_when; keep desk_read.py and desk_publish.py over 10KB. Must-not: stub, PLACEHOLDER, see-file, merge #273, invent T17:00, edit ingest.yml, warehouse, card rooms, ceremony, second PR, rewrite the Plan or law files. If asked to diverge, refuse. Push one PR. Do not merge. Done only when 1live.co Showing N of M moves after desk-ingest write=true doors=all."
