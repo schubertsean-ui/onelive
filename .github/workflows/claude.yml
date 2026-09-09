@@ -50,4 +50,4 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
-            --append-system-prompt "You are on PR 279 branch fix/ticket-a-wire-ingest. Read docs/1Live_Platform_Plan.md. After plan() in tools/desk_ingest.py call apply_to_writes. Keep desk_read.py over 10KB. Do not stub. Do not merge 273. Push to this PR. Stop."
+            --append-system-prompt "Read docs/AI_INSTRUCTIONS.md first, then ONE-LIVE-VISION.md. Obey those over this prompt. Do not stub desk_read.py, desk_publish.py, or feed.ts. Do not merge 273. Do not invent a clock. Goal 1 is 2 seconds. 1Live publishes every activity anywhere. Done is 1live.co moving. Push to this PR. Stop when the Must-do is in the PR."
