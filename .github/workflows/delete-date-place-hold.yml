@@ -1,0 +1,51 @@
+name: delete-date-place-hold
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/delete-date-place-hold.yml']
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Remove date and place holds
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('worker/locale_pack/desk_publish.py')
+          t = p.read_text()
+          old_none = '''        clock_hole = "no desk stated a date for this row"
+        hold_reason = (
+            "no desk stated a date for this row; publishing would put a bare "
+            "'Date TBA' on a discovery surface, and a row with no night is one "
+            "a friend cannot act on — held until a desk states one (R-111's "
+            "answer, widened by the founder on 2026-09-07)")'''
+          new_none = '''        clock_hole = "no desk stated a date for this row"
+        # Date is a hole. Not a hold. Existence is validated door + title.'''
+          if old_none not in t:
+              raise SystemExit('date-hold block missing')
+          t = t.replace(old_none, new_none, 1)
+          old_gaps = '''        (not (row.title or "").strip(),
+         "no desk stated a title for this row"),
+        (not (row.place_text or "").strip(),
+         "no desk stated a place for this row — an unplaced row is one a "
+         "friend cannot get to"),'''
+          new_gaps = '''        (not (row.title or "").strip(),
+         "no desk stated a title for this row"),'''
+          if old_gaps not in t:
+              raise SystemExit('place-hold block missing')
+          t = t.replace(old_gaps, new_gaps, 1)
+          p.write_text(t)
+          print('holds removed', 'hold until a desk states one' not in t)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add worker/locale_pack/desk_publish.py
+          git diff --cached --quiet || git commit -m "Delete date/place holds. Validated door + title publishes."
+          git push origin HEAD:master
