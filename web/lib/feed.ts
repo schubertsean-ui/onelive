@@ -192,7 +192,7 @@ export function viewCounts(
 
 export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
   if (tab.key === "all") return true;
-  if (!e.start_time) return false; // date-TBA only shows under "All"
+  if (!e.start_time) return tab.key === "today" || tab.key === "all";
   const t = Date.parse(e.start_time);
   if (Number.isNaN(t)) return false;
   if (t >= tab.startMs && t < tab.endMs) return true;
