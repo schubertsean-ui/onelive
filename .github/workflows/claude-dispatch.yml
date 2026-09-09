@@ -1,0 +1,44 @@
+name: Claude Ticket A dispatch
+
+# PM can start Claude without an @claude comment.
+# Checks out PR #279 head. Automation mode (prompt set).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: claude-ticket-a-dispatch
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout PR 279
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/279/head
+          fetch-depth: 0
+
+      - name: Run Claude on PR 279
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Read docs/1Live_Platform_Plan.md and .claude/TICKET_A_LOCK.md.
+            You are on pull request 279, branch fix/ticket-a-wire-ingest.
+            In tools/desk_ingest.py after writes = plan(...) add:
+              from worker.locale_pack.ticket_a_apply import apply_to_writes
+              writes = apply_to_writes(writes)
+            Keep desk_read.py over 10KB. Do not stub. Do not merge. Do not edit ingest.yml.
+            Commit and push to fix/ticket-a-wire-ingest.
+          claude_args: |
+            --max-turns 40
+            --permission-mode acceptEdits
+            --allowedTools Read,Edit,Write,Glob,Grep,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*)
