@@ -1,57 +1,43 @@
-# 1Live Fix Loop (non-violable)
+# 1Live Failure-Correction Process (non-violable)
 
-Universal. Any locale. Any ticket. Ceremony off.
+Universal. Any failure. Any ticket. Any locale. Ceremony off.
 
-Done is a person opening https://1live.co (or that locale’s live view) and seeing the activity.
-GitHub green is not done. Master is not live.
+This process does not belong to Ticket B. Ticket B has a bar. Other tickets have other bars. The process is how any miss is corrected.
 
-## Success (Ticket B and every later ticket)
+## The loop (15 steps — do not skip, do not specialize)
 
-Right: 100% of the counted union of that locale’s public aggregators is on 1Live.
-Wrong: anything less.
-Same title + when + place = one happening.
-
-## The loop (15 steps — do not skip)
-
-1. **Find failure** — Compare live N to the union for that locale. If live < 100% of the union, it is a failure. Name expected vs actual.
-2. **Determine why** — One cause. Catalog hole, view hide, deploy miss, or invented clock. Not a list of theories.
-3. **Define success** — Write the number that must appear on the live page. Example: Today = Chronicle today union for this locale.
-4. **Prescribe the fix** — One change that produces that number. File or step. No second ticket.
-5. **Search the fix library** — `docs/fix-library/` on master. If this failure already has a named fix, use it.
-6. **Reuse or create** — Existing fix wins. New fix only if the library has no match. New fix gets a name.
-7. **Apply** — Put the fix in the product code. No stub. No SEE_FILE. Do not invent a clock or a duration.
+1. **Find failure** — The current result is not Success as defined for this work.
+2. **Determine why** — One cause.
+3. **Define success** — Write the intended result for *this* failure. It may be a count, a page behavior, a file on master, a deploy, or any other observable. Write it before the patch.
+4. **Prescribe the fix** — One change that produces that result.
+5. **Search the fix library** — `docs/fix-library/` on master. Reuse if this failure already has a named fix.
+6. **Reuse or create** — Existing fix wins. New fix only if there is no match.
+7. **Apply** — Put the fix in the product. No stub. No SEE_FILE.
 8. **Confirm the change exists** — The file on master contains the fix. SHA named.
-9. **Publish to live** — Vercel ships master. If the hole is catalog, desk-ingest write=true doors=all for that locale pack.
-10. **Verify publish** — Production is running that SHA (or the ingest run finished). Not “we pushed.”
-11. **Verify the failure is gone** — Open the live page. Count. Pass only if success from step 3 is true.
-12. **Save the fix to the library** — One page in `docs/fix-library/`: failure, cause, fix, SHA, live result.
+9. **Publish to live** — Ship what must be on the live system for this failure (site, ingest, or both).
+10. **Verify publish** — Production is running that change. Not “we pushed.”
+11. **Verify the failure is gone** — The live system now matches success from step 3.
+12. **Save the fix to the library** — Failure, cause, fix, SHA, live result.
 13. **Verify the library entry** — That page is on master and matches what shipped.
-14. **If success** — Stop.
-15. **If not success** — Do not pile a second theory. Return to step 1 with the new actual N.
+14. **If Success** — Stop.
+15. **If not Success** — Return to step 1. Do not pile a second theory.
 
-## Who does which steps
+## Manner (how we staff it — not extra steps)
 
 - Definer: 1–4
 - Librarian: 5, 12–13
 - Fixer: 6–8
 - Publisher: 9–11
-- Anyone may run 14–15. Nobody may declare success except step 11.
+- Definer is not Fixer.
+- Nobody may declare Success except step 11.
 
-Definer is not Fixer.
+## Ticket bars are not this process
 
-## World-class add-ons (do not skip these either)
-
-- Write success (step 3) **before** any patch.
-- One cause, one fix, one count. Toyota stop-the-line.
-- Search known fixes before writing code. SRE runbook first.
-- Separate “deployed” (step 10) from “bar recovered” (step 11). Stripe / Google SRE.
-- Blameless library: record what hid the row, not who typed.
-- Locale is device or search. Timezone is that locale pack. Austin is the test pack, not the product.
+Example only — Ticket B’s Success definition is: 100% of that locale’s counted aggregator union is on 1Live. That is a bar. It is not step 3 of the process. Step 3 always writes Success for the failure in front of you.
 
 ## Forbidden
 
-- Calling a green job success.
-- Stubbing desk_read.py or desk_publish.py.
-- Inventing a start time or a duration.
+- Rewriting these 15 steps to fit one ticket.
+- Calling a green job Success.
 - Starting step 6 before steps 3–5.
 - A second fix while step 11 is still fail.
