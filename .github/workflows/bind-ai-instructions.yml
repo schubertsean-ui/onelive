@@ -1,0 +1,34 @@
+name: bind-ai-instructions
+on:
+  workflow_dispatch:
+jobs:
+  bind:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Prepend standing block if missing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('CLAUDE.md')
+          t = p.read_text()
+          needle = 'docs/AI_INSTRUCTIONS.md'
+          if needle in t[:800]:
+              print('already bound')
+          else:
+              block = '''# CLAUDE.md \u2014 1LIVE Autonomous Build Charter\nThis file is read by Claude Code at the start of every session.\n\n## Standing (read first)\nRead docs/AI_INSTRUCTIONS.md then ONE-LIVE-VISION.md.\n1Live accurately publishes every activity anywhere in the world.\nGoal 1: answer tonight in under 2 seconds.\nDone = a person opens 1live.co and sees the activity.\nAny failure uses docs/ONE-LIVE-FIX-LOOP.md. Tickets run continuously. Alignment is independent of tickets.\nDo not invent a clock. Do not stub. Do not merge #273.\n\n'''
+              idx = t.find('## Ceremony is off')
+              p.write_text(block + (t[idx:] if idx >= 0 else t))
+              print('prepended')
+          PY
+      - name: Commit if changed
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add CLAUDE.md
+          git diff --cached --quiet || git commit -m "CLAUDE.md reads AI_INSTRUCTIONS first. Goal 1 is 2 seconds."
+          git push origin HEAD:master
