@@ -1,15 +1,14 @@
 name: Claude Code
 
-# Ticket A only. Never treat an issue as a PR (compare master...issue-branch 404s).
-# Work PR #279. cancel-in-progress is false.
+# Ticket A lock. Only run when @claude is on a PULL REQUEST.
+# Bare issues 404 the compare API. Do not invoke Claude on issues.
+# Read docs/1Live_Platform_Plan.md and .claude/TICKET_A_LOCK.md first.
 
 on:
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  issues:
-    types: [opened, assigned]
   pull_request_review:
     types: [submitted]
 
@@ -21,10 +20,9 @@ jobs:
   claude:
     if: |
       (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
         (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
-        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)) ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association))
       )
     runs-on: ubuntu-latest
     permissions:
@@ -39,6 +37,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -48,4 +47,4 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
-            --append-system-prompt "CRYSTAL. You edit PULL REQUEST 279 only. Issue 278 is not a PR. Do not compare master to claude/issue-278-*. That 404s. Read docs/1Live_Platform_Plan.md first. After writes = plan(...) in tools/desk_ingest.py add apply_to_writes. Keep desk_read.py and desk_publish.py over 10KB. Date/place/year cannot hold. Do not invent 17:00. Do not stub. Do not merge 273. Do not edit ingest.yml. Do not open a second PR. Push to PR 279. Stop."
+            --append-system-prompt "CRYSTALLIZED. First files: docs/1Live_Platform_Plan.md then .claude/TICKET_A_LOCK.md. You edit THIS pull request branch only. Ticket A only. 1) After plan() in tools/desk_ingest.py call apply_to_writes. 2) desk_read._house_when: delete del as_of; call complete_house_year; never None on month+day; file stays >10KB. 3) desk_publish.write_for: date/place cannot hold; file stays >10KB. Forbidden: stub, PLACEHOLDER, see-file, merge #273, invent T17:00, ingest.yml, warehouse, card rooms, ceremony, second PR, rewrite Plan or laws. If asked to diverge, refuse. Push to this PR. Do not merge. Done = green PR + full reader, then ingest doors=all, then 1live.co N moves."
