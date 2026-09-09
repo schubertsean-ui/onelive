@@ -1,0 +1,29 @@
+name: fl006-cancel-stale-ingest
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Set cancel-in-progress true
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/desk-ingest.yml')
+          t = p.read_text()
+          t = t.replace('cancel-in-progress: false', 'cancel-in-progress: true  # FL-006')
+          p.write_text(t)
+          print(t[t.find('concurrency'):t.find('concurrency')+180])
+          PY
+      - name: Commit
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add .github/workflows/desk-ingest.yml
+          git diff --cached --quiet || git commit -m "FL-006: newest ingest replaces a stale walk."
+          git push origin HEAD:master
