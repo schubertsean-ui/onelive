@@ -14,19 +14,9 @@ import {
 } from "../../../qa/fixtures";
 import FeedApp from "./FeedApp";
 
-// Server component — reads the REAL licensed events from Supabase at request
-// time and hands them to the interactive client feed (date/filter/ask/plan).
-// The fetch never filters on confidence (disputed always included); it starts a
-// little before "now" so events already in progress are still surfaced, and the
-// client hides only what has genuinely ended (a time filter, never a trust one).
 export const dynamic = "force-dynamic";
 
 export default async function TonightPage() {
-  // SYNTHETIC QA fixture mode (visual regression R-002 / a11y audits) — fully
-  // fictional events, frozen clock, visible banner; fail-closed off unless the
-  // server env carries ONELIVE_QA_FIXTURES=1 (never set in any deployment).
-  // The status filter mirrors the ONLY filter the real query applies
-  // (scheduled+moved — a time/status filter, never a confidence one).
   if (qaFixturesEnabled()) {
     const fixture = qaFixtureEvents().filter(
       (e) => e.status === "scheduled" || e.status === "moved",
@@ -48,7 +38,7 @@ export default async function TonightPage() {
           <div className="mast"><h1>1LIVE · Austin</h1></div>
           <div className="err">
             Connecting to live data… set <b>SUPABASE_URL</b> and{" "}
-            <b>SUPABASE_ANON_KEY</b> (the Supabase publishable key) in the
+            <b>NEXT_PUBLIC_SUPABASE_ANON_KEY</b> (the Supabase publishable key) in the
             deployment environment and redeploy.
           </div>
         </div>
@@ -60,15 +50,11 @@ export default async function TonightPage() {
   let events: LicensedEvent[] = [];
   let error: string | null = null;
   try {
-    // 12h back so an event already under way is still shown ("on now"); the
-    // client drops anything actually ended.
-    const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
-    // Six months forward — Ticketmaster already stores that horizon; a 21-day
-    // fetch made months-out rows invisible even under "All upcoming".
+    // 36h back so a date-only start stored as YYYY-MM-DD (UTC midnight)
+    // is still in the window for the Chicago day. 12h cut those rows
+    // before Today could see them. Client still hides what has ended.
+    const fromISO = new Date(nowMs - 36 * 60 * 60 * 1000).toISOString();
     const toISO = new Date(nowMs + 180 * 24 * 60 * 60 * 1000).toISOString();
-    // Ticket A / Coverage Law: a missing clock is a hole, not a reason to
-    // omit the row from the page. Today still filters by day. All upcoming
-    // is where undated published rows are viewable and tappable.
     const window = { fromISO, toISO, includeNullClock: true as const };
     let licensedFailed = false;
     let promotedFailed = false;
@@ -87,42 +73,15 @@ export default async function TonightPage() {
     if (licensedFailed && promotedFailed) {
       throw new Error("Could not load events");
     }
-    // MARKET BOUNDARY — a VIEW SCOPE from here on, not a server-side delete
-    // (Coverage Law 2026-09-01: "CAPCOG is the TEST LOCALE and a view filter,
-    // not the map … Views must not delete catalog rows").
-    //
-    // What changed and what did NOT: the classification is untouched
-    // (lib/region.ts still decides inside/outside/unrecognised the same way,
-    // and unrecognised is still KEPT), and the DEFAULT view the reader lands on
-    // is still CAPCOG-only. What changed is that the page now receives the
-    // whole window and applies the scope in the client, so it can (a) say how
-    // many rows the scope is holding back and (b) let the reader clear it. The
-    // old shape made the dropped rows unobservable, which meant the feed could
-    // not tell a market boundary apart from a coverage gap — the exact
-    // invisible-gap failure this file's own comment warns about, one level up.
-    //
-    // The boundary still holds on every surface: FeedApp scopes to CAPCOG by
-    // default, and /tonight/[id] labels an outside-market row as outside rather
-    // than presenting it as part of the test view.
     const all: LicensedEvent[] = [...licensed, ...promoted];
     const region = filterToCapcog<LicensedEvent>(all);
     if (region.droppedOutside.length) {
       console.warn(
         `[region] ${region.droppedOutside.length} event(s) outside CAPCOG are ` +
-        `held back by the DEFAULT view scope (still in the catalog, counted in ` +
-        `the "of M" total when the reader clears the region filter): ` +
+        `held back by the DEFAULT view scope (still in the catalog): ` +
         [...new Set(region.droppedOutside.map((e) => e.venue_city))].join(", "),
       );
     }
-    if (region.unknown.length) {
-      console.warn(
-        `[region] ${region.unknown.length} event(s) have an unrecognised city ` +
-        `and were SHOWN (not dropped): ` +
-        [...new Set(region.unknown.map((e) => e.venue_city))].join(", "),
-      );
-    }
-    // Attach approved Spark Lines by performer (additive; never throws, never
-    // reorders/filters — display only). A read failure leaves the feed unchanged.
     events = await withSparkLines(all);
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
