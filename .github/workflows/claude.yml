@@ -1,6 +1,7 @@
 name: Claude Code
 
-# Locked to docs/1Live_Platform_Plan.md. Ticket A only. Do not cancel in-flight.
+# Ticket A only. Never treat an issue as a PR (compare master...issue-branch 404s).
+# Work PR #279. cancel-in-progress is false.
 
 on:
   issue_comment:
@@ -38,7 +39,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
-
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -48,4 +48,4 @@ jobs:
             --max-turns 80
             --permission-mode acceptEdits
             --allowedTools Read,Edit,Write,Glob,Grep,WebFetch,Bash(python3:*),Bash(pytest:*),Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(node:*)
-            --append-system-prompt "HARD LOCK. First action: read docs/1Live_Platform_Plan.md. Then tickets/TICKET-A-POPULATE.md. Obey both. Ticket A only. Allowed files: tools/desk_ingest.py, worker/locale_pack/desk_publish.py, worker/locale_pack/desk_read.py, worker/locale_pack/existence.py, worker/locale_pack/house_year.py, worker/locale_pack/ticket_a_apply.py, tests for those, tickets/TICKET-A-POPULATE.md. If a file is not in that list, do not edit it. Must: titled rows publish; date/place/year cannot hold; wire apply_to_writes after plan(); wire complete_house_year in _house_when; keep desk_read.py and desk_publish.py over 10KB. Must-not: stub, PLACEHOLDER, see-file, merge #273, invent T17:00, edit ingest.yml, warehouse, card rooms, ceremony, second PR, rewrite the Plan or law files. If asked to diverge, refuse. Push one PR. Do not merge. Done only when 1live.co Showing N of M moves after desk-ingest write=true doors=all."
+            --append-system-prompt "CRYSTAL. You edit PULL REQUEST 279 only. Issue 278 is not a PR. Do not compare master to claude/issue-278-*. That 404s. Read docs/1Live_Platform_Plan.md first. After writes = plan(...) in tools/desk_ingest.py add apply_to_writes. Keep desk_read.py and desk_publish.py over 10KB. Date/place/year cannot hold. Do not invent 17:00. Do not stub. Do not merge 273. Do not edit ingest.yml. Do not open a second PR. Push to PR 279. Stop."
