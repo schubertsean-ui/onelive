@@ -2,6 +2,7 @@
 
 After plan(): date/place holds become holes.
 After read(): yearless house dates get complete_house_year.
+Start (the day) is enough. End time is optional. Never invent 17:00.
 """
 from __future__ import annotations
 
@@ -39,8 +40,8 @@ def fill_house_date(when_text: Optional[str], as_of: Optional[date] = None) -> O
 
 
 def apply_to_write(write: Any) -> Any:
-    """Keep titled rows. Date and place cannot hold."""
-    extracted = getattr(write, "extracted", None) or {}
+    """Keep titled rows. Date and place cannot hold. Fill house start date."""
+    extracted = dict(getattr(write, "extracted", None) or {})
     title = getattr(write, "title", None) or extracted.get("title")
     listing_url = extracted.get("listing_url")
     old = getattr(write, "hold_reason", None) or ""
@@ -52,6 +53,21 @@ def apply_to_write(write: Any) -> Any:
         title=title,
         listing_url=listing_url,
     )
+    when = extracted.get("when") or getattr(write, "when", None)
+    when_text = (
+        extracted.get("when_text")
+        or getattr(write, "when_text", None)
+        or extracted.get("when")
+        or ""
+    )
+    if not when:
+        filled = fill_house_date(str(when_text) if when_text else None)
+        if filled:
+            extracted["when"] = filled
+            extracted["when_precision"] = "date"
+            write.extracted = extracted
+            if hasattr(write, "when"):
+                write.when = filled
     return write
 
 
