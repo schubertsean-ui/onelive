@@ -1,0 +1,30 @@
+name: include-undated-today
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/include-undated-today.yml']
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('web/lib/feed.ts')
+          t = p.read_text()
+          old = '  if (!e.start_time) return false; // date-TBA only shows under "All"'
+          new = '  if (!e.start_time) return tab.key === "today" || tab.key === "all";'
+          if old not in t:
+              raise SystemExit('inDayTab line missing')
+          p.write_text(t.replace(old, new, 1))
+          print('today includes undated')
+          PY
+      - run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add web/lib/feed.ts
+          git diff --cached --quiet || git commit -m "Today includes listings with no date. Not a hide."
+          git push origin HEAD:master
