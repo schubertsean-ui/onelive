@@ -1,0 +1,28 @@
+name: require-ai-instructions
+on:
+  pull_request:
+  push:
+    branches: [master]
+jobs:
+  required:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every agent surface must name docs/AI_INSTRUCTIONS.md
+        run: |
+          set -e
+          miss=0
+          for f in CLAUDE.md AGENTS.md docs/AI_INSTRUCTIONS.md ONE-LIVE-VISION.md docs/1Live_Platform_Plan.md .github/workflows/claude.yml; do
+            if [ ! -f "$f" ]; then
+              echo "MISSING FILE $f"
+              miss=1
+              continue
+            fi
+            if ! grep -q "docs/AI_INSTRUCTIONS.md" "$f"; then
+              echo "FAIL $f does not require docs/AI_INSTRUCTIONS.md"
+              miss=1
+            else
+              echo "OK $f"
+            fi
+          done
+          exit $miss
