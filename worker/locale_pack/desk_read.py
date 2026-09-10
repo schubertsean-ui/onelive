@@ -59,6 +59,7 @@ from worker.locale_pack.identity_patterns import (
     patterns_for_url,
 )
 from worker.locale_pack.kind_map import KindMap
+from worker.locale_pack.house_dates import house_occurrences
 from worker.locale_pack.pack import KIND_OTHER, Door, ListingSelector
 
 log = logging.getLogger(__name__)
@@ -846,7 +847,7 @@ def row_key(title: str, when: Optional[str], when_text: Optional[str],
     with neither an address nor a date still exists (ONE-LIVE-TRUST.md).
     """
     if listing_url and listing_url.strip():
-        return ("url", listing_url.strip(), "")
+        return ("url", listing_url.strip(), (when or "").strip())
     key = _dedupe_key(title, when, when_text)
     return ("t", key[0], key[1])
 
@@ -1105,10 +1106,28 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
         # On the permalink rung the row's address is the IDENTITY the committed
         # pattern matched, never whichever anchor `_row_fields` read first (a
         # card's ticket link, its venue link, its category link).
-        _add(fields["title"], fields["when"], fields["when_text"],
-             fields["place_text"], identity or fields["listing_url"],
-             labels=tuple(fields.get("category_labels") or ()),
-             hrefs=tuple(fields.get("hrefs") or ()))
+        listing = identity or fields["listing_url"]
+        occs = house_occurrences(
+            fields.get("when_text") or "", html, as_of)
+        if not occs:
+            card = " ".join(
+                part for part in (
+                    fields.get("title"), fields.get("when_text"),
+                    fields.get("place_text"),
+                ) if part)
+            occs = house_occurrences(card, html, as_of)
+        if occs:
+            for night in occs:
+                _add(fields["title"], night["when"],
+                     fields["when_text"], fields["place_text"],
+                     listing,
+                     labels=tuple(fields.get("category_labels") or ()),
+                     hrefs=tuple(fields.get("hrefs") or ()))
+        else:
+            _add(fields["title"], fields["when"], fields["when_text"],
+                 fields["place_text"], listing,
+                 labels=tuple(fields.get("category_labels") or ()),
+                 hrefs=tuple(fields.get("hrefs") or ()))
 
     if len(rows) > MAX_ROWS:
         result.truncated_at = MAX_ROWS

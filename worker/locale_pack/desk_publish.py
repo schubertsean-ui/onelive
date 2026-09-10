@@ -439,7 +439,14 @@ def contradicts(stored: Optional[Mapping[str, Any]],
     contradicts nothing — disputing on it would show a reader MORE agreement as
     a dispute.
     """
-    return [f for f in drift(stored, fresh) if f in CONTRADICTING]
+    out = []
+    for f in drift(stored, fresh):
+        if f not in CONTRADICTING:
+            continue
+        if not stored.get(f) and fresh.get(f):
+            continue
+        out.append(f)
+    return out
 
 
 def describe_drift(stored: Mapping[str, Any], fresh: Mapping[str, Any],
@@ -580,7 +587,7 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         # seam applies its own default rather than this module asserting one.
         "city": None,
         "artist_names": [],
-        "ticket_link": None,
+        "ticket_link": getattr(row, "ticket_link", None),
         "rsvp_link": None,
         "is_private_rsvp": False,
         "private_access": {},
