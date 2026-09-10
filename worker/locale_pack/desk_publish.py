@@ -361,13 +361,19 @@ def ingest_key(row: UnionRow) -> str:
     that reorders between runs, so a key carrying it would write a new row
     every night for the same untitled, undated listing.
     """
+    when = (getattr(row, "night", None) or "")
+    if not when:
+        for member in row.members:
+            if getattr(member.row, "when", None):
+                when = member.row.when
+                break
     if row.basis != BASIS_LOCAL:
-        return row.key
+        return f"{row.key}|{when}" if when else row.key
     url = _listing_url(row)
     if url:
-        return f"url:{url}"
+        return f"url:{url}|{when}"
     member = row.members[0]
-    return f"desk:{member.via}~{member.place}~{member.title_key}"
+    return f"desk:{member.via}~{member.place}~{member.title_key}~{when}"
 
 
 #: Fields whose change means the desk now says something DIFFERENT about this
