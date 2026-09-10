@@ -1,4 +1,5 @@
 import "./flow.css";
+import "./rooms.css";
 import {
   fetchLicensedEvents,
   supabaseConfigured,

@@ -35,6 +35,7 @@ vi.mock("../../../lib/promoted", () => ({
 }));
 vi.mock("./FeedApp", () => ({ default: FeedAppMock }));
 vi.mock("./flow.css", () => ({}));
+vi.mock("./rooms.css", () => ({}));
 
 const row = (over: Record<string, unknown>) => ({
   id: String(Math.random()),
