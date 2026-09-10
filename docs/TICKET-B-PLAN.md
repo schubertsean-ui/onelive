@@ -1,40 +1,36 @@
 # Ticket B plan
 
 Success: 1live.co Today N ≥ that locale’s counted union.
-Test floor: Chronicle today printed count (last human count 196).
-Proof: Showing N of M on https://1live.co and /tonight. Master and green jobs are not proof.
+Test floor: Chronicle today printed count (196 last human count).
+Proof: Showing N on https://1live.co and /tonight. Show everywhere is the catalog check.
+
+Chronicle-only HTML is not the only write. Class A (ICS, JSON-LD, Ticketmaster-style APIs already in the pack) may write at the same time. They must not share the desk-ingest lock in a way that cancels the Chronicle walk.
 
 ## How
 
-1. Write PRE: 1live.co Showing N. Chronicle today printed N.
-2. Grep master: `del as_of` = 0. Date/place hold strings = 0. Today hide-if-no-date = 0.
-3. One ingest: write=true, door=austin-chronicle-eventsearch, SHA = current master product files. No docs-only SHA.
-4. Report must print: CHRONICLE read_n / public_n / LIVE N. Job RED if titled public_n < read_n.
-5. Open 1live.co. POST N vs 196.
-6. If short: Fix Process, one file, delete or modify that line. Repeat 2–5.
-7. Only then next validated desk. Count once (union).
+1. PRE: 1live.co N + Chronicle printed N + each Class A door we will hit.
+2. CI gate: fail if master contains `del as_of`, date/place hold strings, or Today hide-if-no-date.
+3. Chronicle walk: write=true, door=austin-chronicle-eventsearch, current product SHA.
+4. Class A walk: separate job/group so it cannot cancel (3).
+5. Report line required: `DOOR read_n public_n LIVE_N`. Job **fails** if titled public_n < read_n.
+6. POST: 1live.co N and Show everywhere N vs Chronicle 196.
+7. Gap → Fix Process in the owning file. Repeat 2–6.
 
-## Preempt (these are not allowed)
+## Built-in locks (not markdown hope)
 
-| If this happens | Success dies | Preempt |
+| # | Lock | Built as |
 |---|---|---|
-| Tests put the hold back | 196 held again | Delete tests that require date/place hold. CI fails if those strings return. |
-| Cron/ingest on a docs commit | Old reader writes | Ingest only after desk_read / desk_publish / gating / feed / when change. |
-| Green job, nobody opens 1live.co | Fake done | First line after ingest is Showing N. Witness + Publisher use 196 bar. |
-| Walk stops early / no PRE vs 196 | Silent under-count | read_n vs printed 196. Job red if read_n ≪ 196 on a today walk. |
-| CAPCOG treated as the map | Rows exist, we say missing | Show everywhere is the catalog check. CAPCOG is a filter. |
-| New wrapper around write_for | Hold persists | FL-007. Edit write_for only. |
-| Class D bypass | Week wasted, law broken | Unreadable. Stop. Do not fetch. |
-| Second writer cancels the good walk | Fix never lands | One ingest at a time. Do not start a walk to cancel a product walk. |
+| 1 | Tests restore hold | Delete those tests. CI grep fails if hold strings return. |
+| 2 | Docs SHA ingest | desk-ingest skips when the commit touched only docs/**. |
+| 3 | Green without page | Last ingest step curls 1live.co (retry 3). Summary is Showing N. |
+| 4 | Short walk | Job fails if Chronicle today read_n ≪ printed 196. |
+| 5 | CAPCOG as map | Proof records Show everywhere N, not only scoped Tonight. |
+| 6 | Wrapper | CI fails if a new module sets hold_reason for date/place. |
+| 7 | Class D | No fetch. Job lists UNREADABLE and continues other doors. |
+| 8 | Cancel good walk | Chronicle job and Class A job: different concurrency groups. Do not dispatch yaml-only. |
 
-## Tools (existing first)
+## Tools
 
-- 1live.co, Chronicle today page
-- master grep
-- desk-ingest.yml
-- ingest report artifact
-- Fix Process + fix library
-- Witness (after merge), Publisher clock (hourly)
-
-New only if the report cannot print read_n / public_n: one line in tools/desk_ingest.py.
-No new bot.
+Existing: 1live.co, desk-ingest.yml, ingest report, Fix Process, Witness, Publisher clock, pack ICS/JSON-LD doors.
+Add: the grep job, the curl-N step, the read_n line, a second concurrency group for Class A.
+No new bot. No hold wrapper.
