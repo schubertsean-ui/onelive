@@ -82,6 +82,35 @@
   font-style: italic;
 }
 
+.flow .hookrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  position: relative;
+  z-index: 2;
+}
+.flow .hchip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 8px;
+  min-height: 44px;
+  font-size: 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.flow .hchip:focus-visible {
+  outline: 2px solid var(--glow);
+  outline-offset: 2px;
+}
+.flow .vhole {
+  color: var(--dim);
+  font-style: italic;
+}
+
 /* Quiet ? — ≥44px, outside the zone buttons, native details like SparkLineView. */
 .flow .qdisc { margin: 4px 2px 0; }
 .flow .qdisc > summary {

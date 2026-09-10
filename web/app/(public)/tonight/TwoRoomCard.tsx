@@ -9,6 +9,7 @@ import {
   detailsThin,
   venueAreaLabel,
   venueSiteHost,
+  printablePlace,
 } from "../../../lib/cardSlots";
 import { detailPrice as fmtPrice, httpOrNull as httpUrl, sourceCredit } from "../../../lib/detail";
 import { contextualPreview } from "../../../lib/preview";
@@ -56,6 +57,7 @@ export function TwoRoomCard({
   const area = venueAreaLabel(e);
   const host = venueSiteHost(e.venue_url);
   const street = (e.venue_address ?? "").trim();
+  const place = printablePlace(e);
   const needMore = lookingForMore(e);
   const thin = detailsThin(e);
   return (
@@ -77,7 +79,22 @@ export function TwoRoomCard({
             {trustMark}
           </div>
           {sparkView}
-          {preview ? <span className="hook">{preview.label}</span> : null}
+          {preview ? (
+            <div className="hookrow">
+              <span className="hook">{preview.label}</span>
+              {preview.links.map((l) => (
+                <a
+                  key={l.service}
+                  className="hchip"
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {l.service}
+                </a>
+              ))}
+            </div>
+          ) : null}
           {chip ? <span className="kchip">{chip}</span> : null}
           <span className="go" aria-hidden="true">artist ›</span>
         </div>
@@ -85,9 +102,9 @@ export function TwoRoomCard({
           type="button"
           className="zone z-venue"
           onClick={() => onOpen(e, "venue")}
-          aria-label={`${e.venue_name ?? "Venue"} — open venue details`}
+          aria-label={`${place ?? "Venue"} — open venue details`}
         >
-          <span className="vname">{e.venue_name}</span>
+          {place ? <span className="vname">{place}</span> : <span className="vname vhole">Place to be confirmed</span>}
           {area ? <span className="mmap">{area}</span> : null}
           {street ? <span className="vaddr">{street}</span> : null}
           {host ? <span className="vsite">{host}</span> : null}

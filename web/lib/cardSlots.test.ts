@@ -7,6 +7,7 @@ import {
   detailsThin,
   venueAreaLabel,
   venueSiteHost,
+  printablePlace,
 } from "./cardSlots";
 
 function ev(over: Partial<LicensedEvent> = {}): LicensedEvent {
@@ -54,6 +55,13 @@ describe("card slots — print only what a desk printed", () => {
     expect(lookingForMore(ev({ venue_name: "" }))).toBe(true);
     expect(lookingForMore(ev({ category: null, title: "", performer: "Act", venue_name: "Emo's" }))).toBe(true);
     expect(LOOKING_FOR_MORE).toContain("looking for more information");
+  });
+
+  it("Unknown Venue is a hole, not a place", () => {
+    expect(printablePlace(ev({ venue_name: "Unknown Venue" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "unknown venue" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "Emo's Austin" }))).toBe("Emo's Austin");
+    expect(lookingForMore(ev({ venue_name: "Unknown Venue" }))).toBe(true);
   });
 
   it("quiet ? when unverified, disputed, undated, or looking-for-more", () => {
