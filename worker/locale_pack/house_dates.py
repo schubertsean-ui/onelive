@@ -4,14 +4,16 @@ Founder 2026-09-10: one printed night + time = one row. Same title, same
 place, different date or time = different happening. Two dates on one
 Chronicle card are two nights. We do not store None to avoid choosing.
 
-Named weekdays plus \"Continues through Month Day\" fill each matching
+Named weekdays plus Continues through Month Day fill each matching
 weekday from as_of through that end date, inclusive.
+
+Printed 8:30 p.m. on that night is the show time. Reading it is not inventing.
 """
 from __future__ import annotations
 
 import re
 from datetime import date as _date
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 _HOUSE_WD_MD_RE = re.compile(
     r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
@@ -28,9 +30,15 @@ _HOUSE_THROUGH_RE = re.compile(
     re.I,
 )
 _HOUSE_WD_ONLY_RE = re.compile(
-    r"\b(Mondays|Tuesdays|Wednesdays|Thursdays|Fridays|Saturdays|Sundays|"
-    r"Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
-    r"Mon|Tue|Wed|Thu|Fri|Sat|Sun)s?\b",
+    r"\b(Mondays|Tuesdays|Wednesdays|Thursdays|Fridays|Saturdays|Sundays)\b",
+    re.I,
+)
+_RANGE_RE = re.compile(
+    r"\b(\d{1,2})(?::(\d{2}))?\s*(?:-|\u2013|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b",
+    re.I,
+)
+_TIME_RE = re.compile(
+    r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b",
     re.I,
 )
 _PAGE_YEAR_RE = re.compile(r"\b(20\d{2})\b")
@@ -45,6 +53,10 @@ _HOUSE_MONTHS = {
 }
 _HOUSE_WEEKDAYS = {
     "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+}
+_NAMED = {
+    "mondays": 0, "tuesdays": 1, "wednesdays": 2, "thursdays": 3,
+    "fridays": 4, "saturdays": 5, "sundays": 6,
 }
 
 
@@ -61,9 +73,46 @@ def _years_in_date_context(card_text: str, page_html: str) -> set:
     return {int(y) for y in _PAGE_YEAR_RE.findall(" ".join(blobs))}
 
 
+def _ampm_hour(h: str, m: Optional[str], ampm: str) -> Tuple[int, int]:
+    hour = int(h)
+    minute = int(m or 0)
+    ap = ampm.lower().replace(".", "")
+    if ap.startswith("a"):
+        if hour == 12:
+            hour = 0
+    elif hour != 12:
+        hour += 12
+    return hour, minute
+
+
+def _time_near(text: str, start: int, end: int):
+    window = text[start:end]
+    rng = _RANGE_RE.search(window)
+    if rng:
+        h1, m1, h2, m2, ap = rng.groups()
+        return _ampm_hour(h1, m1, ap), _ampm_hour(h2, m2, ap)
+    one = _TIME_RE.search(window)
+    if one:
+        return _ampm_hour(one.group(1), one.group(2), one.group(3)), None
+    return None, None
+
+
+def _iso(day: _date, clock) -> Tuple[str, str]:
+    if not clock:
+        return day.isoformat(), "date"
+    hour, minute = clock
+    return f"{day.isoformat()}T{hour:02d}:{minute:02d}:00", "datetime"
+
+
 def house_dates(card_text: str, page_html: str,
                 as_of: Optional[_date]) -> List[str]:
     """ISO calendar nights this card printed, in print order then run order."""
+    return [row["date"] for row in house_occurrences(card_text, page_html, as_of)]
+
+
+def house_occurrences(card_text: str, page_html: str,
+                      as_of: Optional[_date]) -> List[Dict[str, object]]:
+    """One row per printed night. Clock only if that night printed a time."""
     text = (card_text or "").strip()
     if not text:
         return []
@@ -72,13 +121,16 @@ def house_dates(card_text: str, page_html: str,
         years = {as_of.year}
     if not years:
         years = {_date.today().year}
-    out: List[str] = []
+    hits = list(_HOUSE_WD_MD_RE.finditer(text))
+    out: List[Dict[str, object]] = []
     seen = set()
-    for hit in _HOUSE_WD_MD_RE.finditer(text):
+    for i, hit in enumerate(hits):
         wd, mon, day_s = hit.groups()
         month = _HOUSE_MONTHS[mon.lower()]
         day = int(day_s)
         weekday = _HOUSE_WEEKDAYS[wd[:3].lower()]
+        nxt = hits[i + 1].start() if i + 1 < len(hits) else min(len(text), hit.end() + 48)
+        start_clock, end_clock = _time_near(text, hit.end(), nxt)
         for year in years:
             try:
                 candidate = _date(year, month, day)
@@ -86,10 +138,16 @@ def house_dates(card_text: str, page_html: str,
                 continue
             if candidate.weekday() != weekday:
                 continue
-            iso = candidate.isoformat()
-            if iso not in seen:
-                seen.add(iso)
-                out.append(iso)
+            when, prec = _iso(candidate, start_clock)
+            if when in seen:
+                continue
+            seen.add(when)
+            out.append({
+                "date": candidate.isoformat(),
+                "when": when,
+                "when_precision": prec,
+                "end_clock": end_clock,
+            })
     through = _HOUSE_THROUGH_RE.search(text)
     if through and as_of is not None:
         tmon, tday_s = through.groups()
@@ -100,18 +158,24 @@ def house_dates(card_text: str, page_html: str,
             end = None
         named = set()
         for raw in _HOUSE_WD_ONLY_RE.findall(text):
-            token = raw[:3].lower()
-            if token in _HOUSE_WEEKDAYS:
-                named.add(_HOUSE_WEEKDAYS[token])
+            token = raw.lower()
+            if token in _NAMED:
+                named.add(_NAMED[token])
+        first_dated = hits[0].start() if hits else len(text)
+        start_clock, end_clock = _time_near(text, 0, first_dated)
         if end is not None and named:
-            cur = as_of
-            if hasattr(cur, "date") and not isinstance(cur, _date):
-                cur = cur.date()
+            cur = as_of if isinstance(as_of, _date) else as_of.date()
             while cur <= end:
                 if cur.weekday() in named:
-                    iso = cur.isoformat()
-                    if iso not in seen:
-                        seen.add(iso)
-                        out.append(iso)
+                    when, prec = _iso(cur, start_clock)
+                    if when not in seen:
+                        seen.add(when)
+                        out.append({
+                            "date": cur.isoformat(),
+                            "when": when,
+                            "when_precision": prec,
+                            "end_clock": end_clock,
+                        })
                 cur = _date.fromordinal(cur.toordinal() + 1)
+    out.sort(key=lambda row: str(row["when"]))
     return out
