@@ -7,6 +7,7 @@ import {
   detailsThin,
   venueAreaLabel,
   venueSiteHost,
+  printedPlace,
 } from "./cardSlots";
 
 function ev(over: Partial<LicensedEvent> = {}): LicensedEvent {
@@ -75,5 +76,16 @@ describe("card slots — print only what a desk printed", () => {
     expect(venueSiteHost("https://www.ticketmaster.com/venue/emos")).toBeNull();
     expect(venueSiteHost("javascript:alert(1)")).toBeNull();
     expect(venueSiteHost(null)).toBeNull();
+  });
+
+  it("does not treat Unknown Venue as a printed place", () => {
+    expect(printedPlace("Unknown Venue")).toBeNull();
+    expect(printedPlace("unknown venue")).toBeNull();
+    expect(printedPlace("Venue")).toBeNull();
+    expect(printedPlace("")).toBeNull();
+    expect(printedPlace(null)).toBeNull();
+    expect(printedPlace("Emo's Austin")).toBe("Emo's Austin");
+    expect(lookingForMore(ev({ venue_name: "Unknown Venue" }))).toBe(true);
+    expect(lookingForMore(ev({ venue_name: "Emo's Austin" }))).toBe(false);
   });
 });

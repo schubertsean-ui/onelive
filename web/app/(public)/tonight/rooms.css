@@ -118,3 +118,30 @@
   .flow .room { transition: none; }
   .flow .room:hover { transform: none; }
 }
+
+/* Hear-them chips sit above the artist-door overlay so one tap opens the service. */
+.flow .hookrow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.flow .hchip {
+  border: 1px solid var(--line);
+  background: var(--wash-2);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.flow .hchip:hover,
+.flow .hchip:focus-visible {
+  background: var(--wash-4);
+}
