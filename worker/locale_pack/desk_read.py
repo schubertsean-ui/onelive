@@ -769,6 +769,8 @@ def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
         "when_text": when_text,
         "card_text": card_text,
         "when_occs": occs_here,
+        "card_text": card_text,
+        "when_occs": occs_here,
         "place_text": _ws(" ".join(place_parts)) or None,
         "listing_url": _absolutize(href, base_url) if href else None,
         # Everything the card DECLARED about its own category, for a committed
