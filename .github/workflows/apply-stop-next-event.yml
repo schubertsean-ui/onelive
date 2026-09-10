@@ -1,0 +1,23 @@
+name: apply-stop-next-event
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/apply-stop-next-event.yml
+      - tools/patch_stop_next_event.py
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/patch_stop_next_event.py
+      - run: python3 -m py_compile worker/locale_pack/desk_read.py
+      - run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add worker/locale_pack/desk_read.py
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Use house_dates on this card only. Stop at the next event."
+          git push
