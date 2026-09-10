@@ -103,7 +103,7 @@ _ISO_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(
 #: Chronicle house style: "Mon., Sept. 7" — weekday + month + day, no year,
 #: no <time datetime>. Vague prose ("Every Sunday this fall") does not match.
 _HOUSE_WD_MD_RE = re.compile(
-    r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?,?\s+"
+    r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?,?\s+"
     r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
     r"Jul(?:y)?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|"
     r"Dec(?:ember)?)\.?\s+(\d{1,2})\b",
