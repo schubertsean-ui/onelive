@@ -514,6 +514,7 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         clock_hole = (f"one desk states {len(clocks)} different times for this "
                       f"row: {', '.join(clocks)}")
         clock_disputed = True
+        start_time = row.night
     elif len(clocks) > 1:
         # Two desks, two clocks, one show. ONE-LIVE-TRUST.md: the disagreement
         # is a hole on the FIELD, never a reason to withhold the listing — and

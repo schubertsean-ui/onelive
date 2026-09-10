@@ -316,7 +316,7 @@ def promote_candidate(candidate_id: str) -> str:
             # If dedupe raises and we roll back, those placeholders roll back too
             # (venue has no unique name constraint, so a leaked placeholder would
             # accumulate a duplicate on every retry of a duplicate-blocked candidate).
-            venue_id = resolve_venue_id(cur, venue_name or "Unknown Venue", city or "Austin")
+            venue_id = resolve_venue_id(cur, venue_name, city or "Austin") if venue_name else None
             artist_ids = resolve_artist_ids(cur, artist_names or [])
 
             # Dedupe: refuse a RE-PUBLISH, never a neighbour (founder,
