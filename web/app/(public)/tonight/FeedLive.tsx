@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LicensedEvent } from "../../../lib/licensed";
 import { applyRegionScope, type RegionScope } from "../../../lib/region";
-import { applyFilters, dayTabs, eventTiming, liveEvents, viewCounts } from "../../../lib/feed";
+import {
+  applyFilters,
+  dayTabs,
+  eventTiming,
+  groupByDomain,
+  liveEvents,
+  viewCounts,
+} from "../../../lib/feed";
 import { byClock } from "../../../lib/dayClock";
 import { applyTitleSlots } from "../../../lib/titleSlots";
 import { detailPrice as fmtPrice, eventHref } from "../../../lib/detail";
@@ -14,6 +21,12 @@ export { SparkLineView };
 
 function headline(e: LicensedEvent): string {
   return e.performer && e.performer.length <= 80 ? e.performer : e.title;
+}
+
+function toggle(set: Set<string>, v: string): Set<string> {
+  const n = new Set(set);
+  n.has(v) ? n.delete(v) : n.add(v);
+  return n;
 }
 
 export function CondensedRow({ e, onNow, onOpen }: { e: LicensedEvent; onNow: boolean; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
@@ -52,6 +65,8 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
   const [mounted, setMounted] = useState(false);
   const [tabKey, setTabKey] = useState("today");
   const [region, setRegion] = useState<RegionScope>("capcog");
+  const [domains, setDomains] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (!qaFrozenClock) setNowMs(Date.now());
@@ -63,13 +78,24 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
   const tabs = useMemo(() => dayTabs(nowMs, 7), [nowMs]);
   const tab = tabs.find((t) => t.key === tabKey) ?? tabs[0];
   const base = useMemo(() => applyRegionScope(live, region), [live, region]);
-  const filtered = useMemo(() => applyFilters(base, { tab, domains: new Set(), areas: new Set(), genreIds: new Set(), freeOnly: false }), [base, tab]);
+  const domainGroupsAll = useMemo(() => groupByDomain(base), [base]);
+  const filtered = useMemo(
+    () => applyFilters(base, { tab, domains, areas: new Set(), genreIds: new Set(), freeOnly: false }),
+    [base, tab, domains],
+  );
   const counts = useMemo(() => viewCounts(live, filtered, tab, region), [live, filtered, tab, region]);
   const clock = useMemo(() => byClock(filtered), [filtered]);
-  const isOnNow = (e: LicensedEvent) => mounted && eventTiming(e, nowMs) === "on-now";
+  const isOnNow = (e: LicensedEvent) => {
+    if (!mounted) return false;
+    if (eventTiming(e, nowMs) !== "on-now") return false;
+    if (!e.end_time) return false;
+    const end = Date.parse(e.end_time);
+    return Number.isFinite(end) && end > nowMs;
+  };
   const onOpen = (e: LicensedEvent, _side: LensSide) => {
     window.location.href = eventHref(e);
   };
+  const activeFilters = domains.size;
 
   return (
     <main className="flow">
@@ -83,6 +109,40 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
             <button key={t.key} className={t.key === tabKey ? "on" : ""} onClick={() => setTabKey(t.key)}>{t.label}</button>
           ))}
         </nav>
+        <div className="fbar">
+          <button type="button" className={`chip big fentry${filtersOpen || activeFilters ? " on" : ""}`}
+            aria-expanded={filtersOpen} aria-controls="filterpanel"
+            onClick={() => setFiltersOpen(!filtersOpen)}>
+            Filters{activeFilters ? <span className="n">{activeFilters}</span> : null}
+          </button>
+          {activeFilters ? (
+            <button className="chip clear" onClick={() => setDomains(new Set())}>Clear</button>
+          ) : null}
+        </div>
+        {filtersOpen || activeFilters ? (
+          <div className="filters fpanel" id="filterpanel">
+            <div className="frow">
+              {domainGroupsAll.map((g) => (
+                <button key={g.domain.id} className={`chip${domains.has(g.domain.id) ? " on" : ""}`}
+                  onClick={() => setDomains(toggle(domains, g.domain.id))}>
+                  <span className="dot" style={{ background: `hsl(${g.domain.hue} 65% 55%)` }} />
+                  {g.domain.label}<span className="n">{g.items.length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="filters">
+            <div className="frow">
+              {domainGroupsAll.slice(0, 8).map((g) => (
+                <button key={g.domain.id} className={`chip${domains.has(g.domain.id) ? " on" : ""}`}
+                  onClick={() => setDomains(toggle(domains, g.domain.id))}>
+                  {g.domain.label}<span className="n">{g.items.length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="count">
           Showing {counts.shown.toLocaleString()} of {counts.windowTotal.toLocaleString()} known
           {" "}listing{counts.windowTotal === 1 ? "" : "s"} for {tab.key === "all" ? "everything upcoming" : tab.label}
@@ -102,7 +162,7 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
           )}
         </p>
         {filtered.length === 0 ? (
-          <div className="err">No events match — pick another day.</div>
+          <div className="err">No events match — pick another kind or day.</div>
         ) : (
           <>
             <div className="grid">

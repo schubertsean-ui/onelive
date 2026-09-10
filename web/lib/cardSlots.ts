@@ -11,18 +11,33 @@ export const LOOKING_FOR_MORE =
 
 const FAKE_PLACE = new Set(["unknown venue", "venue", "unknown", "tbd", "n/a", "na"]);
 
+/** Classroom / building-room codes are not a Place. */
+function isRoomCode(raw: string): boolean {
+  return /^[A-Z]{2,5}\s*\d+[A-Z.]?\d+[A-Z]?$/i.test(raw.trim());
+}
+
+/** Desk stuffed street into venue_name. Print the name only. */
+function placeNameOnly(raw: string): string {
+  if (!/,/.test(raw)) return raw;
+  if (!/\d/.test(raw)) return raw;
+  if (!/\b(austin|tx|street|st\.?|ave|avenue|blvd|rd\.?|drive|dr\.?|lane|ln\.?)\b/i.test(raw)) return raw;
+  const name = raw.split(",")[0].trim();
+  return name || raw;
+}
+
 /** Place name a desk printed. Never "Unknown Venue". */
 export function printablePlace(e: LicensedEvent): string | null {
   const raw = (e.venue_name ?? "").trim();
   if (!raw) return null;
   if (FAKE_PLACE.has(raw.toLowerCase())) return null;
-  return raw;
+  if (isRoomCode(raw)) return null;
+  const name = placeNameOnly(raw);
+  if (FAKE_PLACE.has(name.toLowerCase())) return null;
+  return name;
 }
 
-/** Kind chip text: category label + subgenre when a desk printed one. */
 export function kindChip(e: LicensedEvent): string | null {
   const raw = (e.category ?? "").trim();
-  // Missing category is a hole, not "Other". Other is only when a desk printed unmapped.
   const label = raw ? domainLabel(raw) : null;
   const sub = (e.subsegment ?? "").trim() || null;
   const parts = [label, sub].filter(Boolean) as string[];
@@ -30,7 +45,6 @@ export function kindChip(e: LicensedEvent): string | null {
   return uniq.length ? uniq.join(" \u00b7 ") : null;
 }
 
-/** Title / place / topic still empty after other desks + the activity page. */
 export function lookingForMore(e: LicensedEvent): boolean {
   const title = (e.title ?? "").trim() || (e.performer ?? "").trim();
   const place = printablePlace(e);
@@ -38,7 +52,6 @@ export function lookingForMore(e: LicensedEvent): boolean {
   return !title || !place || !topic;
 }
 
-/** Quiet "?" only when details are thin. Not a verified badge. */
 export function detailsThin(e: LicensedEvent): boolean {
   if (lookingForMore(e)) return true;
   if (!(e.start_time ?? "").trim()) return true;
@@ -46,7 +59,6 @@ export function detailsThin(e: LicensedEvent): boolean {
   return conf === "unverified" || conf === "disputed";
 }
 
-/** Mini-map chip label: printed area or city. No fake miles. */
 export function venueAreaLabel(e: LicensedEvent): string | null {
   const area = (e.venue_area ?? "").trim();
   if (area) return area;
@@ -54,7 +66,6 @@ export function venueAreaLabel(e: LicensedEvent): string | null {
   return city || null;
 }
 
-/** Venue site as a host string for the card (text only; link lives in the lens). */
 export function venueSiteHost(url: string | null): string | null {
   const site = venueWebsite(url);
   if (!site) return null;
