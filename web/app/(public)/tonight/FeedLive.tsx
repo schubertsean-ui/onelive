@@ -6,7 +6,6 @@ import { applyRegionScope, type RegionScope } from "../../../lib/region";
 import {
   applyFilters,
   dayTabs,
-  eventTiming,
   groupByDomain,
   liveEvents,
   viewCounts,
@@ -14,6 +13,7 @@ import {
 import { byClock } from "../../../lib/dayClock";
 import { applyTitleSlots } from "../../../lib/titleSlots";
 import { detailPrice as fmtPrice, eventHref } from "../../../lib/detail";
+import { showOnNow } from "../../../lib/onNow";
 import { FeedCard, SparkLineView, TrustMark } from "./FeedCard";
 import type { LensSide } from "./TwoRoomCard";
 
@@ -85,13 +85,7 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
   );
   const counts = useMemo(() => viewCounts(live, filtered, tab, region), [live, filtered, tab, region]);
   const clock = useMemo(() => byClock(filtered), [filtered]);
-  const isOnNow = (e: LicensedEvent) => {
-    if (!mounted) return false;
-    if (eventTiming(e, nowMs) !== "on-now") return false;
-    if (!e.end_time) return false;
-    const end = Date.parse(e.end_time);
-    return Number.isFinite(end) && end > nowMs;
-  };
+  const isOnNow = (e: LicensedEvent) => mounted && showOnNow(e, nowMs);
   const onOpen = (e: LicensedEvent, _side: LensSide) => {
     window.location.href = eventHref(e);
   };
