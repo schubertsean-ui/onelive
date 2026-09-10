@@ -56,14 +56,18 @@ export function LineRow({ e, onOpen }: { e: LicensedEvent; onOpen: (e: LicensedE
   );
 }
 
-export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
+export default function FeedLive({
+  events,
+  serverNowMs,
+  qaFrozenClock,
+}: {
   events: LicensedEvent[];
   serverNowMs: number;
   qaFrozenClock?: boolean;
 }) {
   const [nowMs, setNowMs] = useState(serverNowMs);
   const [mounted, setMounted] = useState(false);
-  const [tabKey, setTabKey] = useState("today");
+  const [tabKey, setTabKey] = useState("tonight");
   const [region, setRegion] = useState<RegionScope>("capcog");
   const [domains, setDomains] = useState<Set<string>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -75,7 +79,17 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
 
   const printed = useMemo(() => events.map((e) => applyTitleSlots(e, nowMs)), [events, nowMs]);
   const live = useMemo(() => (mounted ? liveEvents(printed, nowMs) : printed), [printed, nowMs, mounted]);
-  const tabs = useMemo(() => dayTabs(nowMs, 7), [nowMs]);
+  const day = useMemo(() => dayTabs(nowMs, 7), [nowMs]);
+  const tabs = useMemo(() => {
+    const today = day[0];
+    const tonight = {
+      key: "tonight",
+      label: "Tonight",
+      startMs: nowMs - 60 * 60 * 1000,
+      endMs: today?.endMs ?? nowMs + 12 * 3_600_000,
+    };
+    return [tonight, ...day];
+  }, [day, nowMs]);
   const tab = tabs.find((t) => t.key === tabKey) ?? tabs[0];
   const base = useMemo(() => applyRegionScope(live, region), [live, region]);
   const domainGroupsAll = useMemo(() => groupByDomain(base), [base]);
@@ -96,7 +110,7 @@ export default function FeedLive({ events, serverNowMs, qaFrozenClock }: {
       <div className="wrap">
         <div className="mast">
           <h1>1LIVE · Austin</h1>
-          <p className="lede">What&rsquo;s on, by date. Earliest to latest.</p>
+          <p className="lede">What&rsquo;s on, by the clock. Earliest still-on show first.</p>
         </div>
         <nav className="datetabs">
           {tabs.map((t) => (
