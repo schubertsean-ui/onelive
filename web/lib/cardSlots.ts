@@ -11,7 +11,6 @@ export const LOOKING_FOR_MORE =
 
 const FAKE_PLACE = new Set(["unknown venue", "venue", "unknown", "tbd", "n/a", "na"]);
 
-/** Desk stuffed street into venue_name. Print the name only. */
 function placeNameOnly(raw: string): string {
   if (!/,/.test(raw)) return raw;
   if (!/\d/.test(raw)) return raw;
@@ -20,7 +19,6 @@ function placeNameOnly(raw: string): string {
   return name || raw;
 }
 
-/** Place a desk printed. Never "Unknown Venue". Room codes print — blank is worse. */
 export function printablePlace(e: LicensedEvent): string | null {
   const raw = (e.venue_name ?? "").trim();
   if (!raw) return null;
@@ -43,7 +41,8 @@ export function lookingForMore(e: LicensedEvent): boolean {
   const title = (e.title ?? "").trim() || (e.performer ?? "").trim();
   const place = printablePlace(e);
   const topic = (e.category ?? "").trim() || (e.title ?? "").trim();
-  return !title || !place || !topic;
+  const site = venueSiteHost(e.venue_url);
+  return !title || !place || !topic || !site;
 }
 
 export function detailsThin(e: LicensedEvent): boolean {

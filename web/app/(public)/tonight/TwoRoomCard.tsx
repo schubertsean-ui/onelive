@@ -107,7 +107,11 @@ export function TwoRoomCard({
           {place ? <span className="vname">{place}</span> : <span className="vname vhole">Place to be confirmed</span>}
           {area ? <span className="mmap">{area}</span> : null}
           {street ? <span className="vaddr">{street}</span> : null}
-          {host ? <span className="vsite">{host}</span> : null}
+          {host ? (
+            <span className="vsite">{host}</span>
+          ) : (
+            <span className="vsite vhole">Looking for the venue site</span>
+          )}
           <span className="go" aria-hidden="true">venue ›</span>
         </button>
       </div>
