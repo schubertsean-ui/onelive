@@ -1,0 +1,26 @@
+name: run-wire
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/run-wire.yml
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wire product files
+        run: python3 tools/wire_desk_read.py
+      - name: Commit if changed
+        run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add worker/locale_pack/desk_read.py worker/locale_pack/desk_publish.py
+          git diff --cached --quiet && echo no-change && exit 0
+          git commit -m "One printed night is one row. Keep printed tickets. Fill is not a fight."
+          git push
