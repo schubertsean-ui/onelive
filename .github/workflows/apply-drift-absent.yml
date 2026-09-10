@@ -16,42 +16,26 @@ jobs:
           python3 tools/fix_drift_absent.py
           python3 - <<'PY'
           from pathlib import Path
-
-          pub = Path("worker/locale_pack/desk_publish.py")
-          pt = pub.read_text(encoding="utf-8")
-          old_doc = """    An ABSENT stored statement returns no drift, and that is deliberate rather
-    than lenient: rows written before this field existed have nothing to
-    compare against, and inventing a difference from a hole would report every
-    one of them as changed on the next run. They are reported as ordinary
-    skips, exactly as they were, and acquire a statement the first time the
-    desk actually changes something about them.\n"""
-          new_doc = """    An ABSENT stored statement is a change for every watched field the desk
-    now states. Date fill must count. An empty fresh statement is still no drift.\n"""
-          if old_doc in pt:
-              pub.write_text(pt.replace(old_doc, new_doc, 1), encoding="utf-8")
-              print("docstring updated")
-          elif "Date fill must count" in pt:
-              print("docstring already")
-          else:
-              print("docstring block not found; product line still applied")
-
           p = Path("tests/test_desk_publish.py")
           t = p.read_text(encoding="utf-8")
-          needle = "def test_a_row_written_before_statements_existed_is_not_reported_as_changed():"
-          if needle not in t:
-              if "treats_new_fields_as_change" in t:
-                  print("test already")
-              else:
-                  raise SystemExit("old drift test missing")
+          old = "test_a_row_written_before_statements_existed_is_not_reported_as_changed"
+          new = "test_a_row_written_before_statements_existed_treats_new_fields_as_change"
+          if new in t:
+              print("test already flipped")
+          elif old not in t:
+              raise SystemExit("old drift test missing")
           else:
-              start = t.index(needle)
-              rest = t[start:]
-              end_rel = rest.find("\n\ndef ")
-              if end_rel < 0:
-                  raise SystemExit("could not find end of old drift test")
-              new = '''def test_a_row_written_before_statements_existed_treats_new_fields_as_change():
-    """Absent stored statement + fields the desk now states = change.\n    Date fill must not skip. Empty fresh is still no drift.\n    """\n    filled = {"title": "X", "place": "Y", "night": "2026-09-09"}\n    moved_none = drift(None, filled)\n    moved_empty = drift({}, filled)\n    assert "night" in moved_none and "title" in moved_none and "place" in moved_none\n    assert "night" in moved_empty and "title" in moved_empty and "place" in moved_empty\n    assert drift(None, {}) == []\n    assert drift({}, {}) == []\n'''
-              t = t[:start] + new + rest[end_rel:]
+              t = t.replace(old, new, 1)
+              t = t.replace(
+                  "assert drift(None, _stmt()) == []",
+                  "assert 'night' in drift(None, {'title': 'X', 'place': 'Y', 'night': '2026-09-09'})",
+                  1,
+              )
+              t = t.replace(
+                  "assert drift({}, _stmt()) == []",
+                  "assert 'night' in drift({}, {'title': 'X', 'place': 'Y', 'night': '2026-09-09'})\n    assert drift(None, {}) == []\n    assert drift({}, {}) == []",
+                  1,
+              )
               p.write_text(t, encoding="utf-8")
               print("test flipped")
           PY
