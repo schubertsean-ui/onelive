@@ -1,6 +1,6 @@
 // Card slots for the two-room card (founder paste 2026-09-08).
-// Print a slot only when a desk printed it. Never invent photo, spark, glyph,
-// character, specials, doors, or distance.
+// Place, photo, and venue site are always on the activity. Missing = finder miss.
+// Never invent photo, spark, glyph, character, specials, doors, or distance.
 
 import type { LicensedEvent } from "./licensed";
 import { domainLabel } from "./domains";
@@ -11,7 +11,6 @@ export const LOOKING_FOR_MORE =
 
 const FAKE_PLACE = new Set(["unknown venue", "venue", "unknown", "tbd", "n/a", "na"]);
 
-/** Desk stuffed street into venue_name. Print the name only. */
 function placeNameOnly(raw: string): string {
   if (!/,/.test(raw)) return raw;
   if (!/\d/.test(raw)) return raw;
@@ -39,11 +38,23 @@ export function kindChip(e: LicensedEvent): string | null {
   return uniq.length ? uniq.join(" \u00b7 ") : null;
 }
 
+export function venueSiteHost(url: string | null): string | null {
+  const site = venueWebsite(url);
+  if (!site) return null;
+  try {
+    return new URL(site).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
 export function lookingForMore(e: LicensedEvent): boolean {
   const title = (e.title ?? "").trim() || (e.performer ?? "").trim();
   const place = printablePlace(e);
   const topic = (e.category ?? "").trim() || (e.title ?? "").trim();
-  return !title || !place || !topic;
+  const site = venueSiteHost(e.venue_url);
+  const photo = (e.image_url ?? "").trim();
+  return !title || !place || !topic || !site || !photo;
 }
 
 export function detailsThin(e: LicensedEvent): boolean {
@@ -58,14 +69,4 @@ export function venueAreaLabel(e: LicensedEvent): string | null {
   if (area) return area;
   const city = (e.venue_city ?? "").trim();
   return city || null;
-}
-
-export function venueSiteHost(url: string | null): string | null {
-  const site = venueWebsite(url);
-  if (!site) return null;
-  try {
-    return new URL(site).hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
 }
