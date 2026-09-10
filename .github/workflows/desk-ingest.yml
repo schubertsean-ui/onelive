@@ -1,7 +1,6 @@
 name: desk-ingest
 
 # Walk the local desks LIVE and write what they printed into the catalog.
-# Founder 2026-09-09: schedule write=true. Manual-only was the miss.
 # Proof is 1live.co Showing N of M, not a green job.
 
 on:
@@ -111,3 +110,14 @@ jobs:
           name: desk-ingest-report
           path: desk-ingest-report.md
           if-no-files-found: warn
+
+      - name: Prove live count
+        if: always()
+        run: |
+          set -euo pipefail
+          page=$(curl -fsSL "https://1live.co/tonight?t=${GITHUB_RUN_ID}")
+          line=$(printf '%s' "$page" | tr '\n' ' ' | grep -oE 'Showing [0-9,]+ of [0-9,]+' | head -1 || true)
+          echo "${line:-Showing line not found}"
+          echo "## Live proof" >> "$GITHUB_STEP_SUMMARY"
+          echo "${line:-Showing line not found}" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://1live.co/tonight" >> "$GITHUB_STEP_SUMMARY"
