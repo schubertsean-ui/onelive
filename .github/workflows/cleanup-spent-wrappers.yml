@@ -1,0 +1,32 @@
+name: cleanup-spent-wrappers
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/cleanup-spent-wrappers.yml"]
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - run: |
+          git rm -f --ignore-unmatch \
+            tools/fix_weekday_regex.py \
+            tools/delete_year_gate.py \
+            .github/workflows/apply-drift-absent.yml \
+            .github/workflows/apply-weekday-regex.yml \
+            .github/workflows/apply-house-year-as-of.yml \
+            .github/workflows/apply-yearless-when.yml \
+            .github/workflows/delete-year-gate.yml \
+            .github/workflows/delete-date-place-hold.yml \
+            .github/workflows/delete-date-place-holds.yml \
+            .github/workflows/drop-fake-5pm-tests.yml \
+            .github/workflows/include-undated-today.yml \
+            .github/workflows/cleanup-spent-wrappers.yml
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git diff --cached --quiet || git commit -m "Delete spent apply wrappers. Product files stay."
+          git push origin HEAD:master
