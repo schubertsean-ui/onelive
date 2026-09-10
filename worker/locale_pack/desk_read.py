@@ -157,7 +157,7 @@ def _house_when(card_text: str, page_html: str,
 
     Chronicle list cards print "Mon., Sept. 7" with no <time datetime>. That is
     the desk stating a night. Vague prose ("Every Sunday this fall") returns
-    None. Two different dates on one card also return None — we do not pick.
+    None. Several printed nights are split by house_occurrences, not here.
     The weekday the card printed must match the completed date, or we refuse.
     `as_of` is accepted so callers can pass the walk clock; it is not a year.
     """
@@ -747,8 +747,10 @@ def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
 
     when_text = _ws(" ".join(time_text_parts)) or None
     when = time_iso or itemprop_date
-    if not when:
-        when = _house_when(_ws(" ".join(text_parts)), page_html, as_of)
+    card_text = _ws(" ".join(text_parts))
+    occs_here = house_occurrences(card_text, page_html, as_of)
+    if not when and len(occs_here) == 1:
+        when = occs_here[0]["when"]
 
     # Title, in authority order: the row's own declared name, then its heading,
     # then the event permalink's link text (not the venue/category anchors),
@@ -765,6 +767,8 @@ def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
         "title": title or None,
         "when": when,
         "when_text": when_text,
+        "card_text": card_text,
+        "when_occs": occs_here,
         "place_text": _ws(" ".join(place_parts)) or None,
         "listing_url": _absolutize(href, base_url) if href else None,
         # Everything the card DECLARED about its own category, for a committed
@@ -1096,10 +1100,15 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
     for row_node in microdata_rows:
         fields = _row_fields(row_node, base_url=source_url, page_html=html,
                              as_of=as_of)
-        _add(fields["title"], fields["when"], fields["when_text"],
-             fields["place_text"], fields["listing_url"],
-             labels=tuple(fields.get("category_labels") or ()),
-             hrefs=tuple(fields.get("hrefs") or ()))
+        occs = list(fields.get("when_occs") or [])
+        if not occs:
+            occs = house_occurrences(fields.get("card_text") or fields.get("when_text") or "", html, as_of)
+        nights = [o["when"] for o in occs] if occs else [fields["when"]]
+        for night in nights:
+            _add(fields["title"], night, fields["when_text"],
+                 fields["place_text"], fields["listing_url"],
+                 labels=tuple(fields.get("category_labels") or ()),
+                 hrefs=tuple(fields.get("hrefs") or ()))
     for identity, row_node in html_rows:
         fields = _row_fields(row_node, base_url=source_url, page_html=html,
                              as_of=as_of)
@@ -1107,15 +1116,10 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
         # pattern matched, never whichever anchor `_row_fields` read first (a
         # card's ticket link, its venue link, its category link).
         listing = identity or fields["listing_url"]
-        occs = house_occurrences(
-            fields.get("when_text") or "", html, as_of)
+        occs = list(fields.get("when_occs") or [])
         if not occs:
-            card = " ".join(
-                part for part in (
-                    fields.get("title"), fields.get("when_text"),
-                    fields.get("place_text"),
-                ) if part)
-            occs = house_occurrences(card, html, as_of)
+            occs = house_occurrences(
+                fields.get("card_text") or fields.get("when_text") or "", html, as_of)
         if occs:
             for night in occs:
                 _add(fields["title"], night["when"],
