@@ -13,7 +13,7 @@ import {
   qaFixtureEvents,
   qaFixturesEnabled,
 } from "../../../qa/fixtures";
-import FeedApp from "./FeedApp";
+import FeedLive from "./FeedLive";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export default async function TonightPage() {
         <div className="qanote" role="note">
           SYNTHETIC QA FIXTURES — fictional events for rendering checks, not real listings
         </div>
-        <FeedApp events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock />
+        <FeedLive events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock />
       </>
     );
   }
@@ -51,9 +51,6 @@ export default async function TonightPage() {
   let events: LicensedEvent[] = [];
   let error: string | null = null;
   try {
-    // 36h back so a date-only start stored as YYYY-MM-DD (UTC midnight)
-    // is still in the window for the Chicago day. 12h cut those rows
-    // before Today could see them. Client still hides what has ended.
     const fromISO = new Date(nowMs - 36 * 60 * 60 * 1000).toISOString();
     const toISO = new Date(nowMs + 180 * 24 * 60 * 60 * 1000).toISOString();
     const window = { fromISO, toISO, includeNullClock: true as const };
@@ -99,5 +96,5 @@ export default async function TonightPage() {
     );
   }
 
-  return <FeedApp events={events} serverNowMs={nowMs} />;
+  return <FeedLive events={events} serverNowMs={nowMs} />;
 }
