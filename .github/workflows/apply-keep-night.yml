@@ -1,0 +1,27 @@
+name: apply-keep-night
+on:
+  push:
+    paths:
+      - .github/workflows/apply-keep-night.yml
+      - tools/patch_no_erase_night.py
+  workflow_dispatch:
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Delete old erase-night and two-clock hold
+        run: python3 tools/patch_no_erase_night.py
+      - name: Commit product files
+        run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add worker/locale_pack/event_page.py worker/locale_pack/desk_publish.py
+          git diff --cached --quiet && echo no-change && exit 0
+          git commit -m "Delete old code: do not erase a printed night. Do not hold two clocks."
+          git push
