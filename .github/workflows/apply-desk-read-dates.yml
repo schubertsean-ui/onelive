@@ -1,0 +1,27 @@
+name: apply-desk-read-dates
+on:
+  push:
+    paths:
+      - .github/workflows/apply-desk-read-dates.yml
+      - tools/patch_desk_read_dates.py
+  workflow_dispatch:
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch desk_read date parse
+        run: python3 tools/patch_desk_read_dates.py
+      - name: Commit
+        run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add worker/locale_pack/desk_read.py
+          git diff --cached --quiet && echo no-change && exit 0
+          git commit -m "Read the printed time line as the night."
+          git push
