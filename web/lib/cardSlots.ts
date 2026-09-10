@@ -7,13 +7,14 @@ import { domainLabel } from "./domains";
 import { venueWebsite } from "./detail";
 
 export const LOOKING_FOR_MORE =
-  "We\u2019re looking for more information. Check or call the site, artist, or organizer to confirm details.";
+  "We’re looking for more information. Check or call the site, artist, or organizer to confirm details.";
 
 /** Kind chip text: category label + subgenre when a desk printed one. */
 export function kindChip(e: LicensedEvent): string | null {
-  const parts = [domainLabel(e.category), e.subsegment].filter(Boolean) as string[];
+  const kind = e.category ? domainLabel(e.category) : null;
+  const parts = [kind, e.subsegment].filter(Boolean) as string[];
   const uniq = parts.filter((v, i) => parts.indexOf(v) === i);
-  return uniq.length ? uniq.join(" \u00b7 ") : null;
+  return uniq.length ? uniq.join(" · ") : null;
 }
 
 /** Title / place / topic still empty after other desks + the activity page. */
