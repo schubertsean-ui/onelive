@@ -1,5 +1,6 @@
 import type { LicensedEvent } from "./licensed";
 import { marketHour, type DayPartSplit } from "./feed";
+import { isDateOnlyStart } from "./when";
 
 export type ClockBuckets = {
   evening: LicensedEvent[];
@@ -15,21 +16,30 @@ function byStart(a: LicensedEvent, b: LicensedEvent): number {
   return na - nb;
 }
 
-/** Timed evening first, timed earlier second, Date TBA last. Never drops a row. */
+function hasPrintedHour(e: LicensedEvent): boolean {
+  if (!e.start_time) return false;
+  if (isDateOnlyStart(e.start_time)) return false;
+  return marketHour(e.start_time) != null;
+}
+
+/** Timed evening first, timed earlier second, date-only in evening after timed, Date TBA last. Never drops a row. */
 export function clockBuckets(split: DayPartSplit): ClockBuckets {
   const timedEve: LicensedEvent[] = [];
+  const datedEve: LicensedEvent[] = [];
   const timedEarly: LicensedEvent[] = [];
   const undated: LicensedEvent[] = [];
   for (const e of split.evening) {
-    if (marketHour(e.start_time) == null) undated.push(e);
-    else timedEve.push(e);
+    if (!e.start_time) undated.push(e);
+    else if (hasPrintedHour(e)) timedEve.push(e);
+    else datedEve.push(e);
   }
   for (const e of split.earlier) {
-    if (marketHour(e.start_time) == null) undated.push(e);
-    else timedEarly.push(e);
+    if (!e.start_time) undated.push(e);
+    else if (hasPrintedHour(e)) timedEarly.push(e);
+    else datedEve.push(e);
   }
   return {
-    evening: timedEve.sort(byStart),
+    evening: [...timedEve.sort(byStart), ...datedEve.sort(byStart)],
     earlier: timedEarly.sort(byStart),
     undated,
   };
