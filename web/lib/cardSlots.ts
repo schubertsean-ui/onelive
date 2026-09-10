@@ -9,6 +9,16 @@ import { venueWebsite } from "./detail";
 export const LOOKING_FOR_MORE =
   "We\u2019re looking for more information. Check or call the site, artist, or organizer to confirm details.";
 
+const FAKE_PLACE = new Set(["unknown venue", "venue", "unknown", "tbd", "n/a", "na"]);
+
+/** Place name a desk printed. Never "Unknown Venue". */
+export function printablePlace(e: LicensedEvent): string | null {
+  const raw = (e.venue_name ?? "").trim();
+  if (!raw) return null;
+  if (FAKE_PLACE.has(raw.toLowerCase())) return null;
+  return raw;
+}
+
 /** Kind chip text: category label + subgenre when a desk printed one. */
 export function kindChip(e: LicensedEvent): string | null {
   const raw = (e.category ?? "").trim();
@@ -23,7 +33,7 @@ export function kindChip(e: LicensedEvent): string | null {
 /** Title / place / topic still empty after other desks + the activity page. */
 export function lookingForMore(e: LicensedEvent): boolean {
   const title = (e.title ?? "").trim() || (e.performer ?? "").trim();
-  const place = (e.venue_name ?? "").trim();
+  const place = printablePlace(e);
   const topic = (e.category ?? "").trim() || (e.title ?? "").trim();
   return !title || !place || !topic;
 }

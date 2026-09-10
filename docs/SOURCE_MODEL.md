@@ -15,8 +15,17 @@ Valid Source Library: `sources/valid_sources.json` + pack doors + `sources/maste
 | Owner claim | Venue/artist/organizer submit | Designed, not the default river |
 | Search / gather | Locale is a query | Law exists; Ticket E paused-not-paused continuous |
 | Social / Class D | Claim only | Correct — do not crawl walls |
+| Place lookup | Google Places or Brave Place Search | Designed. Key + cap first. See `docs/PLACE_LOOKUP.md` |
 
 Translator out: title / when / place / kind / via.
+
+## Place lookup (not a happening door)
+
+Google is trusted. Brave Place Search is the alternative.
+
+They may fill a missing Place field: photo, point, street, phone, site.
+They do not create a show. They do not replace the venue’s own site.
+Look up at display time. Do not warehouse their photos or addresses.
 
 ## What the best aggregators actually do
 
@@ -58,7 +67,7 @@ Shared pattern: **many doors in, one card out. Official/validated first. Owner c
 5. **Promote** if the door is validated. Two vias only for social/invalidated.
 6. **Claim** — owner may add or correct a field. That is mutation evidence for THAT field.
 7. **Show** — Today is a filter. Catalog keeps the row.
-8. **Watch** — M hourly vs Vision/Goals. Miss → 15-step process. Ingest keeps walking.
+8. **Watch** — M hourly vs Vision/Goals. Miss → 15-step process. Ingest stays walking.
 
 ## Red team (what breaks this)
 
@@ -68,7 +77,7 @@ Shared pattern: **many doors in, one card out. Official/validated first. Owner c
 | Second database of “valid sources” | Drift vs the pack | One library, three files |
 | Owner claim overwrites a printed field with no evidence | Mutation violation | Claim wins only same-page or second validated door |
 | Schema.org only | Desks without JSON-LD vanish | A then B |
-| Google Places / invented address | Trust break | Never invent |
+| Google Places / invented address | Trust break | Never invent a street. Places and Brave look up only |
 | Pay partners to rank | Vision shrink | Refuse |
 | Pause ingest to write this doc | 16 stays 16 | Ingest stays on |
 
@@ -79,3 +88,4 @@ Shared pattern: **many doors in, one card out. Official/validated first. Owner c
 - Owner claim is Ticket-shaped work, not a new product.
 - Class A readers get priority on the next ingest pass for each door that has ICS/JSON-LD.
 - M and Witness keep counting 1live.co. Docs are not Success.
+- Place lookup: `docs/PLACE_LOOKUP.md`. Brave is the Google Places alternative.
