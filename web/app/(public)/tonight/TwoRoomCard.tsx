@@ -79,14 +79,6 @@ export function TwoRoomCard({
           {sparkView}
           {preview ? <span className="hook">{preview.label}</span> : null}
           {chip ? <span className="kchip">{chip}</span> : null}
-          {thin ? (
-            <details className="qdisc">
-              <summary aria-label="Details may be thin">?</summary>
-              <span className="qsheet" role="note">
-                Details may change. Check or call the site, artist, or organizer.
-              </span>
-            </details>
-          ) : null}
           <span className="go" aria-hidden="true">artist ›</span>
         </div>
         <button
@@ -102,6 +94,14 @@ export function TwoRoomCard({
           <span className="go" aria-hidden="true">venue ›</span>
         </button>
       </div>
+      {thin ? (
+        <details className="qdisc">
+          <summary aria-label="Details may be thin">?</summary>
+          <span className="qsheet" role="note">
+            Details may change. Check or call the site, artist, or organizer.
+          </span>
+        </details>
+      ) : null}
       {needMore ? <p className="needmore">{LOOKING_FOR_MORE}</p> : null}
       {credit.generic ? null : <p className="rsrc">via {credit.name}</p>}
     </article>
