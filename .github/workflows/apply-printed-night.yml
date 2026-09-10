@@ -1,0 +1,24 @@
+name: apply-printed-night
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/apply-printed-night.yml"
+      - "tools/fix_date_on_card.py"
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: python3 tools/fix_date_on_card.py
+      - name: Commit
+        run: |
+          git config user.name schubertsean-ui
+          git config user.email 256894134+schubertsean-ui@users.noreply.github.com
+          git add worker/locale_pack/desk_publish.py worker/promote.py
+          git diff --cached --quiet && echo no-change && exit 0
+          git commit -m "Printed night stays on the card. No invented venue."
+          git push
