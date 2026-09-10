@@ -1,8 +1,6 @@
 name: apply-weekday-regex
 on:
   workflow_dispatch:
-  push:
-    paths: [".github/workflows/apply-weekday-regex.yml"]
 jobs:
   apply:
     runs-on: ubuntu-latest
@@ -12,25 +10,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: master
-      - run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("worker/locale_pack/desk_read.py")
-          t = p.read_text(encoding="utf-8")
-          old = r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?,?\s+"
-          new = r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?,?\s+"
-          if old not in t:
-              if new in t:
-                  print("already")
-              else:
-                  raise SystemExit("pattern not found")
-          else:
-              t = t.replace(old, new, 1)
-              p.write_text(t, encoding="utf-8")
-              print("replaced")
-          PY
+      - run: python3 tools/fix_weekday_regex.py
+      - name: Commit reader if changed
+        run: |
           git config user.name "schubertsean-ui"
           git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
           git add worker/locale_pack/desk_read.py
-          git diff --cached --quiet || git commit -m "Read full weekdays. Wednesday matches."
+          if git diff --cached --quiet; then echo already; exit 0; fi
+          git commit -m "Read Wednesday as well as Wed. Year still not a gate."
           git push origin HEAD:master
