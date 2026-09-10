@@ -751,15 +751,41 @@ def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
     parse_blob = _ws(" ".join(x for x in (card_text, when_text) if x))
     occs_here = house_occurrences(parse_blob or card_text, page_html, as_of)
     if not occs_here and node.parent is not None:
-        parent_bits = []
-        def _pt(n):
-            for c in n.children:
-                if isinstance(c, str):
-                    parent_bits.append(c)
-                elif getattr(c, "tag", None) not in ("script", "style", None):
-                    _pt(c)
-        _pt(node.parent)
-        occs_here = house_occurrences(_ws(" ".join(parent_bits)), page_html, as_of)
+        extra = []
+        started = False
+        for child in node.parent.children:
+            if child is node:
+                started = True
+                continue
+            if not started:
+                continue
+            href = ""
+            if getattr(child, "tag", None) == "a":
+                href = child.attrs.get("href") or ""
+            if "/event/" in href:
+                break
+            if isinstance(child, str):
+                extra.append(child)
+            elif getattr(child, "tag", None) not in ("script", "style", None):
+                bits = []
+                stop = False
+                stack = [child]
+                while stack:
+                    n = stack.pop()
+                    for c in n.children:
+                        if isinstance(c, str):
+                            bits.append(c)
+                        elif getattr(c, "tag", None) not in ("script", "style", None):
+                            if getattr(c, "tag", None) == "a" and "/event/" in (c.attrs.get("href") or ""):
+                                stop = True
+                                break
+                            stack.append(c)
+                    if stop:
+                        break
+                extra.append(" ".join(bits))
+                if stop:
+                    break
+        occs_here = house_occurrences(_ws(" ".join(extra)), page_html, as_of)
     if not when and occs_here:
         when = occs_here[0]["when"]
 
