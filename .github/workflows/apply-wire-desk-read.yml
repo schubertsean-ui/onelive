@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - .github/workflows/apply-wire-desk-read.yml
+      - tools/patch_ingest_key.py
+      - tools/fix_night_rows.py
 jobs:
   apply:
     runs-on: ubuntu-latest
@@ -11,12 +13,13 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/wire_desk_read.py
+      - run: python3 tools/patch_ingest_key.py
+      - run: python3 tools/fix_night_rows.py
       - run: python3 -m py_compile worker/locale_pack/desk_read.py worker/locale_pack/desk_publish.py
       - run: |
           git config user.name schubertsean-ui
           git config user.email 256894134+schubertsean-ui@users.noreply.github.com
           git add worker/locale_pack/desk_read.py worker/locale_pack/desk_publish.py
           git diff --cached --quiet && echo nochange && exit 0
-          git commit -m "One printed night is one row. Fill is not a fight. Keep tickets."
+          git commit -m "Save key is URL plus that night. Split from card text."
           git push
