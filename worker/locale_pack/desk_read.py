@@ -748,8 +748,19 @@ def _row_fields(node: _Node, *, base_url: str, page_html: str = "",
     when_text = _ws(" ".join(time_text_parts)) or None
     when = time_iso or itemprop_date
     card_text = _ws(" ".join(text_parts))
-    occs_here = house_occurrences(card_text, page_html, as_of)
-    if not when and len(occs_here) == 1:
+    parse_blob = _ws(" ".join(x for x in (card_text, when_text) if x))
+    occs_here = house_occurrences(parse_blob or card_text, page_html, as_of)
+    if not occs_here and node.parent is not None:
+        parent_bits = []
+        def _pt(n):
+            for c in n.children:
+                if isinstance(c, str):
+                    parent_bits.append(c)
+                elif getattr(c, "tag", None) not in ("script", "style", None):
+                    _pt(c)
+        _pt(node.parent)
+        occs_here = house_occurrences(_ws(" ".join(parent_bits)), page_html, as_of)
+    if not when and occs_here:
         when = occs_here[0]["when"]
 
     # Title, in authority order: the row's own declared name, then its heading,
@@ -1104,7 +1115,11 @@ def read(door: Door, html: str, *, base_url: Optional[str] = None,
                              as_of=as_of)
         occs = list(fields.get("when_occs") or [])
         if not occs:
-            occs = house_occurrences(fields.get("card_text") or fields.get("when_text") or "", html, as_of)
+            blob = " ".join(x for x in (
+                fields.get("card_text") or "",
+                fields.get("when_text") or "",
+            ) if x)
+            occs = house_occurrences(blob, html, as_of)
         nights = [o["when"] for o in occs] if occs else [fields["when"]]
         for night in nights:
             _add(fields["title"], night, fields["when_text"],
