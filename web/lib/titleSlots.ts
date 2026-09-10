@@ -32,7 +32,8 @@ export function upcomingYmd(month: number, day: number, nowMs: number): string |
   return `${y + 1}-${pad(month)}-${pad(day)}`;
 }
 
-const MD_SLASH = /(?:^|[\s@])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s*$|[\s,)])/;
+const MD_SLASH = /(?:^[\s@])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s*$|[\s,)])/;
+const MD_SLASH_ANY = /(?:^|[\s@])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s*$|[\s,)])/;
 const MD_NAME = /\b(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)?[a-z.]*\s*(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i;
 
 /** Printed calendar day in the title. Date-only. No invented hour. */
@@ -49,7 +50,7 @@ export function titleWhen(title: string | null | undefined, nowMs: number): stri
     }
     return month ? upcomingYmd(month, day, nowMs) : null;
   }
-  const slash = raw.match(MD_SLASH);
+  const slash = raw.match(MD_SLASH_ANY);
   if (slash) {
     const month = Number(slash[1]);
     const day = Number(slash[2]);
@@ -90,14 +91,21 @@ export function titlePlace(title: string | null | undefined): string | null {
   return null;
 }
 
-/** Room only when the title names a spot that is not the printed venue. */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Room only when the SAME title names both the printed venue and a different @/at spot. */
 export function titleRoom(title: string | null | undefined, venueName: string | null | undefined): string | null {
-  const place = titlePlace(title);
+  const raw = (title ?? "").trim();
   const venue = (venueName ?? "").trim();
-  if (!place || !venue || FAKE_PLACE.has(venue.toLowerCase())) return null;
+  if (!raw || !venue || FAKE_PLACE.has(venue.toLowerCase())) return null;
+  const place = titlePlace(title);
+  if (!place) return null;
   if (place.toLowerCase() === venue.toLowerCase()) return null;
-  if (/@/.test(title ?? "") || /\bat\b/i.test(title ?? "")) return place;
-  return null;
+  if (!new RegExp(escapeRe(venue), "i").test(raw)) return null;
+  if (!/@/.test(raw) && !/\bat\b/i.test(raw)) return null;
+  return place;
 }
 
 /** Fill empty when/place from title text already on the row. Does not invent. */

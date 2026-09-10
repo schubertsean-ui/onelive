@@ -45,8 +45,13 @@ describe("titlePlace — unused @ / at / House Band tokens", () => {
   });
 
   it("does not attach Elysium to Parker", () => {
-    expect(titlePlace("MAX FRY + BUZZ KULL + KONTRAVOID @ Elysium 9/10")).toBe("Elysium");
-    expect(titlePlace("MAX FRY + BUZZ KULL + KONTRAVOID @ Elysium 9/10")).not.toBe("Parker Jazz Club");
-    expect(titleRoom("MAX FRY + BUZZ KULL + KONTRAVOID @ Elysium 9/10", "Parker Jazz Club")).toBe("Elysium");
+    const title = "MAX FRY + BUZZ KULL + KONTRAVOID @ Elysium 9/10";
+    expect(titlePlace(title)).toBe("Elysium");
+    expect(titlePlace(title)).not.toBe("Parker Jazz Club");
+    expect(titleRoom(title, "Parker Jazz Club")).toBeNull();
+  });
+
+  it("room only when the same title names both venue and spot", () => {
+    expect(titleRoom("Parker Jazz Club House Band @ Elysium", "Parker Jazz Club")).toBe("Elysium");
   });
 });

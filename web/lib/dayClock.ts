@@ -1,10 +1,9 @@
 import type { LicensedEvent } from "./licensed";
-import { marketHour, type DayPartSplit } from "./feed";
+import { marketHour } from "./feed";
 import { isDateOnlyStart } from "./when";
 
-export type ClockBuckets = {
-  evening: LicensedEvent[];
-  earlier: LicensedEvent[];
+export type ClockList = {
+  timed: LicensedEvent[];
   undated: LicensedEvent[];
 };
 
@@ -22,25 +21,13 @@ function hasPrintedHour(e: LicensedEvent): boolean {
   return marketHour(e.start_time) != null;
 }
 
-/** Timed evening first, timed earlier second, date-only in evening after timed, Date TBA last. Never drops a row. */
-export function clockBuckets(split: DayPartSplit): ClockBuckets {
-  const timedEve: LicensedEvent[] = [];
-  const datedEve: LicensedEvent[] = [];
-  const timedEarly: LicensedEvent[] = [];
+/** One list: earliest printed clock first, latest last, no hour at the bottom. Never drops a row. */
+export function byClock(events: LicensedEvent[]): ClockList {
+  const timed: LicensedEvent[] = [];
   const undated: LicensedEvent[] = [];
-  for (const e of split.evening) {
-    if (!e.start_time) undated.push(e);
-    else if (hasPrintedHour(e)) timedEve.push(e);
-    else datedEve.push(e);
+  for (const e of events) {
+    if (hasPrintedHour(e)) timed.push(e);
+    else undated.push(e);
   }
-  for (const e of split.earlier) {
-    if (!e.start_time) undated.push(e);
-    else if (hasPrintedHour(e)) timedEarly.push(e);
-    else datedEve.push(e);
-  }
-  return {
-    evening: [...timedEve.sort(byStart), ...datedEve.sort(byStart)],
-    earlier: timedEarly.sort(byStart),
-    undated,
-  };
+  return { timed: timed.sort(byStart), undated };
 }
