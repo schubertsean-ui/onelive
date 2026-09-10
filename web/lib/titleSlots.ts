@@ -20,7 +20,6 @@ function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-/** Yearless month+day → YYYY-MM-DD. Upcoming night. Last 14 days stay this year. */
 export function upcomingYmd(month: number, day: number, nowMs: number): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   const today = marketDayString(nowMs, TZ);
@@ -32,11 +31,9 @@ export function upcomingYmd(month: number, day: number, nowMs: number): string |
   return `${y + 1}-${pad(month)}-${pad(day)}`;
 }
 
-const MD_SLASH = /(?:^[\s@])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s*$|[\s,)])/;
 const MD_SLASH_ANY = /(?:^|[\s@])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s*$|[\s,)])/;
 const MD_NAME = /\b(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)?[a-z.]*\s*(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i;
 
-/** Printed calendar day in the title. Date-only. No invented hour. */
 export function titleWhen(title: string | null | undefined, nowMs: number): string | null {
   const raw = (title ?? "").trim();
   if (!raw) return null;
@@ -74,11 +71,11 @@ function cleanPlace(raw: string): string | null {
   return s;
 }
 
-/** Place named in the title: @ Name, at Name, Live at Name, X House Band. */
+/** Place named in the title: @ Name, at Name, live/held/presented at Name, House Band. */
 export function titlePlace(title: string | null | undefined): string | null {
   const raw = (title ?? "").trim();
   if (!raw) return null;
-  const at = raw.match(/(?:^|\s)(?:@|at|live\s+at)\s+(.+)$/i);
+  const at = raw.match(/(?:^|\s)(?:@|live\s+at|held\s+at|presented\s+at|taking\s+place\s+at|at)\s+(.+)$/i);
   if (at) {
     const place = cleanPlace(at[1]);
     if (place) return place;
@@ -95,7 +92,6 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Room only when the SAME title names both the printed venue and a different @/at spot. */
 export function titleRoom(title: string | null | undefined, venueName: string | null | undefined): string | null {
   const raw = (title ?? "").trim();
   const venue = (venueName ?? "").trim();
