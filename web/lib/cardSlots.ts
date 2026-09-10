@@ -13,7 +13,10 @@ const FAKE_PLACE = new Set(["unknown venue", "venue", "unknown", "tbd", "n/a", "
 
 /** Classroom / building-room codes are not a Place. */
 function isRoomCode(raw: string): boolean {
-  return /^[A-Z]{2,5}\s*\d+[A-Z.]?\d+[A-Z]?$/i.test(raw.trim());
+  const s = raw.trim();
+  if (/^[A-Z]{2,6}\s+\d+\.[A-Z0-9]+$/i.test(s)) return true;
+  if (/^[A-Z]{2,6}\s+\d+[A-Z]\d+[A-Z]?$/i.test(s)) return true;
+  return false;
 }
 
 /** Desk stuffed street into venue_name. Print the name only. */
@@ -25,7 +28,6 @@ function placeNameOnly(raw: string): string {
   return name || raw;
 }
 
-/** Place name a desk printed. Never "Unknown Venue". */
 export function printablePlace(e: LicensedEvent): string | null {
   const raw = (e.venue_name ?? "").trim();
   if (!raw) return null;
