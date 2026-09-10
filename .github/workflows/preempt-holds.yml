@@ -1,0 +1,19 @@
+name: preempt-holds
+on:
+  pull_request:
+  push:
+    branches: [master]
+jobs:
+  grep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Forbidden strings must stay gone
+        run: |
+          set -e
+          fail=0
+          grep -n 'del as_of' worker/locale_pack/desk_read.py && { echo FAIL_del_as_of; fail=1; } || true
+          grep -n 'held until a desk states' worker/locale_pack/desk_publish.py && { echo FAIL_date_hold; fail=1; } || true
+          grep -n 'no desk stated a place' worker/locale_pack/desk_publish.py && { echo FAIL_place_hold; fail=1; } || true
+          grep -n 'date-TBA only shows under' web/lib/feed.ts && { echo FAIL_today_hide; fail=1; } || true
+          exit $fail
