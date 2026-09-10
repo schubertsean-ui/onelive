@@ -946,9 +946,6 @@ def apply(row: Happening, statement: PageStatement) -> Tuple[Happening, FollowVi
             visit.when_conflict = True
             visit.listed_when = row.when
             visit.page_when = statement.when
-            changes["when"] = None
-            changes["when_precision"] = None
-            changes["when_text"] = None
     if statement.place_text:
         if not row.place_text:
             changes["place_text"] = statement.place_text

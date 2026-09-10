@@ -513,11 +513,7 @@ def write_for(row: UnionRow, registrations: Mapping[str, DeskRegistration],
         # again, so it takes R-111's answer.
         clock_hole = (f"one desk states {len(clocks)} different times for this "
                       f"row: {', '.join(clocks)}")
-        hold_reason = (
-            f"{clock_hole} — a conflict is a disagreement BETWEEN desks, and "
-            f"this is one desk disagreeing with itself (or the de-dup key "
-            f"merging two showings). Held rather than published with an empty "
-            f"clock the desk did not leave empty")
+        clock_disputed = True
     elif len(clocks) > 1:
         # Two desks, two clocks, one show. ONE-LIVE-TRUST.md: the disagreement
         # is a hole on the FIELD, never a reason to withhold the listing — and
