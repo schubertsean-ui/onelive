@@ -690,14 +690,16 @@ def test_an_unchanged_desk_is_not_drift():
     assert drift(_stmt(), _stmt()) == []
 
 
-def test_a_row_written_before_statements_existed_is_not_reported_as_changed():
+def test_a_row_written_before_statements_existed_treats_new_fields_as_change():
     """Fail-safe direction. Rows already in the store have no statement to
     compare against; inventing a difference from a hole would report EVERY one
     of them as changed on the first run after this ships, which is a false
     alarm on the whole catalog.
     """
-    assert drift(None, _stmt()) == []
-    assert drift({}, _stmt()) == []
+    assert 'night' in drift(None, {'title': 'X', 'place': 'Y', 'night': '2026-09-09'})
+    assert 'night' in drift({}, {'title': 'X', 'place': 'Y', 'night': '2026-09-09'})
+    assert drift(None, {}) == []
+    assert drift({}, {}) == []
 
 
 def test_drift_records_the_desks_new_word_and_never_publishes_it():

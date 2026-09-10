@@ -423,7 +423,7 @@ def drift(stored: Optional[Mapping[str, Any]], fresh: Mapping[str, Any]) -> List
     desk actually changes something about them.
     """
     if not stored:
-        return []
+        return [field for field in WATCHED if fresh.get(field)]
     return [field for field in WATCHED if stored.get(field) != fresh.get(field)]
 
 
