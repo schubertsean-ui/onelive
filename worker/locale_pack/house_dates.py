@@ -8,12 +8,18 @@ Named weekdays plus Continues through Month Day fill each matching
 weekday from as_of through that end date, inclusive.
 
 Printed 8:30 p.m. on that night is the show time. Reading it is not inventing.
+A printed clock is that locale pack's clock (America/Chicago for Austin).
+Naive T18:00:00 was read as UTC and printed 1:00 PM. That is a miss.
 """
 from __future__ import annotations
 
 import re
 from datetime import date as _date
+from datetime import datetime as _datetime
 from typing import Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
+
+_PACK_TZ = ZoneInfo("America/Chicago")
 
 _HOUSE_WD_MD_RE = re.compile(
     r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
@@ -101,7 +107,8 @@ def _iso(day: _date, clock) -> Tuple[str, str]:
     if not clock:
         return day.isoformat(), "date"
     hour, minute = clock
-    return f"{day.isoformat()}T{hour:02d}:{minute:02d}:00", "datetime"
+    local = _datetime(day.year, day.month, day.day, hour, minute, tzinfo=_PACK_TZ)
+    return local.isoformat(), "datetime"
 
 
 def house_dates(card_text: str, page_html: str,
