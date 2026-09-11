@@ -4,8 +4,7 @@ on:
   push:
     paths:
       - .github/workflows/apply-wire-desk-read.yml
-      - tools/patch_ingest_key.py
-      - tools/fix_night_rows.py
+      - tools/restore_desk_read_fl009.py
 jobs:
   apply:
     runs-on: ubuntu-latest
@@ -13,13 +12,29 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/patch_ingest_key.py
-      - run: python3 tools/fix_night_rows.py
-      - run: python3 -m py_compile worker/locale_pack/desk_read.py worker/locale_pack/desk_publish.py
-      - run: |
+        with:
+          fetch-depth: 0
+      - name: Restore real reader from 665ce213 and wire Place
+        run: python3 tools/restore_desk_read_fl009.py
+      - name: Refuse a stub
+        run: |
+          set -euo pipefail
+          bytes=$(wc -c < worker/locale_pack/desk_read.py)
+          echo "desk_read.py bytes=$bytes"
+          test "$bytes" -gt 10000
+          grep -q "def read(" worker/locale_pack/desk_read.py
+          grep -q "place_from_card_text" worker/locale_pack/desk_read.py
+          if grep -E "SEE_LOCAL|PLACEHOLDER_SEE" worker/locale_pack/desk_read.py; then
+            echo stub marker present
+            exit 1
+          fi
+          python3 -m py_compile worker/locale_pack/desk_read.py
+      - name: Commit the real file
+        run: |
+          set -euo pipefail
           git config user.name schubertsean-ui
           git config user.email 256894134+schubertsean-ui@users.noreply.github.com
-          git add worker/locale_pack/desk_read.py worker/locale_pack/desk_publish.py
+          git add worker/locale_pack/desk_read.py
           git diff --cached --quiet && echo nochange && exit 0
-          git commit -m "Save key is URL plus that night. Split from card text."
+          git commit -m "Restore real desk_read. Wire place_from_card_text. Never a stub."
           git push
