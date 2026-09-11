@@ -1,9 +1,7 @@
 // The 22 cultural domains for display — id → label + accent hue. Mirrors
 // docs/strategy/ONE_LIVE_CATEGORY_TAXONOMY_v1.md / worker/importers/domain_map.py.
 // `unmapped` renders as "Other" (honest catch-all, never a fabricated domain).
-//
-// FL-014: desk kind maps write short words (music, art, sport). Chips look
-// for live-music / visual-arts / sports. Alias here so Other is not the dump.
+// Pack kinds (music, art, sport) are desk words. Chip ids stay ours.
 
 export type DomainMeta = { id: string; label: string; hue: number };
 
@@ -33,10 +31,7 @@ export const DOMAINS: DomainMeta[] = [
   { id: "unmapped", label: "Other", hue: 0 },
 ];
 
-export const DOMAIN_LABEL = new Map(DOMAINS.map((d) => [d.id, d.label]));
-export const DOMAIN_HUE = new Map(DOMAINS.map((d) => [d.id, d.hue]));
-
-/** Desk our_kind → feed domain id. Print map. No ingest. */
+/** Desk/pack kind word → feed chip id. Does not invent a kind. */
 export const PACK_KIND_ALIAS: Record<string, string> = {
   music: "live-music",
   art: "visual-arts",
@@ -48,7 +43,10 @@ export const PACK_KIND_ALIAS: Record<string, string> = {
   outdoors: "wellness",
 };
 
-export function packKind(id: string | null): string | null {
+export const DOMAIN_LABEL = new Map(DOMAINS.map((d) => [d.id, d.label]));
+export const DOMAIN_HUE = new Map(DOMAINS.map((d) => [d.id, d.hue]));
+
+export function resolveDomain(id: string | null): string | null {
   if (!id) return null;
   const raw = id.trim().toLowerCase();
   if (!raw) return null;
@@ -56,14 +54,14 @@ export function packKind(id: string | null): string | null {
 }
 
 export function domainLabel(id: string | null): string {
-  if (!id) return "Other";
-  const mapped = packKind(id);
-  return DOMAIN_LABEL.get(mapped ?? "") ?? "Other";
+  const key = resolveDomain(id);
+  if (!key) return "Other";
+  return DOMAIN_LABEL.get(key) ?? "Other";
 }
 export function domainHue(id: string | null): number {
-  if (!id) return 0;
-  const mapped = packKind(id);
-  return DOMAIN_HUE.get(mapped ?? "") ?? 0;
+  const key = resolveDomain(id);
+  if (!key) return 0;
+  return DOMAIN_HUE.get(key) ?? 0;
 }
 
 // Time-band density (founder's time-tiered card idea): rich ≤7d, compact 8–30d,
