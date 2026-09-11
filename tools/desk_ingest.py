@@ -1080,35 +1080,35 @@ def publish_first(writes: Sequence[CandidateWrite], *,
 
 
 def fill_published_holes(event_id: str, patch: dict) -> str:
-    """FL-010. Write a first printed Place or clock onto the public row."""
+    """FL-010. Write a first printed Place onto event.venue_id."""
     if not event_id or not patch:
         return "nothing to fill"
     from worker.candidate_store import db  # noqa: PLC0415
-    venue = patch.get("venue_name")
+    from worker.resolve_entities import resolve_venue_id  # noqa: PLC0415
+    raw = str(event_id)
+    if raw.startswith("promoted:"):
+        raw = raw.split(":", 1)[1]
+    venue = (patch.get("venue_name") or "").strip() or None
     start = patch.get("start_time")
     title = patch.get("title")
     with db() as conn:
         with conn.cursor() as cur:
+            venue_id = resolve_venue_id(cur, venue, "Austin") if venue else None
             cur.execute(
                 """
                 update event
-                   set venue_name = case
-                         when %s is not null and (
-                              venue_name is null
-                              or btrim(venue_name) = ''
-                              or lower(venue_name) in
-                                 ('unknown venue','venue','unknown','tbd','n/a'))
-                         then %s else venue_name end,
+                   set venue_id = case
+                         when venue_id is null and %s is not null
+                         then %s::uuid else venue_id end,
                        start_time = coalesce(%s::timestamptz, start_time),
-                       title = coalesce(%s, title),
-                       updated_at = now()
+                       title = coalesce(%s, title)
                  where event_id = %s::uuid
                    and override_lock = false
                 """,
-                (venue, venue, start, title, event_id),
+                (venue_id, venue_id, start, title, raw),
             )
             n = cur.rowcount
-    return f"filled public row {event_id} ({n} row, {sorted(patch)})"
+    return f"filled public row {raw} ({n} row, {sorted(patch)})"
 
 
 def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
@@ -1193,6 +1193,14 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                 else:
                     standing = cid
             elif not moved:
+                if (fresh or {}).get("place"):
+                    try:
+                        fill(event_id, fill_patch(fresh, ["place"]))
+                    except Exception as exc:  # noqa: BLE001
+                        out["failed"].append((
+                            w, f"COULD NOT FILL published row {event_id} "
+                               f"({type(exc).__name__}: {exc})"))
+                        continue
                 out["skipped"].append((
                     w, f"already PUBLIC as event {event_id} (candidate {cid}, "
                        f"{status}), and the desk still says the same thing "
