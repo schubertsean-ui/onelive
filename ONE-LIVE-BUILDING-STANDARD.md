@@ -1,6 +1,6 @@
 # One Live — Building Standard
 
-CTO-level / best-in-class senior-engineer bar. Ratified: 2026-09-07. Status: in force.
+CTO-level / best-in-class senior-engineer bar. Ratified: 2026-09-07. Density lock raised 2026-09-08. Status: in force.
 
 This file does **not** outrank Coverage Law, Vision, Locale Launch Law, Entity Split Law, or Trust. Those still win on their subjects.
 Operating Law still wins on *how a coding session works*.
@@ -10,7 +10,7 @@ If a ticket ships below this bar, the ticket is not done.
 
 ## The lock
 
-- **More of the real world than anyone else.** For any locale we Show, dated+placed listings must be *significantly greater* than the best public aggregator for that locale. Target: **≥3×** that aggregator's dated count on a comparable window. Holes, TBA, and invented rows do not count. If an aggregator cannot be counted, the ratio is UNVERIFIED — never guessed.
+- **More of the real world than anyone else.** For any locale we Show, dated+placed listings (mash_n=0) must **exceed the union** of unique dated+placed happenings across **all named public aggregators** we can count for that locale and window — combined, deduped. Combined means union, never Chronicle_N + Do512_N. Unique Places that hold a dated happening must exceed the union of aggregator venues on the same window. Holes, TBA, and invented rows do not count. An uncountable aggregator is UNVERIFIED and is not guessed into the union. CAPCOG named set until a pack names more: Chronicle events, Do512, one civic/desk if it loads without login.
 - **Measure, don't assert.** A green PR that does not change the catalog, Tonight, or a measured pipe is not a win.
 - **Fail closed.** Unconfirmed fetch: no delete, no date edit, no cancel. 403 is unknown, not empty. Search snippets are leads, never listings.
 - **Identity first.** mash_n = 0 before a public write. One happening, one row.
@@ -40,4 +40,4 @@ If a ticket ships below this bar, the ticket is not done.
 
 ## Using this file
 
-A ticket that ships fewer dated+placed rows than the specialist it cites, hides a disputed row, invents a date, or treats CAPCOG as the catalog, is below the bar. Note it under Refused rather than merge it.
+A ticket that ships fewer unique dated+placed rows than the **union** of the aggregators it cites, hides a disputed row, invents a date, or treats CAPCOG as the catalog, is below the bar. Note it under Refused rather than merge it.
