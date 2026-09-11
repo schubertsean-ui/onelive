@@ -1,6 +1,7 @@
 // Card slots for the two-room card (founder paste 2026-09-08).
 // Place, photo, and venue site are always on the activity. Missing = finder miss.
 // Never invent photo, spark, glyph, character, specials, doors, or distance.
+// City is not Place. A clock mashed into the name is not Place.
 
 import type { LicensedEvent } from "./licensed";
 import { domainLabel } from "./domains";
@@ -9,7 +10,45 @@ import { venueWebsite } from "./detail";
 export const LOOKING_FOR_MORE =
   "We\u2019re looking for more information. Check or call the site, artist, or organizer to confirm details.";
 
-const FAKE_PLACE = new Set(["unknown venue", "venue", "unknown", "tbd", "n/a", "na"]);
+export const PLACE_HOLE = "Looking for the venue";
+
+const FAKE_PLACE = new Set([
+  "unknown venue",
+  "venue",
+  "unknown",
+  "tbd",
+  "n/a",
+  "na",
+  "place to be confirmed",
+  "to be confirmed",
+]);
+
+const CITY_ONLY = new Set(["austin", "atx"]);
+
+const AREA_ONLY = new Set([
+  "downtown",
+  "midtown",
+  "uptown",
+  "campus",
+  "north",
+  "south",
+  "east",
+  "west",
+  "central",
+  "nearby",
+  "local",
+  "north austin",
+  "south austin",
+  "east austin",
+  "west austin",
+  "central austin",
+  "downtown austin",
+  "midtown austin",
+  "uptown austin",
+  "campus austin",
+  "beyond austin",
+  "greater austin",
+]);
 
 function placeNameOnly(raw: string): string {
   if (!/,/.test(raw)) return raw;
@@ -19,14 +58,42 @@ function placeNameOnly(raw: string): string {
   return name || raw;
 }
 
-/** Place a desk printed. Never "Unknown Venue". Room codes print — blank is worse. */
+function stripClockPrefix(raw: string): string {
+  let s = raw.trim();
+  s = s.replace(/^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*,?\s+/i, "");
+  s = s.replace(/^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+/i, "");
+  s = s.replace(/^(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\.?\s+/i, "");
+  return s.trim();
+}
+
+function normalizedPlaceKey(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[.’']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isCityOrAreaOnly(name: string): boolean {
+  const key = normalizedPlaceKey(name);
+  if (!key) return true;
+  if (CITY_ONLY.has(key) || AREA_ONLY.has(key)) return true;
+  const withoutCity = key.replace(/,\s*(austin|atx|tx)$/i, "").replace(/\s+(austin|atx)$/i, "").trim();
+  if (!withoutCity) return true;
+  if (CITY_ONLY.has(withoutCity) || AREA_ONLY.has(withoutCity)) return true;
+  return false;
+}
+
+/** Place a desk printed. Never city-only. Never a clock. Never invented copy. */
 export function printablePlace(e: LicensedEvent): string | null {
   const raw = (e.venue_name ?? "").trim();
   if (!raw) return null;
   if (FAKE_PLACE.has(raw.toLowerCase())) return null;
-  const name = placeNameOnly(raw);
-  if (FAKE_PLACE.has(name.toLowerCase())) return null;
-  return name;
+  const stripped = stripClockPrefix(placeNameOnly(raw));
+  if (!stripped) return null;
+  if (FAKE_PLACE.has(stripped.toLowerCase())) return null;
+  if (isCityOrAreaOnly(stripped)) return null;
+  return stripped;
 }
 
 export function kindChip(e: LicensedEvent): string | null {

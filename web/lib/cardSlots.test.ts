@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { LicensedEvent } from "./licensed";
 import {
   LOOKING_FOR_MORE,
+  PLACE_HOLE,
   kindChip,
   lookingForMore,
   detailsThin,
@@ -62,6 +63,37 @@ describe("card slots — print only what a desk printed", () => {
     expect(printablePlace(ev({ venue_name: "unknown venue" }))).toBeNull();
     expect(printablePlace(ev({ venue_name: "Emo's Austin" }))).toBe("Emo's Austin");
     expect(lookingForMore(ev({ venue_name: "Unknown Venue" }))).toBe(true);
+  });
+
+  it("city is not Place", () => {
+    expect(printablePlace(ev({ venue_name: "Austin" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "austin" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "Beyond Austin" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "Downtown" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "Midtown" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "Campus" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "East Austin" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "Campus Austin" }))).toBeNull();
+    expect(PLACE_HOLE).toBe("Looking for the venue");
+  });
+
+  it("a clock mashed into the venue name is not Place", () => {
+    expect(printablePlace(ev({ venue_name: "7 p.m. Beyond Austin" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "7:00 PM Beyond Austin" }))).toBeNull();
+    expect(printablePlace(ev({ venue_name: "7 p.m. Hays City Store" }))).toBe("Hays City Store");
+  });
+
+  it("invented Place to be confirmed is a hole", () => {
+    expect(printablePlace(ev({ venue_name: "Place to be confirmed" }))).toBeNull();
+    expect(lookingForMore(ev({ venue_name: "Place to be confirmed" }))).toBe(true);
+  });
+
+  it("a named venue still prints, even when the city is in the name", () => {
+    expect(printablePlace(ev({ venue_name: "Hays City Store" }))).toBe("Hays City Store");
+    expect(printablePlace(ev({ venue_name: "Swan Dive" }))).toBe("Swan Dive");
+    expect(printablePlace(ev({ venue_name: "Circuit of The Americas Austin" }))).toBe(
+      "Circuit of The Americas Austin",
+    );
   });
 
   it("quiet ? when unverified, disputed, undated, or looking-for-more", () => {
