@@ -2,6 +2,7 @@
 """Wire FL-010 into tools/desk_ingest.py. Read the Fix Process first.
 
 A first Place on a public row is a fill. Do not call that corroboration.
+The candidate statement can already hold Place while event.venue_name is empty.
 """
 from __future__ import annotations
 
@@ -23,6 +24,9 @@ FILL_FN = '''def fill_published_holes(event_id: str, patch: dict) -> str:
     if not event_id or not patch:
         return "nothing to fill"
     from worker.candidate_store import db  # noqa: PLC0415
+    raw = str(event_id)
+    if raw.startswith("promoted:"):
+        raw = raw.split(":", 1)[1]
     venue = patch.get("venue_name")
     start = patch.get("start_time")
     title = patch.get("title")
@@ -36,7 +40,8 @@ FILL_FN = '''def fill_published_holes(event_id: str, patch: dict) -> str:
                               venue_name is null
                               or btrim(venue_name) = ''
                               or lower(venue_name) in
-                                 ('unknown venue','venue','unknown','tbd','n/a'))
+                                 ('unknown venue','venue','unknown','tbd','n/a',
+                                  'place to be confirmed'))
                          then %s else venue_name end,
                        start_time = coalesce(%s::timestamptz, start_time),
                        title = coalesce(%s, title),
@@ -44,10 +49,10 @@ FILL_FN = '''def fill_published_holes(event_id: str, patch: dict) -> str:
                  where event_id = %s::uuid
                    and override_lock = false
                 """,
-                (venue, venue, start, title, event_id),
+                (venue, venue, start, title, raw),
             )
             n = cur.rowcount
-    return f"filled public row {event_id} ({n} row, {sorted(patch)})"
+    return f"filled public row {raw} ({n} row, {sorted(patch)})"
 
 
 '''
@@ -57,6 +62,18 @@ SIG_NEW = (
     + "def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],\n"
     + "           create, add_evidence, promote, dispute=dispute_superseded,\n"
     + "           fill=fill_published_holes) -> Dict[str, list]:"
+)
+
+OLD_HOLE = (
+    "                    hole = fills(stored, fresh)\n"
+    "                    if hole:"
+)
+
+NEW_HOLE = (
+    "                    hole = fills(stored, fresh)\n"
+    "                    if not hole and fresh.get(\"place\"):\n"
+    "                        hole = [\"place\"]\n"
+    "                    if hole:"
 )
 
 LEAVE_NEEDLE = (
@@ -69,6 +86,8 @@ LEAVE_NEEDLE = (
 LEAVE_NEW = (
     "else:\n"
     "                    hole = fills(stored, fresh)\n"
+    "                    if not hole and fresh.get(\"place\"):\n"
+    "                        hole = [\"place\"]\n"
     "                    if hole:\n"
     "                        patch = fill_patch(fresh, hole)\n"
     "                        try:\n"
@@ -95,10 +114,13 @@ def main() -> int:
         if SIG_NEEDLE not in text:
             raise SystemExit("ingest() signature not found")
         text = text.replace(SIG_NEEDLE, SIG_NEW, 1)
-    if "hole = fills(stored, fresh)" not in text:
-        if LEAVE_NEEDLE not in text:
-            raise SystemExit("leave-alone branch not found")
-        text = text.replace(LEAVE_NEEDLE, LEAVE_NEW, 1)
+    if "if not hole and fresh.get(\"place\"):" not in text:
+        if OLD_HOLE in text:
+            text = text.replace(OLD_HOLE, NEW_HOLE, 1)
+        elif LEAVE_NEEDLE in text:
+            text = text.replace(LEAVE_NEEDLE, LEAVE_NEW, 1)
+        else:
+            raise SystemExit("leave-alone / hole branch not found")
     INGEST.write_text(text, encoding="utf-8")
     print("FL-010 wired into", INGEST)
     return 0
