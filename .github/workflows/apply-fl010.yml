@@ -1,0 +1,35 @@
+name: apply-fl010
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/apply_fl010.py
+      - worker/locale_pack/desk_fill.py
+      - .github/workflows/apply-fl010.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Wire FL-010 into desk_ingest.py
+        run: python tools/apply_fl010.py
+      - name: Prove the fill helpers
+        run: python -m pytest tests/test_fl010_hole_fill.py -q
+      - name: Commit if the product file changed
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add tools/desk_ingest.py
+          if git diff --cached --quiet; then
+            echo "desk_ingest.py already wired"
+            exit 0
+          fi
+          git commit -m "FL-010: first Place on a public row is a fill, not corroboration."
+          git push
