@@ -3,6 +3,10 @@
 FL-009. Universal. If the desk printed a venue line next to the title,
 that is Place. We do not invent. We do not use the city in the title.
 Works on line-broken cards and on flattened HTML text.
+
+FL-011. An area chip is not Place. Chronicle prints the venue name,
+then street, then an area token (Northeast, South, Beyond Austin).
+That token is area, never venue.name.
 """
 from __future__ import annotations
 
@@ -23,8 +27,14 @@ _KIND = re.compile(
 )
 _PHONE = re.compile(r"\b\d{3}[-/]\d{3}[-/]?\d{4}\b")
 _CITY_ONLY = re.compile(
-    r"^(austin|tx|texas|beyond austin|greater austin|east|south|north|"
-    r"downtown|midtown|old west austin|driftwood)\.?$",
+    r"^(austin|atx|tx|texas|beyond austin|greater austin|"
+    r"east|south|north|west|central|downtown|midtown|uptown|campus|"
+    r"northeast|northwest|southeast|southwest|"
+    r"lower east|old west austin|"
+    r"north austin|south austin|east austin|west austin|"
+    r"central austin|downtown austin|midtown austin|uptown austin|campus austin|"
+    r"northeast austin|northwest austin|southeast austin|southwest austin|"
+    r"driftwood)\.?$",
     re.I,
 )
 # FM/Hwy (8989 FM 150) OR a house number plus the rest of that street phrase.
@@ -32,6 +42,12 @@ _STREET = re.compile(
     r"(\d{3,6}\s+(?:f\.?m\.?|hwy|highway)\.?\s+\d+[A-Za-z]?"
     r"|\d{3,6}\s+[A-Za-z0-9.#][^|,]{0,60})",
     re.I,
+)
+_AREA_TAIL = (
+    r"Austin|Driftwood|Texas|TX|ATX|Beyond Austin|Greater Austin|"
+    r"Old West Austin|Lower East|"
+    r"Northeast|Northwest|Southeast|Southwest|"
+    r"East|South|North|West|Central|Downtown|Midtown|Uptown|Campus"
 )
 
 
@@ -46,8 +62,7 @@ def _street_of(ln: str) -> Optional[str]:
     raw = hit.group(1).split("|")[0].strip().rstrip(",")
     raw = re.split(r"\s+\|\s+", raw)[0].strip()
     raw = re.sub(
-        r",\s*(Austin|Driftwood|Texas|TX|Beyond Austin|Greater Austin|"
-        r"Old West Austin|East|South|North|Downtown|Midtown)\b.*$",
+        rf",\s*(?:{_AREA_TAIL})\b.*$",
         "",
         raw,
         flags=re.I,
@@ -115,7 +130,7 @@ def _from_flat(blob: str) -> Tuple[Optional[str], Optional[str]]:
         idx = rest.find(street)
         rest = _clean(rest[:idx] if idx >= 0 else rest)
     rest = re.sub(
-        r"\|\s*(Beyond Austin|Greater Austin|Old West Austin|East|South|North|Downtown|Midtown)\b",
+        rf"\|\s*(?:{_AREA_TAIL})\b",
         "",
         rest,
         flags=re.I,
