@@ -2,6 +2,7 @@
 // Place, photo, and venue site are always on the activity. Missing = finder miss.
 // Never invent photo, spark, glyph, character, specials, doors, or distance.
 // City is not Place. A clock mashed into the name is not Place.
+// An area chip is not Place. Incomplete fill is not a disqualifier.
 
 import type { LicensedEvent } from "./licensed";
 import { domainLabel } from "./domains";
@@ -37,6 +38,12 @@ const AREA_ONLY = new Set([
   "central",
   "nearby",
   "local",
+  "northeast",
+  "northwest",
+  "southeast",
+  "southwest",
+  "lower east",
+  "old west austin",
   "north austin",
   "south austin",
   "east austin",
@@ -46,8 +53,15 @@ const AREA_ONLY = new Set([
   "midtown austin",
   "uptown austin",
   "campus austin",
+  "northeast austin",
+  "northwest austin",
+  "southeast austin",
+  "southwest austin",
   "beyond austin",
   "greater austin",
+  "west austin and lakeway",
+  "south congress and south first",
+  "south lamar and barton springs",
 ]);
 
 function placeNameOnly(raw: string): string {
@@ -119,9 +133,7 @@ export function lookingForMore(e: LicensedEvent): boolean {
   const title = (e.title ?? "").trim() || (e.performer ?? "").trim();
   const place = printablePlace(e);
   const topic = (e.category ?? "").trim() || (e.title ?? "").trim();
-  const site = venueSiteHost(e.venue_url);
-  const photo = (e.image_url ?? "").trim();
-  return !title || !place || !topic || !site || !photo;
+  return !title || !place || !topic;
 }
 
 export function detailsThin(e: LicensedEvent): boolean {
