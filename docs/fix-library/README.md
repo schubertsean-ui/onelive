@@ -28,15 +28,15 @@ Step 11: Partial. Same family as FL-008.
 
 ### [FL-004](FL-004.md) — product file became SEE_FILE
 A stub shipped. Restore the real module. Never merge a stub. Never #273.
-Step 11: Restored.
+Step 11: desk_read.py restored on master 72c8e80 (57KB). A new stub is a new failure.
 
 ### [FL-005](FL-005.md) — validated desk never publishes
 A gate wanted two sources. One trusted door + title is enough.
 Step 11: Not yet on every door.
 
 ### [FL-006](FL-006.md) — old ingest blocks the new one
-Newest master ingest wins. Do not start ingest on docs-only.
-Step 11: Applied.
+Newest master ingest wins. Do not start ingest on docs-only. Do not start ingest on a stub.
+Step 11: Applied. Ingest 71 on the stub was this team. Leave that failed run.
 
 ### [FL-007](FL-007.md) — date or place hold hides a titled row
 Delete the hold in the file that sets it. Missing date or place is a hole, not a hold.
@@ -44,8 +44,12 @@ Step 11: Applied.
 
 ### [FL-008](FL-008.md) — printed 6 p.m. shows as 1:00 PM
 Stamp the locale pack timezone. Never store a naive clock as UTC.
-Step 11: code on master. Live after ingest rewrites the row.
+Step 11: clock code on master. Ingest 72 wrote a second 6:00 PM card. The 1:00 PM ghost remains. Same listing must be rewritten (FL-010).
 
 ### [FL-009](FL-009.md) — Place blank while the list names the venue
 Read the venue line next to the title. Every desk. Every locale.
-Step 11: Not yet. Reader must ship, then ingest, then live Dave Orr Band says Hays City Store.
+Step 11: reader on master. Live still Place to be confirmed because the fill was not applied to the public row (FL-010).
+
+### [FL-010](FL-010.md) — hole-fill recorded, live row left empty
+A first Place or a corrected clock must land on the same public row. Do not call that corroboration. Do not open a second card.
+Step 11: Not yet. Library saved 2026-09-10. Live Dave Orr still 1:00 PM + 6:00 PM + Place to be confirmed.
