@@ -93,6 +93,7 @@ from worker.locale_pack.desk_publish import (  # noqa: E402
     registration_for,
 )
 from worker.locale_pack.desk_fill import fill_patch, fills  # noqa: E402
+from worker.locale_pack.fill_public import public_fill_patch  # noqa: E402
 from worker.locale_pack.desk_union import DeskUnion, bounded, union  # noqa: E402
 from worker.locale_pack.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, _normalize, _same_host, walk,
@@ -1080,35 +1081,9 @@ def publish_first(writes: Sequence[CandidateWrite], *,
 
 
 def fill_published_holes(event_id: str, patch: dict) -> str:
-    """FL-010. Write a first printed Place onto event.venue_id."""
-    if not event_id or not patch:
-        return "nothing to fill"
-    from worker.candidate_store import db  # noqa: PLC0415
-    from worker.resolve_entities import resolve_venue_id  # noqa: PLC0415
-    raw = str(event_id)
-    if raw.startswith("promoted:"):
-        raw = raw.split(":", 1)[1]
-    venue = (patch.get("venue_name") or "").strip() or None
-    start = patch.get("start_time")
-    title = patch.get("title")
-    with db() as conn:
-        with conn.cursor() as cur:
-            venue_id = resolve_venue_id(cur, venue, "Austin") if venue else None
-            cur.execute(
-                """
-                update event
-                   set venue_id = case
-                         when venue_id is null and %s is not null
-                         then %s::uuid else venue_id end,
-                       start_time = coalesce(%s::timestamptz, start_time),
-                       title = coalesce(%s, title)
-                 where event_id = %s::uuid
-                   and override_lock = false
-                """,
-                (venue_id, venue_id, start, title, raw),
-            )
-            n = cur.rowcount
-    return f"filled public row {raw} ({n} row, {sorted(patch)})"
+    """FL-010. Public Place/clock write. See worker.locale_pack.fill_public."""
+    from worker.locale_pack.fill_public import fill_public_rows  # noqa: PLC0415
+    return fill_public_rows(event_id, patch)
 
 
 def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
@@ -1195,7 +1170,7 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
             elif not moved:
                 if (fresh or {}).get("place"):
                     try:
-                        fill(event_id, fill_patch(fresh, ["place"]))
+                        fill(event_id, public_fill_patch(fresh))
                     except Exception as exc:  # noqa: BLE001
                         out["failed"].append((
                             w, f"COULD NOT FILL published row {event_id} "
