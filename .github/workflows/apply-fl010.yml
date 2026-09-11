@@ -21,7 +21,9 @@ jobs:
       - name: Wire FL-010 into desk_ingest.py
         run: python tools/apply_fl010.py
       - name: Prove the fill helpers
-        run: python -m pytest tests/test_fl010_hole_fill.py -q
+        run: |
+          python -m pip install -q pytest
+          python -m pytest tests/test_fl010_hole_fill.py -q
       - name: Commit if the product file changed
         run: |
           git config user.name "schubertsean-ui"
