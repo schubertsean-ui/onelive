@@ -92,6 +92,7 @@ from worker.locale_pack.desk_publish import (  # noqa: E402
     refuse_fixture_write,
     registration_for,
 )
+from worker.locale_pack.desk_fill import fill_patch, fills  # noqa: E402
 from worker.locale_pack.desk_union import DeskUnion, bounded, union  # noqa: E402
 from worker.locale_pack.desk_walk import (  # noqa: E402
     DEFAULT_MAX_PAGES, DeskWalk, DeskWalkError, _normalize, _same_host, walk,
@@ -1078,8 +1079,41 @@ def publish_first(writes: Sequence[CandidateWrite], *,
     return correcting + publishing + holding
 
 
+def fill_published_holes(event_id: str, patch: dict) -> str:
+    """FL-010. Write a first printed Place or clock onto the public row."""
+    if not event_id or not patch:
+        return "nothing to fill"
+    from worker.candidate_store import db  # noqa: PLC0415
+    venue = patch.get("venue_name")
+    start = patch.get("start_time")
+    title = patch.get("title")
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update event
+                   set venue_name = case
+                         when %s is not null and (
+                              venue_name is null
+                              or btrim(venue_name) = ''
+                              or lower(venue_name) in
+                                 ('unknown venue','venue','unknown','tbd','n/a'))
+                         then %s else venue_name end,
+                       start_time = coalesce(%s::timestamptz, start_time),
+                       title = coalesce(%s, title),
+                       updated_at = now()
+                 where event_id = %s::uuid
+                   and override_lock = false
+                """,
+                (venue, venue, start, title, event_id),
+            )
+            n = cur.rowcount
+    return f"filled public row {event_id} ({n} row, {sorted(patch)})"
+
+
 def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
-           create, add_evidence, promote, dispute=dispute_superseded) -> Dict[str, list]:
+           create, add_evidence, promote, dispute=dispute_superseded,
+           fill=fill_published_holes) -> Dict[str, list]:
     """Publish every planned row that is not already PUBLIC.
 
     THE SKIP TEST IS PUBLICATION, NOT EXISTENCE IN THE STORE (founder,
@@ -1215,9 +1249,20 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                                f"the desk's settled word"))
                         continue
                 else:
-                    verdict = (f"published row {event_id} is left alone: this is "
-                               f"corroboration, not a contradiction — nothing the "
-                               f"desks say about it has changed")
+                    hole = fills(stored, fresh)
+                    if hole:
+                        patch = fill_patch(fresh, hole)
+                        try:
+                            verdict = fill(event_id, patch)
+                        except Exception as exc:  # noqa: BLE001
+                            verdict = (f"COULD NOT FILL published row {event_id} "
+                                       f"({type(exc).__name__}: {exc})")
+                            out["failed"].append((w, verdict))
+                            continue
+                    else:
+                        verdict = (f"published row {event_id} is left alone: this is "
+                                   f"corroboration, not a contradiction — nothing the "
+                                   f"desks say about it has changed")
                 supersedes = {"candidate_id": cid, "event_id": event_id,
                               "was": stored, "changed": moved,
                               "contradicts": against}
