@@ -49,6 +49,14 @@ A board, a PR, a table, or a green job is not done.
 Master is not live.
 If the live count did not move, the work failed. Say so.
 
+## Coding (non-violable)
+
+Before you change a product file, read docs/ONE-LIVE-FIX-LOOP.md and docs/fix-library/.
+Reuse the matching FL card. Do not repeat a prior error.
+Write the field the live card reads. Tonight Place is venue.name via event.venue_id.
+A stub is a fail. A green job is not Success. A hole-fill is a fill, not corroboration.
+When something fails, run the 15-step Fix Process immediately. Do not write status instead of applying.
+
 ## Universal
 
 - Locale = device or the city the person searched. A new city is a new pack + IANA timezone. No hardcoded city is the product.
@@ -92,4 +100,6 @@ Call ingest green Success if 1live.co did not move.
 Drop a row for missing city, missing category, or “not this city.”
 Tell a venue we have their calendar unless they claimed or partnered.
 Bypass a wall.
-}
+Leave a printed Place on a candidate while the live card stays blank.
+Write event.venue_name and expect Tonight to change. Tonight reads venue.name via event.venue_id.
+Ask the founder to click Run workflow.
