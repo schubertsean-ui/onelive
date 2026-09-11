@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { LicensedEvent } from "../../../lib/licensed";
 import {
   LOOKING_FOR_MORE,
+  PLACE_HOLE,
   kindChip,
   lookingForMore,
   detailsThin,
@@ -102,12 +103,12 @@ export function TwoRoomCard({
           type="button"
           className="zone z-venue"
           onClick={() => onOpen(e, "venue")}
-          aria-label={`${place ?? "Venue"} — open venue details`}
+          aria-label={`${place ?? PLACE_HOLE} — open venue details`}
         >
-          {place ? <span className="vname">{place}</span> : <span className="vname vhole">Place to be confirmed</span>}
-          {area ? <span className="mmap">{area}</span> : null}
+          {place ? <span className="vname">{place}</span> : <span className="vname vhole">{PLACE_HOLE}</span>}
+          {place && area ? <span className="mmap">{area}</span> : null}
           {street ? <span className="vaddr">{street}</span> : null}
-          {host ? <span className="vsite">{host}</span> : null}
+          {host ? <span className="vsite">{host}</span> : place ? <span className="vsite">Looking for the venue site.</span> : null}
           <span className="go" aria-hidden="true">venue ›</span>
         </button>
       </div>

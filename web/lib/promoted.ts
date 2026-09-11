@@ -1,21 +1,3 @@
-// Read PROMOTED (pipeline-gated) events from the canonical `event` table and
-// reshape them into the same LicensedEvent card shape the feed already renders,
-// so the consumer feed can show `event ∪ licensed_event` — the union the schema
-// (migration 0010) documents as the consumer read path. This is the read half
-// of "put reviewed events on the site": the crawl pipeline promotes discovered
-// events (venue calendars, festivals, university feeds) into `event`; without
-// this reader they were written but never displayed.
-//
-// TRUST RULES (identical to licensed.ts, held structurally):
-//   * NEVER filter on `confidence` — a `disputed` promoted event is read and
-//     shown (shown-never-hidden). The only filters are time/status, never trust.
-//   * Row privacy is enforced upstream by RLS (migration 0007: anon reads only
-//     non-private events); this reader adds no privacy logic of its own and the
-//     anon key physically cannot see private rows.
-//   * `event` stores venue via a FK and artists via an id array, so we join
-//     `venue` (PostgREST embed) and resolve `artist_ids` → names for `performer`.
-//     No fabrication: fields absent on a promoted row stay null.
-
 import {
   exactlyOneOrNull,
   supaEnv,
@@ -82,11 +64,61 @@ export type PromotedQueryOpts = {
   includeNullClock?: boolean;
 };
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const PROMOTED_ID_PREFIX = "promoted:";
+
+export type EventIdRoute =
+  | { kind: "promoted"; id: string }
+  | { kind: "licensed"; id: string };
+
+export function decodeEventId(raw: string): string {
+  let id = (raw ?? "").trim();
+  if (id.startsWith('"') && id.endsWith('"') && id.length > 1) {
+    id = id.slice(1, -1).trim();
+  }
+  for (let i = 0; i < 2; i++) {
+    if (!/%[0-9A-Fa-f]{2}/.test(id)) break;
+    try {
+      const next = decodeURIComponent(id);
+      if (next === id) break;
+      id = next;
+    } catch {
+      break;
+    }
+  }
+  return id;
+}
+
+export function routeForEventId(rawId: string): EventIdRoute | null {
+  const id = decodeEventId(rawId);
+  if (!id) return null;
+  if (id.startsWith(PROMOTED_ID_PREFIX)) {
+    const inner = id.slice(PROMOTED_ID_PREFIX.length);
+    return inner ? { kind: "promoted", id: inner } : null;
+  }
+  return { kind: "licensed", id };
+}
+
+export function eventIdForQuery(raw: string): string | null {
+  const route = routeForEventId(raw);
+  const candidate = route?.kind === "promoted" ? route.id : decodeEventId(raw);
+  if (!candidate) return null;
+  if (/%[0-9A-Fa-f]{2}/.test(candidate)) return null;
+  if (candidate.toLowerCase().includes("promoted:")) return null;
+  if (!UUID_RE.test(candidate)) return null;
+  return candidate;
+}
+
 export function buildPromotedQuery(opts?: PromotedQueryOpts): string {
   const p = new URLSearchParams();
   p.set("select", EVENT_SELECT);
   if (!opts?.anyStatus) p.append("status", "in.(scheduled,moved)");
-  if (opts?.eventId) p.append("event_id", `eq.${opts.eventId}`);
+  if (opts?.eventId) {
+    const qid = eventIdForQuery(opts.eventId);
+    if (qid) p.append("event_id", `eq.${qid}`);
+  }
   if (opts?.category) p.append("category", `eq.${opts.category}`);
   const window = windowFilter(opts?.fromISO, opts?.toISO);
   if (opts?.includeNullClock === false) {
@@ -112,7 +144,7 @@ async function resolveArtistNames(
   const inList = `in.(${ids.map((id) => `"${id}"`).join(",")})`;
   const aEndpoint =
     `${url}/rest/v1/artist?select=artist_id,name&artist_id=${encodeURIComponent(inList)}`;
-  const aRows = (await fetchAllRows(url, key, endpoint)) as Array<{
+  const aRows = (await fetchAllRows(url, key, aEndpoint)) as Array<{
     artist_id: string;
     name: string | null;
   }>;
@@ -211,40 +243,11 @@ export async function fetchPromotedEvents(
   return reshapePromoted(rows, await resolveArtistNames(url, key, rows));
 }
 
-export const PROMOTED_ID_PREFIX = "promoted:";
-
-export type EventIdRoute =
-  | { kind: "promoted"; id: string }
-  | { kind: "licensed"; id: string };
-
-function decodeEventId(raw: string): string {
-  let id = raw.trim();
-  for (let i = 0; i < 2; i++) {
-    if (!/%[0-9A-Fa-f]{2}/.test(id)) break;
-    try {
-      const next = decodeURIComponent(id);
-      if (next === id) break;
-      id = next;
-    } catch {
-      break;
-    }
-  }
-  return id;
-}
-
-export function routeForEventId(rawId: string): EventIdRoute | null {
-  const id = decodeEventId(rawId);
-  if (!id) return null;
-  if (id.startsWith(PROMOTED_ID_PREFIX)) {
-    const inner = id.slice(PROMOTED_ID_PREFIX.length);
-    return inner ? { kind: "promoted", id: inner } : null;
-  }
-  return { kind: "licensed", id };
-}
-
 export async function fetchPromotedEventById(
   id: string,
 ): Promise<LicensedEvent | null> {
+  const queryId = eventIdForQuery(id);
+  if (!queryId) return null;
   const { url, key } = supaEnv();
   if (!url || !key) {
     throw new Error(
@@ -253,9 +256,9 @@ export async function fetchPromotedEventById(
     );
   }
   const endpoint =
-    `${url}/rest/v1/event?${buildPromotedQuery({ eventId: id, anyStatus: true })}`;
+    `${url}/rest/v1/event?${buildPromotedQuery({ eventId: queryId, anyStatus: true })}`;
   const rows = (await fetchAllRows(url, key, endpoint)) as PromotedRow[];
   if (rows.length === 0) return null;
   const names = await resolveArtistNames(url, key, rows);
-  return exactlyOneOrNull(reshapePromoted(rows, names), id, "event");
+  return exactlyOneOrNull(reshapePromoted(rows, names), queryId, "event");
 }
