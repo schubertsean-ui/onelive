@@ -1250,6 +1250,8 @@ def ingest(writes: Sequence[CandidateWrite], *, seen: Mapping[str, tuple],
                         continue
                 else:
                     hole = fills(stored, fresh)
+                    if not hole and fresh.get("place"):
+                        hole = ["place"]
                     if hole:
                         patch = fill_patch(fresh, hole)
                         try:
