@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { splitByDayPart } from "./feed";
-import { clockBuckets } from "./dayClock";
+import { byClock } from "./dayClock";
 import type { LicensedEvent } from "./licensed";
 
 function ev(part: Partial<LicensedEvent>): LicensedEvent {
@@ -35,15 +34,25 @@ function ev(part: Partial<LicensedEvent>): LicensedEvent {
   };
 }
 
-describe("clockBuckets — evening first, TBA last, nothing dropped", () => {
-  it("moves Date TBA out of evening and keeps the row", () => {
-    const seven = ev({ licensed_event_id: "7pm", start_time: "2026-10-16T00:00:00Z" });
-    const noon = ev({ licensed_event_id: "noon", start_time: "2026-10-15T17:00:00Z" });
+describe("byClock — soonest first, TBA last, nothing dropped", () => {
+  it("keeps Date TBA and sorts printed clocks earliest to latest", () => {
+    const seven = ev({
+      licensed_event_id: "7pm",
+      start_time: "2026-10-16T00:00:00Z",
+    });
+    const noon = ev({
+      licensed_event_id: "noon",
+      start_time: "2026-10-15T17:00:00Z",
+    });
     const tba = ev({ licensed_event_id: "tba", start_time: null });
-    const out = clockBuckets(splitByDayPart([tba, seven, noon]));
-    expect(out.evening.map((e) => e.licensed_event_id)).toEqual(["7pm"]);
-    expect(out.earlier.map((e) => e.licensed_event_id)).toEqual(["noon"]);
-    expect(out.undated.map((e) => e.licensed_event_id)).toEqual(["tba"]);
-    expect(out.evening.length + out.earlier.length + out.undated.length).toBe(3);
+    const out = byClock([tba, seven, noon]);
+    expect(out.timed.map((row: LicensedEvent) => row.licensed_event_id)).toEqual([
+      "noon",
+      "7pm",
+    ]);
+    expect(out.undated.map((row: LicensedEvent) => row.licensed_event_id)).toEqual([
+      "tba",
+    ]);
+    expect(out.timed.length + out.undated.length).toBe(3);
   });
 });
