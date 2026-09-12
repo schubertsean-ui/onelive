@@ -1,6 +1,7 @@
 // The 22 cultural domains for display — id → label + accent hue. Mirrors
 // docs/strategy/ONE_LIVE_CATEGORY_TAXONOMY_v1.md / worker/importers/domain_map.py.
 // `unmapped` renders as "Other" (honest catch-all, never a fabricated domain).
+// Pack kinds (music, art, sport) are desk words. Chip ids stay ours.
 
 export type DomainMeta = { id: string; label: string; hue: number };
 
@@ -30,16 +31,37 @@ export const DOMAINS: DomainMeta[] = [
   { id: "unmapped", label: "Other", hue: 0 },
 ];
 
+/** Desk/pack kind word → feed chip id. Does not invent a kind. */
+export const PACK_KIND_ALIAS: Record<string, string> = {
+  music: "live-music",
+  art: "visual-arts",
+  sport: "sports",
+  food: "food-drink",
+  civic: "community",
+  class: "ideas",
+  market: "fairs-expos",
+  outdoors: "wellness",
+};
+
 export const DOMAIN_LABEL = new Map(DOMAINS.map((d) => [d.id, d.label]));
 export const DOMAIN_HUE = new Map(DOMAINS.map((d) => [d.id, d.hue]));
 
+export function resolveDomain(id: string | null): string | null {
+  if (!id) return null;
+  const raw = id.trim().toLowerCase();
+  if (!raw) return null;
+  return PACK_KIND_ALIAS[raw] ?? raw;
+}
+
 export function domainLabel(id: string | null): string {
-  if (!id) return "Other";
-  return DOMAIN_LABEL.get(id) ?? "Other";
+  const key = resolveDomain(id);
+  if (!key) return "Other";
+  return DOMAIN_LABEL.get(key) ?? "Other";
 }
 export function domainHue(id: string | null): number {
-  if (!id) return 0;
-  return DOMAIN_HUE.get(id) ?? 0;
+  const key = resolveDomain(id);
+  if (!key) return 0;
+  return DOMAIN_HUE.get(key) ?? 0;
 }
 
 // Time-band density (founder's time-tiered card idea): rich ≤7d, compact 8–30d,

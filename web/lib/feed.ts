@@ -6,13 +6,13 @@
 // per-domain cap may drop rows. A `disputed` event in an unknown category, or
 // in position 13, must still be shown.
 
-import { DOMAINS, DOMAIN_LABEL, domainLabel, timeBand, type Band, type DomainMeta } from "./domains";
+import { DOMAINS, DOMAIN_LABEL, domainLabel, resolveDomain, timeBand, type Band, type DomainMeta } from "./domains";
 import { canonicalGenre, genreLabel, type GenreId } from "./genres";
 import { applyRegionScope, type RegionScope } from "./region";
 import type { LicensedEvent } from "./licensed";
 import { marketDayString, startDate as whenStartDate, isDateOnlyStart } from "./when";
 
-// ── Timing ───────────────────────────────────────────────────────────────────
+// ── Timing ───────────────────────────────────────────────────────────
 // An event is shown only if it is still to come or currently on. "Ended" events
 // (start + known/assumed duration is in the past) are hidden — a TIME filter,
 // never a confidence filter (disputed stays shown while it hasn't ended).
@@ -366,7 +366,7 @@ export function applyDesire(events: LicensedEvent[], key: string, nowMs: number)
   return events.filter((e) => d.match(e, nowMs)).sort(byStart);
 }
 
-// ── Plan a Day / Night / Weekend ─────────────────────────────────────────────
+// ── Plan a Day / Night / Weekend ─────────────────────────────────
 // A plan is a SUGGESTION built from the honest live set — never a gate. Each slot
 // is the soonest-in-block event, biased to cluster by neighborhood and vary the
 // domain, so it reads like a night out. Provenance ("why") on every slot.
@@ -452,7 +452,8 @@ export function buildPlan(events: LicensedEvent[], scope: PlanScope, nowMs: numb
 // Fold any category that is null or outside the taxonomy into "unmapped"
 // ("Other") — taxonomy drift can never silently omit a row.
 export function normalizeDomain(category: string | null): string {
-  return category && DOMAIN_LABEL.has(category) ? category : "unmapped";
+  const id = resolveDomain(category);
+  return id && DOMAIN_LABEL.has(id) ? id : "unmapped";
 }
 
 export type DomainGroup = { domain: DomainMeta; items: LicensedEvent[] };
@@ -475,7 +476,7 @@ export function groupByDomain(events: LicensedEvent[]): DomainGroup[] {
   return groups;
 }
 
-// ── Date buckets (the three-tier density) ────────────────────────────────────
+// ── Date buckets (the three-tier density) ──────────────────────────────────
 // Longer-dated events don't deserve the same tall card as tonight's — a founder
 // directive. Events split by time-to-start into three descending densities,
 // each with a plain scannable header. The three bands are exactly timeBand's
