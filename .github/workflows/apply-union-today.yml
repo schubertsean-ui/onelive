@@ -1,0 +1,90 @@
+name: Apply FL-001 FL-003 to feed.ts
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Patch feed.ts
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("web/lib/feed.ts")
+          t = p.read_text()
+          if 'from "./when"' not in t:
+              t = t.replace(
+                  'import type { LicensedEvent } from "./licensed";',
+                  'import type { LicensedEvent } from "./licensed";\nimport { isDateOnlyStart, marketDayString, startDate } from "./when";',
+              )
+          old_timing = '''export function eventTiming(e: LicensedEvent, nowMs: number): Timing {
+  const start = e.start_time ? Date.parse(e.start_time) : NaN;
+  if (Number.isNaN(start)) return "upcoming"; // date TBA — never hide it
+  if (start > nowMs) return "upcoming";
+  const end = e.end_time ? Date.parse(e.end_time) : NaN;
+  const endMs = Number.isNaN(end) ? start + ASSUMED_MS : end;
+  return endMs > nowMs ? "on-now" : "ended";
+}'''
+          new_timing = '''export function eventTiming(e: LicensedEvent, nowMs: number): Timing {
+  const iso = e.start_time;
+  if (!iso) return "upcoming";
+  const day = startDate(iso);
+  const nowDay = marketDayString(nowMs);
+  if (!day) return "upcoming";
+  if (day > nowDay) return "upcoming";
+  if (e.end_time) {
+    const end = Date.parse(e.end_time);
+    if (!Number.isNaN(end) && end <= nowMs) return "ended";
+  }
+  if (day < nowDay) return "ended";
+  if (isDateOnlyStart(iso.trim()) || !e.end_time) {
+    const start = Date.parse(iso);
+    if (!Number.isNaN(start) && start > nowMs && !isDateOnlyStart(iso.trim())) return "upcoming";
+    return "on-now";
+  }
+  const start = Date.parse(iso);
+  if (Number.isNaN(start) || start > nowMs) return "upcoming";
+  return "on-now";
+}'''
+          if old_timing not in t:
+              print("eventTiming block not found exact")
+          else:
+              t = t.replace(old_timing, new_timing)
+              print("eventTiming patched")
+          old_tab = '''export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
+  if (tab.key === "all") return true;
+  if (!e.start_time) return false; // date-TBA only shows under "All"
+  const t = Date.parse(e.start_time);
+  if (Number.isNaN(t)) return false;
+  if (t >= tab.startMs && t < tab.endMs) return true;'''
+          new_tab = '''export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
+  if (tab.key === "all") return true;
+  if (!e.start_time) return false;
+  const day = startDate(e.start_time);
+  if (!day) return false;
+  const tabDay = marketDayString(tab.startMs);
+  if (day === tabDay) return true;
+  const t = Date.parse(e.start_time);
+  if (Number.isNaN(t)) return false;
+  if (t >= tab.startMs && t < tab.endMs) return true;'''
+          if old_tab not in t:
+              print("inDayTab head not found exact")
+          else:
+              t = t.replace(old_tab, new_tab, 1)
+              print("inDayTab patched")
+          p.write_text(t)
+          PY
+      - name: Commit branch
+        run: |
+          git config user.name "schubertsean-ui"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git checkout -B fix/union-today-when
+          git add web/lib/feed.ts
+          git diff --cached --quiet && echo nochg && exit 0
+          git commit -m "FL-001 FL-003: missing end stays the locale day. Date-only is that day."
+          git push -u origin fix/union-today-when --force
