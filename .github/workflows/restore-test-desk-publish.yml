@@ -1,0 +1,36 @@
+name: restore-test-desk-publish
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/one-id-music-chip
+          fetch-depth: 0
+      - name: Restore 80-test file from master and fix one assert
+        run: |
+          git fetch origin master
+          git checkout origin/master -- tests/test_desk_publish.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("tests/test_desk_publish.py")
+          t = p.read_text(encoding="utf-8")
+          old = "2026-09-12~bright room~night music"
+          new = "title:night music~2026-09-12"
+          if old not in t:
+              raise SystemExit("old assert missing size=%s" % len(t.encode()))
+          p.write_text(t.replace(old, new, 1), encoding="utf-8")
+          raw = p.read_bytes()
+          print("bytes", len(raw), "tests", raw.decode().count("def test_"))
+          if len(raw) < 60000:
+              raise SystemExit("file too small")
+          PY
+          git config user.name "1Live restore"
+          git config user.email "256894134+schubertsean-ui@users.noreply.github.com"
+          git add tests/test_desk_publish.py
+          git commit -m "Restore 80-test test_desk_publish.py; identity_key assert."
+          git push origin HEAD:fix/one-id-music-chip
